@@ -46,6 +46,41 @@ TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
+/* MB-74678 - Test to confirm a dcp stream backfill from an ephemeral bucket
+ * checks the replicated purge seqno and sets the stream to dead with rollback
+ * if startSeqno <= purgeSeqno.
+ */
+TEST_P(EphemeralStreamTest, EphemeralBackfillChecksReplicatedPurgeSeqno) {
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
+
+    store_item(vbid, "key1", "val1");
+    store_item(vbid, "key2", "val2");
+    store_item(vbid, "key3", "val3");
+    store_item(vbid, "key4", "val4");
+    store_item(vbid, "key5", "val5");
+    store_item(vbid, "key6", "val6");
+
+    auto evb = std::shared_ptr<EphemeralVBucket>(
+            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+    evb->applyReplicatedPurgeSeqno(5);
+    EXPECT_EQ(5, evb->getPurgeSeqno());
+    EXPECT_EQ(5, evb->getSeqListPurgeSeqno());
+
+    // Requesting startSeqno <= purgeSeqno (e.g. 4) must fail with rollback
+    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 4, 10);
+    EXPECT_EQ(backfill_finished, dcpbfm.run());
+    EXPECT_TRUE(stream->isDead());
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::StreamEnd, resp->getEvent());
+    // StreamEndResponse sends the Rollback status as StateChanged
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::StateChanged,
+              static_cast<StreamEndResponse&>(*resp).getFlags());
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
+}
+
 /* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
  a snaphsot */
 TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
@@ -331,6 +366,114 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_EQ(0, readyQ.size());
 }
 
+/**
+ * MB-74678: A replica applies the purge seqno of a Disk snapshot up to the
+ * last item received, which may be a Prepare above the MVS. A backfill for a
+ * stream which only receives up to the MVS must not send (or fail on) a purge
+ * seqno above the end of its snapshot.
+ */
+TEST_P(STActiveStreamEphemeralTest, MB_74678_PurgeSeqnoAboveMVS) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    stream.reset();
+    producer.reset();
+
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    store_item(vbid,
+               makeStoredDocKey("key3"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements());
+    ASSERT_EQ(3, vb.getHighSeqno());
+    ASSERT_EQ(2, vb.getMaxVisibleSeqno());
+
+    // As a replica does after receiving the Prepare:3 of a Disk snapshot
+    // with a purge seqno >= 3
+    vb.applyReplicatedPurgeSeqno(3);
+    ASSERT_EQ(3, vb.getPurgeSeqno());
+
+    // Ensure the stream backfills
+    vb.checkpointManager->createNewCheckpoint();
+
+    auto backfillAndGetMarker = [this]() {
+        EXPECT_TRUE(stream->isBackfilling());
+        EXPECT_EQ(backfill_success, producer->getBFM().backfill());
+        auto resp = stream->next(*producer);
+        EXPECT_TRUE(resp);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+        return dynamic_cast<SnapshotMarker&>(*resp);
+    };
+
+    // A stream without sync writes or collections only receives up to the
+    // MVS, so the purge seqno must be capped there
+    recreateProducer(vb, {} /*flags*/, {{"max_marker_version", "2.2"}});
+    producer->setSyncReplication(SyncReplication::No);
+    recreateStream(vb, true /*enforceProducerFlags*/);
+    ASSERT_FALSE(stream->public_supportSyncReplication());
+    auto marker = backfillAndGetMarker();
+    EXPECT_EQ(2, marker.getEndSeqno());
+    EXPECT_EQ(2, marker.getPurgeSeqno());
+
+    // The vbucket keeps its purge seqno for its own rollback checks
+    EXPECT_EQ(3, vb.getPurgeSeqno());
+
+    // A sync write stream receives the Prepare, so gets the full purge seqno
+    recreateProducerAndStream(
+            vb, {} /*flags*/, {}, {{"max_marker_version", "2.2"}});
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+    marker = backfillAndGetMarker();
+    EXPECT_EQ(3, marker.getEndSeqno());
+    EXPECT_EQ(3, marker.getPurgeSeqno());
+}
+
+/**
+ * MB-74678: A replica may move the purge seqno forward (as it receives more
+ * items of a Disk snapshot) while a backfill is running. The backfill must
+ * use the purge seqno read with its range, not one above the range end.
+ */
+TEST_P(STActiveStreamEphemeralTest, MB_74678_PurgeSeqnoMovedDuringBackfill) {
+    stream.reset();
+    producer.reset();
+
+    auto evb = std::dynamic_pointer_cast<EphemeralVBucket>(
+            store->getVBucket(vbid));
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    evb->applyReplicatedPurgeSeqno(1);
+    evb->checkpointManager->createNewCheckpoint();
+
+    recreateProducerAndStream(
+            *evb, {} /*flags*/, {}, {{"max_marker_version", "2.2"}});
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Drive the backfill directly so the hook can be set
+    DCPBackfillMemoryBuffered backfill(evb, stream, 1, ~0ULL);
+    backfill.rangeIteratorCreatedHook = [this, &evb]() {
+        // Items arrive after the range [1, 2] was taken, and the purge seqno
+        // moves past its end
+        store_item(vbid, makeStoredDocKey("key3"), "value");
+        store_item(vbid, makeStoredDocKey("key4"), "value");
+        evb->applyReplicatedPurgeSeqno(4);
+    };
+    EXPECT_EQ(backfill_finished, backfill.run());
+    ASSERT_EQ(4, evb->getPurgeSeqno());
+    ASSERT_EQ(4, evb->getSeqListPurgeSeqno());
+
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(2, marker.getEndSeqno());
+    EXPECT_EQ(1, marker.getPurgeSeqno());
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          STActiveStreamEphemeralTest,
                          STParameterizedBucketTest::ephConfigValues(),
@@ -496,6 +639,199 @@ TEST_P(STPassiveStreamEphemeralTest, MB_44139_NormalDel) {
 
 TEST_P(STPassiveStreamEphemeralTest, MB_44139_SyncDel) {
     test_MB_44139(cb::durability::Requirements());
+}
+
+// MB-74678: Replicated purge seqno on ephemeral replica is applied
+// incrementally as snapshot mutations are processed, capping at the received
+// seqno.
+TEST_P(STPassiveStreamEphemeralTest, PurgeSeqnoReplicated) {
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          10,
+                          DcpSnapshotMarkerFlag::Disk,
+                          0 /*HCS*/,
+                          0 /*HPS*/,
+                          10 /*MVS*/,
+                          5 /*purge*/,
+                          cb::mcbp::DcpStreamId{});
+    stream->processMarker(marker);
+
+    // Partial snapshot received up to seqno 4: purge seqno capped at 4
+    mutation(1, makeStoredDocKey("keyA"), vbid, 4);
+    EXPECT_EQ(4, vb.getPurgeSeqno());
+    EXPECT_EQ(4, vb.getSeqListPurgeSeqno());
+
+    // Snapshot received up to seqno 10: purge seqno advances to the marker's 5
+    mutation(1, makeStoredDocKey("keyB"), vbid, 10);
+    EXPECT_EQ(5, vb.getPurgeSeqno());
+    EXPECT_EQ(5, vb.getSeqListPurgeSeqno());
+
+    // A following Memory snapshot carries no purge seqno and must not change
+    // it
+    SnapshotMarker memMarker(0 /*opaque*/,
+                             vbid,
+                             11 /*snapStart*/,
+                             15,
+                             DcpSnapshotMarkerFlag::Memory,
+                             0 /*HCS*/,
+                             0 /*HPS*/,
+                             15 /*MVS*/,
+                             std::nullopt,
+                             cb::mcbp::DcpStreamId{});
+    stream->processMarker(memMarker);
+    mutation(1, makeStoredDocKey("keyC"), vbid, 12);
+    EXPECT_EQ(5, vb.getPurgeSeqno());
+    EXPECT_EQ(5, vb.getSeqListPurgeSeqno());
+}
+
+// MB-74678: The replicated purge seqno is applied up to the last item
+// received, also when that item is a Prepare or an Abort.
+TEST_P(STPassiveStreamEphemeralTest, PurgeSeqnoReplicatedAbort) {
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    // The snapshot contains SyncWrites, so the marker HCS must be used (and
+    // not forced to 0) when it is applied to the PDM at the snapshot end.
+    stream->public_setSyncReplication(true);
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          10,
+                          DcpSnapshotMarkerFlag::Disk,
+                          3 /*HCS*/,
+                          3 /*HPS*/,
+                          10 /*MVS*/,
+                          8 /*purge*/,
+                          cb::mcbp::DcpStreamId{});
+    stream->processMarker(marker);
+
+    mutation(1, makeStoredDocKey("keyA"), vbid, 1);
+    EXPECT_EQ(1, vb.getPurgeSeqno());
+    EXPECT_EQ(1, vb.getSeqListPurgeSeqno());
+
+    const auto keyB = makeStoredDocKey("keyB");
+    const std::string value("value");
+    cb::const_byte_buffer valueBuf{
+            reinterpret_cast<const uint8_t*>(value.data()), value.size()};
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->prepare(1 /*opaque*/,
+                                keyB,
+                                valueBuf,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                0 /*cas*/,
+                                vbid,
+                                0 /*flags*/,
+                                3 /*bySeqno*/,
+                                0 /*revSeqno*/,
+                                0 /*exp*/,
+                                0 /*lockTime*/,
+                                0 /*nru*/,
+                                DocumentState::Alive,
+                                cb::durability::Level::Majority));
+    EXPECT_EQ(3, vb.getPurgeSeqno());
+    EXPECT_EQ(3, vb.getSeqListPurgeSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->abort(1 /*opaque*/,
+                              vbid,
+                              keyB,
+                              3 /*prepareSeqno*/,
+                              5 /*abortSeqno*/));
+    EXPECT_EQ(5, vb.getHighSeqno());
+    EXPECT_EQ(5, vb.getPurgeSeqno());
+    EXPECT_EQ(5, vb.getSeqListPurgeSeqno());
+
+    mutation(1, makeStoredDocKey("keyC"), vbid, 10);
+    EXPECT_EQ(8, vb.getPurgeSeqno());
+    EXPECT_EQ(8, vb.getSeqListPurgeSeqno());
+}
+
+// MB-74678: The replicated purge seqno is only applied when it is inside the
+// snapshot range, it never moves backwards when the replica purges locally,
+// and a purge seqno beyond the snapshot end is rejected.
+TEST_P(STPassiveStreamEphemeralTest, PurgeSeqnoReplicatedOrdering) {
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+
+    // Initial disk snapshot
+    SnapshotMarker marker1(0 /*opaque*/,
+                           vbid,
+                           1 /*snapStart*/,
+                           10,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           0 /*HPS*/,
+                           10 /*MVS*/,
+                           0 /*purge*/,
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(marker1);
+    deletion(1, makeStoredDocKey("key1"), vbid, 2);
+    deletion(1, makeStoredDocKey("key2"), vbid, 9);
+    deletion(1, makeStoredDocKey("key3"), vbid, 10);
+
+    EXPECT_EQ(0, vb.getPurgeSeqno());
+    EXPECT_EQ(0, vb.getSeqListPurgeSeqno());
+
+    // Replica runs local tombstone purge: seqno 2 and 9 are purged, but not 10
+    // (high seqno cannot be purged)
+    purgeTombstonesBefore(10);
+    EXPECT_EQ(9, vb.getPurgeSeqno());
+    EXPECT_EQ(9, vb.getSeqListPurgeSeqno());
+
+    // Case 1: A Disk snapshot with a purge seqno below the snapshot range
+    // covers seqnos the replica already has. It must be ignored, even though
+    // it is above the replica's own purge seqno (10 > 9).
+    SnapshotMarker marker2(0 /*opaque*/,
+                           vbid,
+                           11 /*snapStart*/,
+                           13,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           0 /*HPS*/,
+                           13 /*MVS*/,
+                           10 /*purge*/,
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(marker2);
+    mutation(1, makeStoredDocKey("key4"), vbid, 13);
+    EXPECT_EQ(9, vb.getPurgeSeqno());
+    EXPECT_EQ(9, vb.getSeqListPurgeSeqno());
+
+    // Case 2: A Disk snapshot with a purge seqno inside the snapshot range is
+    // applied.
+    SnapshotMarker marker3(0 /*opaque*/,
+                           vbid,
+                           14 /*snapStart*/,
+                           20,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           0 /*HPS*/,
+                           20 /*MVS*/,
+                           14 /*purge*/,
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(marker3);
+    mutation(1, makeStoredDocKey("key5"), vbid, 20);
+    EXPECT_EQ(14, vb.getPurgeSeqno());
+    EXPECT_EQ(14, vb.getSeqListPurgeSeqno());
+
+    // Case 3: Local tombstone purging (of seqno 10) after the replicated
+    // purge seqno has been applied leaves the purge seqno at 14.
+    purgeTombstonesBefore(10);
+    EXPECT_EQ(14, vb.getPurgeSeqno());
+    EXPECT_EQ(14, vb.getSeqListPurgeSeqno());
+
+    // Case 4: A purge seqno beyond the snapshot end is invalid
+    SnapshotMarker marker4(0 /*opaque*/,
+                           vbid,
+                           21 /*snapStart*/,
+                           25,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           0 /*HPS*/,
+                           25 /*MVS*/,
+                           26 /*purge*/,
+                           cb::mcbp::DcpStreamId{});
+    EXPECT_THROW(stream->processMarker(marker4), std::logic_error);
+    EXPECT_EQ(14, vb.getPurgeSeqno());
+    EXPECT_EQ(14, vb.getSeqListPurgeSeqno());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

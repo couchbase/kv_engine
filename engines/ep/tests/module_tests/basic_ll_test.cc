@@ -451,6 +451,23 @@ TEST_F(BasicLinkedListTest, RangeIteratorSingleItem) {
     EXPECT_EQ(expectedSeqno, actualSeqno);
 }
 
+/* MB-74678: A replica may move the highest purged seqno forward while a range
+   iterator exists. The iterator must keep the value read with its range, so
+   it is never above the end of the range. */
+TEST_F(BasicLinkedListTest, RangeIteratorHighestPurgedDeletedSeqno) {
+    addNewItemsToList(1, std::string("key"), 3);
+    basicLL->maybeUpdateHighestPurgedDeletedSeqno(2);
+
+    auto itr = getRangeIterator();
+    EXPECT_EQ(3, itr.back());
+    EXPECT_EQ(2, itr.getHighestPurgedDeletedSeqno());
+
+    addNewItemsToList(4, std::string("key"), 2);
+    basicLL->maybeUpdateHighestPurgedDeletedSeqno(5);
+    EXPECT_EQ(5, basicLL->getHighestPurgedDeletedSeqno());
+    EXPECT_EQ(2, itr.getHighestPurgedDeletedSeqno());
+}
+
 TEST_F(BasicLinkedListTest, RangeIteratorOverflow) {
     const int numItems = 1;
     bool caughtOutofRangeExcp = false;
