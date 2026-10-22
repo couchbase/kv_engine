@@ -16,6 +16,7 @@
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
 #include <folly/io/IOBuf.h>
+#include <deque>
 #include <memory>
 
 /**
@@ -471,9 +472,20 @@ protected:
     std::string vbucket_vattr;
     std::string xtoc_vattr;
 
-    std::vector<std::string> expandedVirtualMacrosBackingStore;
+    /**
+     * Backing store for expanded virtual macros. Views into the elements
+     * are handed out, so the container must not relocate existing elements
+     * when appending (std::vector would move them, and for strings using
+     * the small string optimization that invalidates the views).
+     */
+    std::deque<std::string> expandedVirtualMacrosBackingStore;
 
-    std::vector<std::string> binaryEncodedStorage;
+    /**
+     * Backing store for base64 encoded / decoded binary values. Views into
+     * the elements are kept in the result of each spec until the response
+     * is generated, so the elements must have stable addresses.
+     */
+    std::deque<std::string> binaryEncodedStorage;
 
     Subdoc::Operation& get_subdoc_operation_object();
 
