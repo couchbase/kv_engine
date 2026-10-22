@@ -180,14 +180,18 @@ constexpr uint64_t snapshotMarkerMaxMutations = 3;
 
 inline auto snapshotMarker() {
     auto range = fuzztest::InRange<uint64_t>(1, snapshotMarkerMaxMutations);
+    // An offset of the snapshot size is out of range, so omitted.
+    // TODO: Generate a Disk marker HPS outside the snapshot range, including 0,
+    // as older actives sent (MB-66577, MB-66831).
+    auto offset = fuzztest::InRange<uint64_t>(0, snapshotMarkerMaxMutations);
     return fuzztest::Map(createSnapshotMarkerFromOffset,
                          range,
                          range,
                          snapshotMarkerFlag(),
-                         range,
-                         range,
-                         range,
-                         range);
+                         offset,
+                         offset,
+                         offset,
+                         offset);
 }
 
 inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {

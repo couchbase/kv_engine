@@ -149,7 +149,9 @@ SnapshotMarker createSnapshotMarkerFromOffset(uint64_t baseSeqno,
     auto mvsToSend = makeOptional(maxVisible);
     auto hcsToSend = makeOptional(highCompleted);
     auto hpsToSend = makeOptional(highPrepared);
-    auto psToSend = makeOptional(purge);
+    // The item at the end seqno is never purged.
+    auto psToSend =
+            purge + 1 < mutations ? std::make_optional(purge) : std::nullopt;
 
     // A disk checkpoint requires HCS.
     if (isFlagSet(flags, DcpSnapshotMarkerFlag::Disk) && !hcsToSend) {
@@ -158,7 +160,7 @@ SnapshotMarker createSnapshotMarkerFromOffset(uint64_t baseSeqno,
 
     // Ensure we send MVS when HCS is sent.
     if (hcsToSend && !mvsToSend) {
-        mvsToSend = mutations;
+        mvsToSend = mutations - 1;
     }
 
     return rebaseSnapshotMarker({0,
@@ -181,9 +183,9 @@ SnapshotMarker rebaseSnapshotMarker(SnapshotMarker marker, uint64_t s) {
             rebase(marker.getStartSeqno()),
             rebase(marker.getEndSeqno()),
             marker.getFlags(),
-            marker.getMaxVisibleSeqno().transform(rebase),
             marker.getHighCompletedSeqno().transform(rebase),
             marker.getHighPreparedSeqno().transform(rebase),
+            marker.getMaxVisibleSeqno().transform(rebase),
             marker.getPurgeSeqno().transform(rebase),
             marker.getStreamId()};
 }
