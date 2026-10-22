@@ -64,6 +64,13 @@ std::string format_as(const CheckpointAction& action);
 std::string formatActions(const std::vector<CheckpointAction>& actions);
 
 /**
+ * Formats a list of checkpoint actions, in which std::nullopt is a seqno
+ * without an action.
+ */
+std::string formatActions(
+        const std::vector<std::optional<CheckpointAction>>& actions);
+
+/**
  * The Prepares which have not been committed or aborted yet, used to only
  * generate the sequences of SyncWrites an active could have generated.
  */
@@ -88,6 +95,16 @@ public:
      */
     uint64_t complete(const StoredDocKey& key);
 
+    /**
+     * Whether the key has a Prepare in flight.
+     */
+    bool isInFlight(const StoredDocKey& key) const;
+
+    /**
+     * The seqno of the oldest Prepare in flight, if any.
+     */
+    std::optional<uint64_t> getOldestSeqno() const;
+
 private:
     /// The seqno of each Prepare in flight, by key.
     std::unordered_map<StoredDocKey, uint64_t> prepares;
@@ -105,10 +122,14 @@ CollectionsManifest createManifest();
 queued_item createItem(DocKeyView key, CheckpointActionType type);
 
 /**
- * Creates a MutationResponse from a CheckpointAction.
+ * Creates the DCP message a consumer receives for a CheckpointAction.
+ *
+ * @param action The action, other than CreateCheckpoint.
+ * @param seqno The seqno of the message.
+ * @param prepareSeqno The seqno of the Prepare a Commit or an Abort completes.
  */
-MutationResponse createMutationResponse(StoredDocKey key,
-                                        CheckpointActionType type);
+std::unique_ptr<DcpResponse> createMessageForConsumer(
+        const CheckpointAction& action, uint64_t seqno, uint64_t prepareSeqno);
 
 /**
  * Creates a json filter for an ActiveStream.
@@ -245,14 +266,14 @@ inline auto snapshotMarker() {
                          offset);
 }
 
-inline auto mutationConsumerMessage(bool defaultCollectionOnly = false) {
-    return fuzztest::Map(
-            createMutationResponse,
+/** Domain for generating the CheckpointActions a consumer receives */
+inline auto consumerAction(bool defaultCollectionOnly = false) {
+    return fuzztest::StructOf<CheckpointAction>(
             docKey(defaultCollectionOnly),
-            checkpointActionType(CreateCheckpoints::No, SyncWrites::No));
+            checkpointActionType(CreateCheckpoints::No, SyncWrites::Yes),
+            fuzztest::Just(uint64_t{0}));
 }
 
 } // namespace cb::fuzzing
 
 std::string format_as(const SnapshotMarker& marker);
-std::string format_as(const MutationResponse& mutation);

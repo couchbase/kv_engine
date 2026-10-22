@@ -12,6 +12,7 @@
 
 #include "checkpoint_manager.h"
 #include <algorithm>
+#include <ranges>
 #include <utility>
 
 namespace cb::fuzzing {
@@ -47,6 +48,20 @@ std::string formatActions(const std::vector<CheckpointAction>& actions) {
     result += fmt::format("CheckpointAction{{size={}}}\n", actions.size());
     for (const auto& action : actions) {
         result += fmt::format("  {}\n", action);
+    }
+    return result;
+}
+
+std::string formatActions(
+        const std::vector<std::optional<CheckpointAction>>& actions) {
+    std::string result;
+    result += fmt::format("CheckpointAction{{size={}}}\n", actions.size());
+    for (const auto& action : actions) {
+        if (action) {
+            result += fmt::format("  {}\n", *action);
+        } else {
+            result += "  none\n";
+        }
     }
     return result;
 }
@@ -96,15 +111,31 @@ queued_item createItem(DocKeyView key, CheckpointActionType type) {
     return queued_item(item.release());
 }
 
-MutationResponse createMutationResponse(StoredDocKey key,
-                                        CheckpointActionType type) {
-    auto item = createItem(key, type);
-    return {item,
-            0 /*opaque*/,
-            IncludeDeleteTime::No,
-            DocKeyEncodesCollectionId::Yes,
-            EnableExpiryOutput::No,
-            cb::mcbp::DcpStreamId(0) /*sid*/};
+std::unique_ptr<DcpResponse> createMessageForConsumer(
+        const CheckpointAction& action, uint64_t seqno, uint64_t prepareSeqno) {
+    switch (action.type) {
+    case CheckpointActionType::Mutation:
+    case CheckpointActionType::Prepare: {
+        auto item = createItem(action.key, action.type);
+        item->setBySeqno(seqno);
+        return std::make_unique<MutationResponse>(
+                item,
+                0 /*opaque*/,
+                IncludeDeleteTime::No,
+                DocKeyEncodesCollectionId::Yes,
+                EnableExpiryOutput::No,
+                cb::mcbp::DcpStreamId(0) /*sid*/);
+    }
+    case CheckpointActionType::Commit:
+        return std::make_unique<CommitSyncWriteConsumer>(
+                0 /*opaque*/, Vbid(0), prepareSeqno, seqno, action.key);
+    case CheckpointActionType::Abort:
+        return std::make_unique<AbortSyncWriteConsumer>(
+                0 /*opaque*/, Vbid(0), action.key, prepareSeqno, seqno);
+    case CheckpointActionType::CreateCheckpoint:
+        break;
+    }
+    throw std::runtime_error("not supported");
 }
 
 std::string createJsonFilter(std::optional<CollectionID> collectionFilter) {
@@ -142,6 +173,17 @@ uint64_t InFlightPrepares::complete(const StoredDocKey& key) {
     auto prepare = prepares.extract(key);
     Expects(prepare);
     return prepare.mapped();
+}
+
+bool InFlightPrepares::isInFlight(const StoredDocKey& key) const {
+    return prepares.contains(key);
+}
+
+std::optional<uint64_t> InFlightPrepares::getOldestSeqno() const {
+    if (prepares.empty()) {
+        return std::nullopt;
+    }
+    return std::ranges::min(prepares | std::views::values);
 }
 
 std::shared_ptr<CheckpointCursor> processCheckpointActions(
@@ -318,14 +360,4 @@ std::string format_as(const SnapshotMarker& marker) {
                     {"max_visible_seqno", marker.getMaxVisibleSeqno()},
                     {"purge_seqno", marker.getPurgeSeqno()},
             });
-}
-
-std::string format_as(const MutationResponse& mutation) {
-    // Seqno is not printed as it is set by the test.
-    return formatStruct("MutationResponse",
-                        {
-                                {"key", mutation.getItem()->getKey()},
-                                {"operation",
-                                 to_string(mutation.getItem()->getOperation())},
-                        });
 }
