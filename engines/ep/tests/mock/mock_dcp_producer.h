@@ -35,6 +35,8 @@ public:
                     cb::mcbp::DcpOpenFlag flags,
                     bool startTask = true);
 
+    using DcpProducer::getPausedDetails;
+    using DcpProducer::getThrottledDetails;
     using DcpProducer::updateStreamsMap;
 
     cb::engine_errc maybeDisconnect() {
