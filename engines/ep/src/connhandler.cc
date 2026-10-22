@@ -370,6 +370,20 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
             addStat(key, cb::time2text(duration), add_stat, c);
         }
     }
+
+    const auto throttleInfo = getThrottledDetails();
+    auto throttledDuration = throttleInfo.duration;
+    if (throttleInfo.throttled) {
+        throttledDuration +=
+                cb::time::steady_clock::now() - throttleInfo.lastThrottled;
+    }
+    addStat("throttled", throttleInfo.throttled, add_stat, c);
+    addStat("throttled_count", throttleInfo.count, add_stat, c);
+    addStat("throttled_duration",
+            cb::time2text(throttledDuration),
+            add_stat,
+            c);
+
     const auto priority = cookie.load()->getConnectionIface().getPriority();
     addStat("priority", format_as(priority), add_stat, c);
     addStat(DcpControlKeys::FlatBuffersSystemEvents,
@@ -415,6 +429,23 @@ void ConnHandler::unPause() {
             ++details.unpausedCounter;
         }
     });
+}
+
+void ConnHandler::setThrottled(bool value) {
+    if (currentlyThrottled == value) {
+        return;
+    }
+    const auto now = cb::time::steady_clock::now();
+    throttledDetails.withLock([value, now](auto& details) {
+        details.throttled = value;
+        if (value) {
+            ++details.count;
+            details.lastThrottled = now;
+        } else {
+            details.duration += now - details.lastThrottled;
+        }
+    });
+    currentlyThrottled = value;
 }
 
 nlohmann::json ConnHandler::getPausedDetailsDescription() const {

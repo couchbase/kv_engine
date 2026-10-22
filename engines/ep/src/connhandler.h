@@ -393,6 +393,15 @@ public:
      */
     nlohmann::json getPausedDetailsDescription() const;
 
+    /**
+     * Record if connection is throttled when it was stepped.
+     * Tracked separately from the paused state as a throttled connection is
+     * not paused.
+     *
+     * @param value true if the step was throttled
+     */
+    void setThrottled(bool value);
+
     const std::string& getAuthenticatedUser() const {
         return authenticatedUser;
     }
@@ -519,6 +528,25 @@ protected:
         return pausedDetails.copy();
     }
 
+    /**
+     * Details of how often and for how long the bucket throttled the
+     * connection, for diagnostic purposes.
+     */
+    struct ThrottledDetails {
+        /// Is the connection currently throttled?
+        bool throttled{false};
+        /// When the connection was last throttled.
+        cb::time::steady_clock::time_point lastThrottled{};
+        /// Number of times the connection has been throttled.
+        size_t count{0};
+        /// Total time throttled (excluding the current throttle).
+        std::chrono::nanoseconds duration{};
+    };
+
+    [[nodiscard]] auto getThrottledDetails() const {
+        return throttledDetails.copy();
+    }
+
 private:
     //! The name for this connection
     std::string name;
@@ -536,6 +564,12 @@ private:
     std::atomic<bool> paused;
 
     folly::Synchronized<PausedDetails, std::mutex> pausedDetails;
+
+    /// Is the connection currently throttled? Allows step to skip the lock
+    /// Should only be accessed from front-end thread context
+    bool currentlyThrottled{false};
+
+    folly::Synchronized<ThrottledDetails, std::mutex> throttledDetails;
 
     /// The authenticated user the connection
     const std::string authenticatedUser;
