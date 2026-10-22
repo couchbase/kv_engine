@@ -30,6 +30,7 @@
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/range_scan_optional_configuration.h>
 #include <platform/atomic.h>
 #include <variant>
@@ -430,9 +431,18 @@ size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
 
     // Update stats and return.
     seqListPurgeCount += seqListPurged;
-    setPurgeSeqno(seqList->getHighestPurgedDeletedSeqno());
+    // A replicated purge seqno may have moved it further, never move back
+    maybeSetPurgeSeqno(seqList->getHighestPurgedDeletedSeqno());
 
     return seqListPurged;
+}
+
+void EphemeralVBucket::applyReplicatedPurgeSeqno(uint64_t seqno) {
+    // Backfills check the SeqList's purge seqno, and stream requests the
+    // vbucket's, so both must reflect the tombstones the active purged.
+    seqList->maybeUpdateHighestPurgedDeletedSeqno(
+            gsl::narrow_cast<seqno_t>(seqno));
+    maybeSetPurgeSeqno(seqno);
 }
 
 std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>

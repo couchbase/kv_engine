@@ -32,6 +32,7 @@
 #include "dcp/response.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
+#include "ephemeral_vb.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -2386,6 +2387,101 @@ TEST_P(DCPLoopbackStreamTest, MB_74563_PromotedReplicaSendsPrepareSeqnoAsHps) {
     auto replicaVB = engines[Node2]->getVBucket(vbid);
     EXPECT_EQ(1, replicaVB->acquireStateLockAndGetHighPreparedSeqno());
     EXPECT_EQ(1, replicaVB->getPersistedHighPreparedSeqno());
+}
+
+// MB-74678: An ephemeral replica which backfilled a Disk snapshot never
+// received the tombstones the active had purged, so it must apply the purge
+// seqno carried by the marker. Otherwise, once promoted, it lets a client
+// resume from below that purge seqno without a rollback, and the client
+// misses the deletions.
+TEST_P(DCPLoopbackStreamTest, EphemeralReplicaAppliesReplicatedPurgeSeqno) {
+    if (!ephemeral()) {
+        GTEST_SKIP() << "Persistent replicas apply it when flushing";
+    }
+    engine->getConfiguration().setEphemeralMetadataPurgeAge(0);
+    createNode(Node2, vbucket_state_replica);
+
+    auto k1 = makeStoredDocKey("k1");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k1));
+    auto k2 = makeStoredDocKey("k2");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k2));
+
+    // Node2 stands in for any DCP client, which sees k1 alive at seqno 2.
+    {
+        auto route0_2 = createDcpRoute(Node0,
+                                       Node2,
+                                       EnableExpiryOutput::Yes,
+                                       SyncReplication::SyncReplication,
+                                       MarkerVersion::V2_2);
+        ASSERT_EQ(cb::engine_errc::success, route0_2.doStreamRequest().first);
+        route0_2.transferSnapshotMarker(
+                0,
+                2,
+                DcpSnapshotMarkerFlag::Memory |
+                        DcpSnapshotMarkerFlag::Checkpoint);
+        route0_2.transferMutation(k1, 1);
+        route0_2.transferMutation(k2, 2);
+    }
+
+    // Delete k1 at seqno 3 and purge its tombstone. k3 at seqno 4 keeps the
+    // tombstone below the high seqno, which the purger requires.
+    ASSERT_EQ(cb::engine_errc::success, del(k1));
+    auto k3 = makeStoredDocKey("k3");
+    ASSERT_EQ(cb::engine_errc::success, storeSet(k3));
+    runReadyTasks(TaskType::NonIO);
+    runEphemeralHTCleaner();
+    auto activeVB = engines[Node0]->getVBucket(vbid);
+    ASSERT_EQ(3, activeVB->getPurgeSeqno());
+
+    // Node1 backfills, so it never receives the deletion of k1.
+    activeVB->checkpointManager->clear();
+    auto replicaVB = engines[Node1]->getVBucket(vbid);
+    {
+        auto route0_1 = createDcpRoute(Node0,
+                                       Node1,
+                                       EnableExpiryOutput::Yes,
+                                       SyncReplication::SyncReplication,
+                                       MarkerVersion::V2_2);
+        ASSERT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+        auto [producerStream, passiveStream] = route0_1.getStreams();
+        auto msg = route0_1.getNextProducerMsg(*producerStream);
+        ASSERT_TRUE(msg);
+        ASSERT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent()) << *msg;
+        const auto& marker = static_cast<SnapshotMarker&>(*msg);
+        EXPECT_EQ(4, marker.getEndSeqno());
+        EXPECT_TRUE(isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk));
+        EXPECT_EQ(3, marker.getPurgeSeqno());
+        EXPECT_EQ(cb::engine_errc::success,
+                  passiveStream->messageReceived(*msg));
+        route0_1.transferMutation(k2, 2);
+        // A partially received snapshot must not move the purge seqno past
+        // what the replica has received.
+        EXPECT_EQ(2, replicaVB->getPurgeSeqno());
+        auto* replicaEVB = dynamic_cast<EphemeralVBucket*>(replicaVB.get());
+        ASSERT_NE(nullptr, replicaEVB);
+        EXPECT_EQ(2, replicaEVB->getSeqListPurgeSeqno());
+        route0_1.transferMutation(k3, 4);
+    }
+
+    ASSERT_EQ(4, replicaVB->getHighSeqno());
+    EXPECT_EQ(3, replicaVB->getPurgeSeqno());
+    auto* replicaEVB = dynamic_cast<EphemeralVBucket*>(replicaVB.get());
+    ASSERT_NE(nullptr, replicaEVB);
+    EXPECT_EQ(3, replicaEVB->getSeqListPurgeSeqno());
+
+    // Failover to Node1. Node2 resumes from seqno 2, below the purge seqno,
+    // so it must be rolled back to see that k1 was deleted.
+    ASSERT_EQ(cb::engine_errc::success,
+              engines[Node1]->getKVBucket()->setVBucketState(
+                      vbid, vbucket_state_active));
+    auto route1_2 = createDcpRoute(Node1,
+                                   Node2,
+                                   EnableExpiryOutput::Yes,
+                                   SyncReplication::SyncReplication,
+                                   MarkerVersion::V2_2);
+    const auto [status, rollbackSeqno] = route1_2.doStreamRequest();
+    EXPECT_EQ(cb::engine_errc::rollback, status);
+    EXPECT_EQ(0, rollbackSeqno);
 }
 
 // MB-67710

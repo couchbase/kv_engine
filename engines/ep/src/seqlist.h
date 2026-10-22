@@ -412,6 +412,14 @@ public:
      */
     virtual seqno_t getHighestPurgedDeletedSeqno() const = 0;
 
+    /**
+     * Move the highest purged Deleted sequence number forward to the given
+     * seqno, if it is greater than the current value. Used by replicas to
+     * account for tombstones which were purged by the active before they
+     * could be replicated.
+     */
+    virtual void maybeUpdateHighestPurgedDeletedSeqno(seqno_t seqno) = 0;
+
     virtual uint64_t getMaxVisibleSeqno() const = 0;
     virtual uint64_t getHighCompletedSeqno() const = 0;
     virtual uint64_t getHighCompletedSeqno(

@@ -351,6 +351,10 @@ seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
     return highestPurgedDeletedSeqno;
 }
 
+void BasicLinkedList::maybeUpdateHighestPurgedDeletedSeqno(seqno_t seqno) {
+    highestPurgedDeletedSeqno.storeIfBigger(seqno);
+}
+
 uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
     std::lock_guard<std::mutex> lg(getListWriteLock());
     return maxVisibleSeqno;
@@ -439,11 +443,12 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
      * Only the purging of certain items contribute towards the moving of the
      * purge seqno. Those items are stale items that are deleted and have not
      * been replaced (i.e. those items that were marked stale by the
-     * HTTombstonePurger).
+     * HTTombstonePurger). A replica may also move it forward concurrently
+     * (see maybeUpdateHighestPurgedDeletedSeqno()), so let the atomic do the
+     * comparison.
      */
-    if (isStale && !isReplaced && purged->isDeleted() &&
-        purged->getBySeqno() > highestPurgedDeletedSeqno.load()) {
-        highestPurgedDeletedSeqno = purged->getBySeqno();
+    if (isStale && !isReplaced && purged->isDeleted()) {
+        highestPurgedDeletedSeqno.storeIfBigger(purged->getBySeqno());
     }
     return next;
 }
@@ -476,6 +481,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(
       maxVisibleSeqno(list.maxVisibleSeqno),
       highCompletedSeqno(list.highCompletedSeqno),
       highPreparedSeqno(list.highPreparedSeqno),
+      highestPurgedDeletedSeqno(list.highestPurgedDeletedSeqno),
       isBackfill(isBackfill) {
     if (list.highSeqno < 1) {
         /* No need of holding a lock for the snapshot as there are no items;

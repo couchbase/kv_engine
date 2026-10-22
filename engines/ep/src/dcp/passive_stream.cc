@@ -1004,6 +1004,7 @@ void PassiveStream::processMarker(const SnapshotMarker& marker) {
     }
 
     uint64_t purgeSeqno = 0;
+    cur_snapshot_purge_seqno = std::nullopt;
     if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         // A replica could receive a duplicate DCP prepare during a disk
         // snapshot if it had previously received an uncompleted prepare.
@@ -1034,6 +1035,12 @@ void PassiveStream::processMarker(const SnapshotMarker& marker) {
                     to_string_or_none(cur_snapshot_hcs),
                     purgeSeqno);
             throw std::logic_error(msg);
+        }
+
+        // A purge seqno below the snapshot covers seqnos the replica already
+        // has, so (as for the flusher) only one inside the range is applied.
+        if (purgeSeqno && purgeSeqno >= marker.getStartSeqno()) {
+            cur_snapshot_purge_seqno = purgeSeqno;
         }
     }
 
@@ -1126,6 +1133,18 @@ void PassiveStream::processSetVBucketState(const SetVBucketState& state) {
 }
 
 void PassiveStream::handleSnapshotEnd(VBucket& vb, uint64_t seqno) {
+    // All items of the Disk snapshot up to seqno have been received, so the
+    // replicated purge seqno can be applied up to there. Persistent buckets
+    // do the same when flushing. Once it is fully applied it is no longer
+    // needed for the rest of the snapshot.
+    if (cur_snapshot_purge_seqno) {
+        vb.applyReplicatedPurgeSeqno(
+                std::min(*cur_snapshot_purge_seqno, seqno));
+        if (seqno >= *cur_snapshot_purge_seqno) {
+            cur_snapshot_purge_seqno = std::nullopt;
+        }
+    }
+
     if (seqno != cur_snapshot_end.load()) {
         return;
     }

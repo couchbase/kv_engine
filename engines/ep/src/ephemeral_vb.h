@@ -208,6 +208,8 @@ public:
     size_t purgeStaleItems(
             std::function<bool()> shouldPauseCbk = []() { return false; });
 
+    void applyReplicatedPurgeSeqno(uint64_t seqno) override;
+
     void setupDeferredDeletion(CookieIface* cookie) override;
 
     /**
@@ -281,6 +283,10 @@ public:
 
     size_t getSeqListNumStaleItems() const {
         return seqList->getNumStaleItems();
+    }
+
+    seqno_t getSeqListPurgeSeqno() const {
+        return seqList->getHighestPurgedDeletedSeqno();
     }
 
     Configuration& getConfiguration() const {

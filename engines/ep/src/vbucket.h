@@ -292,6 +292,17 @@ public:
         purge_seqno.storeIfBigger(to);
     }
 
+    /**
+     * Apply a purge seqno replicated from the active in a Disk snapshot
+     * marker. The caller must have received every item of the snapshot up to
+     * and including the given seqno. Persistent buckets apply the replicated
+     * purge seqno when flushing, so by default this does nothing.
+     *
+     * @param seqno the purge seqno to apply (only ever moves forward)
+     */
+    virtual void applyReplicatedPurgeSeqno(uint64_t seqno) {
+    }
+
     void setPersistedSnapshot(const snapshot_range_t& range) {
         std::lock_guard<std::mutex> lh(snapshotMutex);
         persistedRange = range;
