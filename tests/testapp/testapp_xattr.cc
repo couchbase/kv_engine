@@ -3081,3 +3081,44 @@ TEST_P(XattrTest, ValueMustBeValidJsonForThePath) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ(R"([{"a":1,"b":2}, 2 , 3 ])", resp.getDataView());
 }
+
+/**
+ * Verify that a multi-lookup returning multiple (short) binary values
+ * returns the correct value for each path. The decoded values are kept in a
+ * backing store until the response is generated, and adding new values to
+ * the store must not invalidate the values for the previous specs (short
+ * strings use the small string optimization so their data moves if the
+ * string object gets relocated).
+ */
+TEST_P(XattrTest, MultiLookupMultipleShortBinaryValues) {
+    constexpr int numPaths = 16;
+    std::vector<std::string> values;
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        for (int ii = 0; ii < numPaths; ++ii) {
+            values.emplace_back(fmt::format("v{}", ii));
+            cmd.addMutation(ClientOpcode::SubdocDictUpsert,
+                            PathFlag::XattrPath | PathFlag::Mkdir_p |
+                                    PathFlag::BinaryValue,
+                            fmt::format("binary.v{}", ii),
+                            values.back());
+        }
+        ASSERT_EQ(Status::Success, userConnection->execute(cmd).getStatus());
+    }
+
+    std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs;
+    for (int ii = 0; ii < numPaths; ++ii) {
+        specs.push_back({ClientOpcode::SubdocGet,
+                         PathFlag::XattrPath | PathFlag::BinaryValue,
+                         fmt::format("binary.v{}", ii)});
+    }
+    auto resp = subdoc_multi_lookup(std::move(specs));
+    ASSERT_EQ(Status::Success, resp.getStatus());
+    const auto results = resp.getResults();
+    ASSERT_EQ(numPaths, results.size());
+    for (int ii = 0; ii < numPaths; ++ii) {
+        EXPECT_EQ(Status::Success, results[ii].status) << "Path: " << ii;
+        EXPECT_EQ(values[ii], results[ii].value) << "Path: " << ii;
+    }
+}

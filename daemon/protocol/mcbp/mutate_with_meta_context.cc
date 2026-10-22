@@ -190,7 +190,13 @@ cb::engine_errc MutateWithMetaCommandContext::validateOffsetRequirements(
     constexpr size_t pattern_size = 18;
     auto fill = cb::to_hex(std::numeric_limits<uint64_t>::max());
     for (auto cas_offset : cas_offsets) {
-        if (cas_offset + pattern_size > xattr_size) {
+        // Note: the bounds check must avoid unsigned overflow. cas_offset is
+        // attacker-controlled (read verbatim from the request JSON) so the
+        // naive "cas_offset + pattern_size > xattr_size" wraps around for
+        // offsets close to SIZE_MAX and would let the std::copy() below write
+        // out of bounds.
+        if (xattr_size < pattern_size ||
+            cas_offset > xattr_size - pattern_size) {
             cookie.setErrorContext(
                     fmt::format("CAS offset [{}, {}] is out of bounds of the "
                                 "xattr section [0, {}]",
@@ -204,7 +210,10 @@ cb::engine_errc MutateWithMetaCommandContext::validateOffsetRequirements(
                   xattr_blob.data() + cas_offset);
     }
     for (auto seqno_offset : seqno_offsets) {
-        if (seqno_offset + pattern_size > xattr_size) {
+        // See the note above: avoid unsigned overflow in the bounds check for
+        // the attacker-controlled offset.
+        if (xattr_size < pattern_size ||
+            seqno_offset > xattr_size - pattern_size) {
             cookie.setErrorContext(
                     fmt::format("Seqno offset [{}, {}] is out of bounds of the "
                                 "xattr section [0, {}]",
