@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_fuzz_test_fixture.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/response.h"
 #include "fuzz_test_helpers.h"
@@ -19,16 +20,15 @@
 #include <cblogger/logger.h>
 #include <folly/portability/GTest.h>
 #include <fuzztest/fuzztest.h>
-#include <fuzztest/googletest_fixture_adapter.h>
 
 /**
  * Fuzz test for the PassiveStream class.
- * It uses the PerFuzzTestFixtureAdapter which initialises the fixture once and
+ * It uses the BucketFuzzTestFixture which initialises the fixture once and
  * reuses it across all test iterations. This avoids the need to re-create the
  * engine instance, but requires manual cleanup (reset() method).
  */
 class PassiveStreamFuzzTest
-    : public fuzztest::PerFuzzTestFixtureAdapter<CollectionsDcpTest> {
+    : public cb::fuzzing::BucketFuzzTestFixture<CollectionsDcpTest> {
 public:
     using CheckpointAction = cb::fuzzing::CheckpointAction;
     using CheckpointActionType = cb::fuzzing::CheckpointActionType;
