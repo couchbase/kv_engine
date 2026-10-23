@@ -1571,7 +1571,8 @@ protected:
     // volumes. Every node may defer this much at once, so a cluster can hold
     // back numNodes times this. Keep that total under ns_server's
     // enable_sync_threshold_mb, or fusion never finishes enabling.
-    std::atomic<size_t> fusion_max_pending_upload_bytes{250_MiB};
+    // A value of 0 disables the SyncManager.
+    std::atomic<size_t> fusion_max_pending_upload_bytes{0};
 
     // The proportion of max_pending_upload_bytes beyond which syncs for volumes
     // with the highest pending bytes are only allowed.
