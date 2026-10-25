@@ -14,6 +14,7 @@
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Unistd.h>
 #include <platform/dirutils.h>
 #include <sys/stat.h>
 #include <algorithm>
