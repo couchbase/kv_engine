@@ -3324,10 +3324,11 @@ StoredDocKey EPBucketTestCouchstore::prepareForUseSnapshot(
     }
     flushVBucket(id);
 
-    nlohmann::json manifest;
+    NonBucketHolder<nlohmann::json> manifest;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, id, {}, [&manifest](auto& m) { manifest = m; }));
+              engine->prepare_snapshot(*cookie, id, {}, [&manifest](auto& m) {
+                  manifest.emplace_copy(m);
+              }));
 
     // Preserve the snapshot so it survives the deleteVBucket below (which now
     // removes the vbucket's snapshot). This synthesises a node that has

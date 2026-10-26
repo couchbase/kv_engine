@@ -52,6 +52,9 @@ MockCookie::~MockCookie() {
 }
 
 MockCookie* create_mock_cookie(EngineIface* engine) {
+    // A cookie belongs to the connection, not to a bucket: the engine releases
+    // it outside any bucket (EventuallyPersistentEngine::releaseCookie)
+    cb::NoArenaGuard guard;
     return new MockCookie(engine);
 }
 
@@ -68,9 +71,9 @@ void destroy_mock_cookie(CookieIface* cookie) {
 
     c->disconnect();
     if (c->decrementRefcount() == 0) {
-        // deleting the cookie will switch the domain to None, but the unit
-        // tests calling destroy_mock_cookie should be on Primary
-        cb::ArenaDomainGuard<cb::MemoryDomain::Primary> domainGuard;
+        // As allocated by create_mock_cookie. This also restores the caller's
+        // domain, which deleting the cookie switches to None.
+        cb::NoArenaGuard guard;
         delete c;
     }
 }

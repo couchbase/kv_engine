@@ -334,7 +334,7 @@ public:
      */
     void reinitialise(std::string config,
                       bool force = false,
-                      nlohmann::json encryptionKeys = nlohmann::json::object());
+                      nlohmann::json encryptionKeys = {});
 
     /**
      * Create a *_with_meta packet with the key/body
@@ -439,7 +439,7 @@ public:
      * tests that are warming up following enabling encryption.
      */
     void initialise(std::string_view baseConfig,
-                    nlohmann::json encryptionKeys = nlohmann::json::object());
+                    nlohmann::json encryptionKeys = {});
 
     /**
      * @return the stats for the given collections using
@@ -488,7 +488,8 @@ public:
     void setupEncryptionKeys();
 
     /**
-     * Get a predefined encryption key spec (as JSON spec).
+     * Get a predefined encryption key spec (as JSON spec), allocated outside
+     * any bucket. Free it outside any bucket too.
      */
     static nlohmann::json getEncryptionKeys();
 

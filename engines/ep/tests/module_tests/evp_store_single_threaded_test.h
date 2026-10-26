@@ -408,7 +408,7 @@ protected:
      */
     void resetEngine(std::string new_config = "",
                      bool unclean = false,
-                     nlohmann::json encryptionKeys = nlohmann::json::object());
+                     nlohmann::json encryptionKeys = {});
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
@@ -418,10 +418,9 @@ protected:
      * @param encryptionKeys Boot-strap encryption keys to use for the new
      * engine
      */
-    void resetEngineAndEnableWarmup(
-            std::string new_config = "",
-            bool unclean = false,
-            nlohmann::json encryptionKeys = nlohmann::json::object());
+    void resetEngineAndEnableWarmup(std::string new_config = "",
+                                    bool unclean = false,
+                                    nlohmann::json encryptionKeys = {});
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
@@ -432,10 +431,9 @@ protected:
      * @param encryptionKeys Boot-strap encryption keys to use for the new
      * engine
      */
-    void resetEngineAndWarmup(
-            std::string new_config = "",
-            bool unclean = false,
-            nlohmann::json encryptionKeys = nlohmann::json::object());
+    void resetEngineAndWarmup(std::string new_config = "",
+                              bool unclean = false,
+                              nlohmann::json encryptionKeys = {});
 
     /*
      * Fake callback emulating dcp_add_failover_log

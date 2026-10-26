@@ -72,30 +72,31 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_no_disk_state) {
 
 TEST_P(SnapshotEngineTest, prepare_snapshot) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json manifest;
+    NonBucketHolder<nlohmann::json> manifest;
     EXPECT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(*cookie, vbid, {}, [&manifest](auto& m) {
-                  manifest = m;
+                  manifest.emplace_copy(m);
               }));
-    EXPECT_TRUE(manifest.contains("uuid"));
+    EXPECT_TRUE(manifest.value().contains("uuid"));
 
     if (isCouchstore()) {
-        ASSERT_EQ(1, manifest["files"].size());
-        EXPECT_EQ(1, manifest["files"][0]["id"]);
-        EXPECT_EQ("0.couch.1", manifest["files"][0]["path"]);
+        ASSERT_EQ(1, manifest.value()["files"].size());
+        EXPECT_EQ(1, manifest.value()["files"][0]["id"]);
+        EXPECT_EQ("0.couch.1", manifest.value()["files"][0]["path"]);
     } else {
         // Let's not assume too much about magma, at least verify some fields
         // are set.
-        ASSERT_GT(manifest["files"].size(), 1);
-        EXPECT_FALSE(manifest["files"][0]["path"].empty());
+        ASSERT_GT(manifest.value()["files"].size(), 1);
+        EXPECT_FALSE(manifest.value()["files"][0]["path"].empty());
     }
-    EXPECT_GT(manifest["files"][0]["size"], 0);
+    EXPECT_GT(manifest.value()["files"][0]["size"], 0);
     if (isEncrypted()) {
-        ASSERT_EQ(1, manifest["deks"].size());
-        EXPECT_EQ("deks/MyActiveKey.key.1", manifest["deks"][0]["path"]);
-        EXPECT_EQ("44", manifest["deks"][0]["size"]);
+        ASSERT_EQ(1, manifest.value()["deks"].size());
+        EXPECT_EQ("deks/MyActiveKey.key.1",
+                  manifest.value()["deks"][0]["path"]);
+        EXPECT_EQ("44", manifest.value()["deks"][0]["size"]);
     } else {
-        EXPECT_TRUE(manifest["deks"].empty());
+        EXPECT_TRUE(manifest.value()["deks"].empty());
     }
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -147,10 +148,12 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_fails_if_directory_cant_be_synced) {
 // by prepare_snapshot above).
 TEST_P(SnapshotEngineTest, snapshot_status_tmpfail_until_warmup_validated) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json m;
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vbid, {}, [&m](auto& mm) { m = mm; }));
+    NonBucketHolder<nlohmann::json> manifest;
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            engine->prepare_snapshot(*cookie, vbid, {}, [&manifest](auto& mm) {
+                manifest.emplace_copy(mm);
+            }));
 
     // Restart with a warmup created but not yet run.
     if (isEncrypted()) {
@@ -178,11 +181,11 @@ TEST_P(SnapshotEngineTest, snapshot_status_tmpfail_until_warmup_validated) {
 
 TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json preWarmupManifest;
+    NonBucketHolder<nlohmann::json> preWarmupManifest;
     EXPECT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(
                       *cookie, vbid, {}, [&preWarmupManifest](auto& m) {
-                          preWarmupManifest = m;
+                          preWarmupManifest.emplace_copy(m);
                       }));
 
     warmup();
@@ -190,17 +193,17 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {
     // warmup() loads snapshots into the cache via processSnapshots.
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
     const auto& cache = mockEPBucket.public_getSnapshotCache();
-    EXPECT_TRUE(cache.lookup(preWarmupManifest["uuid"]))
+    EXPECT_TRUE(cache.lookup(preWarmupManifest.value()["uuid"]))
             << "No manifest found after warmup";
 
-    nlohmann::json postWarmupManifest;
+    NonBucketHolder<nlohmann::json> postWarmupManifest;
     EXPECT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(
                       *cookie, vbid, {}, [&postWarmupManifest](auto& m) {
-                          postWarmupManifest = m;
+                          postWarmupManifest.emplace_copy(m);
                       }));
 
-    EXPECT_EQ(preWarmupManifest, postWarmupManifest);
+    EXPECT_EQ(preWarmupManifest.value(), postWarmupManifest.value());
 }
 
 TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
@@ -213,19 +216,23 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
     setVBucketStateAndRunPersistTask(vb2, vbucket_state_active);
     setVBucketStateAndRunPersistTask(vb3, vbucket_state_active);
     setVBucketStateAndRunPersistTask(vb4, vbucket_state_active);
-    nlohmann::json m1, m2, m3, m4;
+    NonBucketHolder<nlohmann::json> m1, m2, m3, m4;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb1, {}, [&m1](auto& m) { m1 = m; }));
+              engine->prepare_snapshot(*cookie, vb1, {}, [&m1](auto& m) {
+                  m1.emplace_copy(m);
+              }));
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb2, {}, [&m2](auto& m) { m2 = m; }));
+              engine->prepare_snapshot(*cookie, vb2, {}, [&m2](auto& m) {
+                  m2.emplace_copy(m);
+              }));
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb3, {}, [&m3](auto& m) { m3 = m; }));
+              engine->prepare_snapshot(*cookie, vb3, {}, [&m3](auto& m) {
+                  m3.emplace_copy(m);
+              }));
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb4, {}, [&m4](auto& m) { m4 = m; }));
+              engine->prepare_snapshot(*cookie, vb4, {}, [&m4](auto& m) {
+                  m4.emplace_copy(m);
+              }));
 
     // Perform various "corruptions" to the different snapshots *before* warmup
     // (which now processes snapshots via WarmupState::ProcessSnapshots).
@@ -236,10 +243,10 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
     // intact and the vbuckets still warm up.
 
     // Create Manifest objects to get nicer code (avoid accessing the json);
-    cb::snapshot::Manifest manifest1{m1};
-    cb::snapshot::Manifest manifest2{m2};
-    cb::snapshot::Manifest manifest3{m3};
-    cb::snapshot::Manifest manifest4{m4};
+    cb::snapshot::Manifest manifest1{m1.value()};
+    cb::snapshot::Manifest manifest2{m2.value()};
+    cb::snapshot::Manifest manifest3{m3.value()};
+    cb::snapshot::Manifest manifest4{m4.value()};
 
     const auto snapshotsDir = std::filesystem::path{test_dbname} / "snapshots";
 
@@ -349,12 +356,12 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
 TEST_P(SnapshotEngineTest, delete_vbucket_removes_snapshot) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    nlohmann::json manifest;
+    NonBucketHolder<nlohmann::json> manifest;
     ASSERT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(*cookie, vbid, {}, [&manifest](auto& m) {
-                  manifest = m;
+                  manifest.emplace_copy(m);
               }));
-    const std::string uuid = manifest["uuid"];
+    const std::string uuid = manifest.value()["uuid"];
 
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
     const auto& cache = mockEPBucket.public_getSnapshotCache();
@@ -382,24 +389,24 @@ TEST_P(SnapshotEngineTest, delete_vbucket_removes_snapshot) {
     // Recreating the vbucket and preparing again yields a fresh snapshot with a
     // new uuid (no stale reuse of the old snapshot).
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json manifest2;
+    NonBucketHolder<nlohmann::json> manifest2;
     ASSERT_EQ(
             cb::engine_errc::success,
             engine->prepare_snapshot(*cookie, vbid, {}, [&manifest2](auto& m) {
-                manifest2 = m;
+                manifest2.emplace_copy(m);
             }));
-    EXPECT_NE(uuid, manifest2["uuid"].get<std::string>());
+    EXPECT_NE(uuid, manifest2.value()["uuid"].get<std::string>());
 }
 
 TEST_P(SnapshotEngineTest, delete_vbucket_sync_removes_snapshot) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    nlohmann::json manifest;
+    NonBucketHolder<nlohmann::json> manifest;
     ASSERT_EQ(cb::engine_errc::success,
               engine->prepare_snapshot(*cookie, vbid, {}, [&manifest](auto& m) {
-                  manifest = m;
+                  manifest.emplace_copy(m);
               }));
-    const std::string uuid = manifest["uuid"];
+    const std::string uuid = manifest.value()["uuid"];
 
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
     const auto& cache = mockEPBucket.public_getSnapshotCache();
@@ -432,20 +439,22 @@ TEST_P(SnapshotEngineTest, delete_vbucket_sync_removes_snapshot) {
 // (same incarnation) is retained during warmup.
 TEST_P(SnapshotEngineTest, SnapshotWarmupVbucketUuidMatch) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json m;
+    NonBucketHolder<nlohmann::json> m;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vbid, {}, [&m](auto& mm) { m = mm; }));
-    cb::snapshot::Manifest manifest{m};
+              engine->prepare_snapshot(*cookie, vbid, {}, [&m](auto& mm) {
+                  m.emplace_copy(mm);
+              }));
+    cb::snapshot::Manifest manifest{m.value()};
 
     // prepare_snapshot must have captured the vbucket's creation UUID.
-    ASSERT_TRUE(m.contains("vbucket_uuid"));
-    ASSERT_FALSE(m["vbucket_uuid"].get<std::string>().empty());
+    ASSERT_TRUE(m.value().contains("vbucket_uuid"));
+    ASSERT_FALSE(m.value()["vbucket_uuid"].get<std::string>().empty());
     { // VBucketPtr must not outlive warmup() below - it resets the engine and
       // frees the EPStats the VBucket references.
         auto vb = engine->getKVBucket()->getVBucket(vbid);
         ASSERT_TRUE(vb);
-        EXPECT_EQ(vb->getVbucketUuid(), m["vbucket_uuid"].get<std::string>());
+        EXPECT_EQ(vb->getVbucketUuid(),
+                  m.value()["vbucket_uuid"].get<std::string>());
     }
 
     warmup();
@@ -467,11 +476,12 @@ TEST_P(SnapshotEngineTest, SnapshotWarmupVbucketUuidMatch) {
 // UUID belongs to a different incarnation and is discarded during warmup.
 TEST_P(SnapshotEngineTest, SnapshotWarmupVbucketUuidMismatch) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json m;
+    NonBucketHolder<nlohmann::json> m;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vbid, {}, [&m](auto& mm) { m = mm; }));
-    cb::snapshot::Manifest manifest{m};
+              engine->prepare_snapshot(*cookie, vbid, {}, [&m](auto& mm) {
+                  m.emplace_copy(mm);
+              }));
+    cb::snapshot::Manifest manifest{m.value()};
 
     // Rewrite the on-disk manifest's vbucket_uuid to a different incarnation so
     // warmup discards the snapshot. The live vbucket files are hard-linked into
@@ -508,17 +518,19 @@ TEST_P(SnapshotEngineTest, deleteSnapshots_removes_all_on_disk) {
     setVBucketStateAndRunPersistTask(vb1, vbucket_state_active);
     setVBucketStateAndRunPersistTask(vb2, vbucket_state_active);
 
-    nlohmann::json m1, m2;
+    NonBucketHolder<nlohmann::json> m1, m2;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb1, {}, [&m1](auto& m) { m1 = m; }));
+              engine->prepare_snapshot(*cookie, vb1, {}, [&m1](auto& m) {
+                  m1.emplace_copy(m);
+              }));
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vb2, {}, [&m2](auto& m) { m2 = m; }));
+              engine->prepare_snapshot(*cookie, vb2, {}, [&m2](auto& m) {
+                  m2.emplace_copy(m);
+              }));
 
     const auto snapshotsDir = std::filesystem::path{test_dbname} / "snapshots";
-    cb::snapshot::Manifest manifest1{m1};
-    cb::snapshot::Manifest manifest2{m2};
+    cb::snapshot::Manifest manifest1{m1.value()};
+    cb::snapshot::Manifest manifest2{m2.value()};
     ASSERT_TRUE(exists(snapshotsDir / manifest1.uuid));
     ASSERT_TRUE(exists(snapshotsDir / manifest2.uuid));
 
@@ -543,11 +555,12 @@ TEST_P(SnapshotEngineTest, deleteSnapshots_removes_all_on_disk) {
 // exercises that path.
 TEST_P(SnapshotEngineTest, processSnapshots_idempotent) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    nlohmann::json m;
+    NonBucketHolder<nlohmann::json> m;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->prepare_snapshot(
-                      *cookie, vbid, {}, [&m](auto& mm) { m = mm; }));
-    cb::snapshot::Manifest manifest{m};
+              engine->prepare_snapshot(*cookie, vbid, {}, [&m](auto& mm) {
+                  m.emplace_copy(mm);
+              }));
+    cb::snapshot::Manifest manifest{m.value()};
 
     auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
     const auto snapDir =

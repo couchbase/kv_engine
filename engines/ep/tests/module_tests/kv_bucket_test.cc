@@ -110,6 +110,8 @@ void KVBucketTest::initialise(std::string_view baseConfig,
         // Config defined in it's own scope to ensure correct memory accounting
         // - we want to destroy (deallocate) it against the no-bucket context.
         auto config = std::string{baseConfig};
+        // Likewise the keys, which the caller allocated outside any bucket
+        const auto keys = std::move(encryptionKeys);
 
         // Add dbname to config string.
         if (!config.empty()) {
@@ -158,14 +160,14 @@ void KVBucketTest::initialise(std::string_view baseConfig,
             config += ";dcp_active_stream_inline_checkpoint_item_limit=0";
         }
 
-        engine = SynchronousEPEngine::build(config, std::move(encryptionKeys));
+        engine = SynchronousEPEngine::build(config, keys);
         Expects(ObjectRegistry::getCurrentEngine() &&
                 "Expect current thread is associated with 'engine' after "
                 "build()ing it so any subsequent allocations below are "
                 "accounted to 'engine' correctly.");
 
-        // Switch back to no-engine before scope ends, so config is destroyed
-        // against no-bucket.
+        // Switch back to no-engine before scope ends, so config and keys are
+        // destroyed against no-bucket.
         ObjectRegistry::onSwitchThread(nullptr);
     }
 
@@ -799,6 +801,9 @@ void KVBucketTest::updateItemPagerSleepTime(
 }
 
 void KVBucketTest::setupEncryptionKeys() {
+    // As getEncryptionKeys allocates the keys. The engine switches to itself
+    // to take its copy.
+    NonBucketAllocationGuard guard;
     auto dbname = std::filesystem::path(engine->getConfiguration().getDbname());
     std::filesystem::create_directories(dbname / "deks");
 
@@ -825,6 +830,9 @@ void KVBucketTest::setupEncryptionKeys() {
 }
 
 nlohmann::json KVBucketTest::getEncryptionKeys() {
+    // Allocated outside any bucket, as the engines take copies and the caller
+    // frees them, by which time the current engine may have changed
+    NonBucketAllocationGuard guard;
     return {{"active", "MyActiveKey"},
             {"keys",
              {{{"id", "MyActiveKey"},

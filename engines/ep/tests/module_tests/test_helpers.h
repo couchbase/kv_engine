@@ -27,6 +27,8 @@
 #include <memcached/storeddockey.h>
 
 #include <chrono>
+#include <optional>
+#include <utility>
 
 // A Couchbase-specific version of the standard GTest SCOPED_TRACE macro -
 // from the SCOPED_TRACE description:
@@ -63,6 +65,79 @@
     static_assert(false,                                                      \
                   "SCOPED_TRACE() macro is incompatible with ObjectRegistry " \
                   "memory tracking. Use CB_SCOPED_TRACE() instead.");
+
+/**
+ * Holds a value which is allocated and freed outside any bucket, regardless of
+ * the current engine. For a test to keep what an engine hands over outside any
+ * bucket (such as the manifest passed to a prepare_snapshot callback), possibly
+ * across engine resets.
+ *
+ * The value must not share ownership of anything allocated against an engine,
+ * which it could otherwise free outside any bucket.
+ */
+template <typename T>
+class NonBucketHolder {
+public:
+    ~NonBucketHolder() {
+        reset();
+    }
+
+    NonBucketHolder() noexcept = default;
+
+    NonBucketHolder(const NonBucketHolder& other) {
+        *this = other;
+    }
+
+    NonBucketHolder(NonBucketHolder&& other) noexcept {
+        *this = std::move(other);
+    }
+
+    NonBucketHolder& operator=(const NonBucketHolder& other) {
+        NonBucketAllocationGuard guard;
+        opt = other.opt;
+        return *this;
+    }
+
+    NonBucketHolder& operator=(NonBucketHolder&& other) noexcept {
+        NonBucketAllocationGuard guard;
+        opt = std::move(other.opt);
+        return *this;
+    }
+
+    bool has_value() const noexcept {
+        return opt.has_value();
+    }
+
+    const T& value() const {
+        return opt.value();
+    }
+
+    template <typename... Args>
+    void emplace_copy(const Args&... args) {
+        NonBucketAllocationGuard guard;
+        opt.emplace(args...);
+    }
+
+    /**
+     * Invoke fn with the wrapped optional under a NonBucketAllocationGuard,
+     * so any memory fn allocates or frees is accounted outside the bucket.
+     */
+    template <typename Fn>
+    void apply(Fn&& fn) {
+        NonBucketAllocationGuard guard;
+        std::forward<Fn>(fn)(opt);
+    }
+
+    void reset() {
+        if (opt) {
+            NonBucketAllocationGuard guard;
+            opt.reset();
+        }
+    }
+
+protected:
+    std::optional<T> opt;
+};
 
 // The way magma set its memory quota is to use 10% of the
 // max_size per shard. Set this to allow for 3MB per shard assuming

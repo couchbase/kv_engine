@@ -3356,15 +3356,15 @@ TEST_P(DCPCacheTransferNoNexus, commit_prepare_same_key) {
 
     flushNodeIfPersistent(Node0);
 
-    nlohmann::json manifest;
+    NonBucketHolder<nlohmann::json> manifest;
     ASSERT_EQ(cb::engine_errc::success,
               engines[Node0]->prepare_snapshot(
                       *cookie, vbid, {}, [&manifest](const nlohmann::json& m) {
-                          manifest = m;
+                          manifest.emplace_copy(m);
                       }));
-    ASSERT_TRUE(manifest.contains("uuid"));
+    ASSERT_TRUE(manifest.value().contains("uuid"));
 
-    transferSnapshot(Node0, Node1, manifest["uuid"].get<std::string>());
+    transferSnapshot(Node0, Node1, manifest.value()["uuid"].get<std::string>());
 
     // Preserve the transferred snapshot so it survives the deleteVBucket below
     // (which removes the vbucket's snapshot). This synthesises Node1 having

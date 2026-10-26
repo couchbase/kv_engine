@@ -61,11 +61,13 @@ public:
      *
      * @param config The configuration to use for the engine.
      * @param encryptionKeys Boot-strap encryption keys to use for the new
-     * engine
+     * engine. Null (the default) is no keys. The engine takes a copy, so the
+     * caller's keys stay with the caller, to be freed where they were
+     * allocated.
      */
     static SynchronousEPEngineUniquePtr build(
             const std::string& config,
-            nlohmann::json encryptionKeys = nlohmann::json::object());
+            const nlohmann::json& encryptionKeys = {});
 
     /**
      * Destroys the SynchronousEPEngine instance.
@@ -136,7 +138,7 @@ public:
         return enableTraffic(enable);
     }
 
-    void public_setActiveEncryptionKeys(nlohmann::json keys);
+    void public_setActiveEncryptionKeys(const nlohmann::json& keys);
 
     using EventuallyPersistentEngine::collectVBucketSequenceNumbers;
     using EventuallyPersistentEngine::doCollectionStats;
