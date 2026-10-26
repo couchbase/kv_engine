@@ -52,6 +52,7 @@
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
 #include <platform/json_log_conversions.h>
+#include <platform/monotonic.h>
 #include <platform/process_monitor.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
@@ -486,6 +487,15 @@ static void sigint_handler() {
     memcached_shutdown = true;
 }
 
+static void non_monotonic_handler(std::string_view label,
+                                  std::string_view currentValue,
+                                  std::string_view newValue) {
+    LOG_WARNING_CTX("Monotonic invariant failed",
+                    {"label", label},
+                    {"current", currentValue},
+                    {"new", newValue});
+}
+
 #ifdef WIN32
 // Unfortunately we don't have signal handlers on windows
 static bool install_signal_handlers() {
@@ -864,6 +874,10 @@ int memcached_main(int argc, char** argv) {
     /* File-based logging available from this point onwards... */
     Settings::instance().addChangeListener("verbosity",
                                            verbosity_changed_listener);
+
+    // Log any non-monotonic updates rejected by Monotonic<> objects using
+    // the default policy (when CB_DEVELOPMENT_ASSERTS is disabled).
+    cb::monotonic::setNonMonotonicHandler(non_monotonic_handler);
 
     // Logging available now extensions have been loaded.
     LOG_INFO_CTX("Couchbase version starting",
