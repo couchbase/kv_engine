@@ -211,6 +211,14 @@ public:
         }
     }
 
+    ~CheckedExecutor() override {
+        // Free the task as the engine which owns it, as an executor thread
+        // does once it has run the task
+        if (currentTask) {
+            resetCurrentTask();
+        }
+    }
+
     void runCurrentTask(std::string_view expectedTask) {
         if (expectedTask != getTaskName()) {
             std::string message =
