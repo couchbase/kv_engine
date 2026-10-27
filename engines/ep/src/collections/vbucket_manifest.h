@@ -236,6 +236,17 @@ public:
                                  bool droppedDataExists = true);
 
     /**
+     * Callback from flusher that the flush of collection with the given seqno
+     * was successfully persisted. The data before the flush requires erasing
+     * so a drop is "in progress" and the ended generation is forgotten. The
+     * generation may legitimately be absent (never saved, or already removed
+     * by a drop persisted in the same batch).
+     * @param cid Collection ID of the collection event
+     * @param seqno The seqno of the event that was successfully stored
+     */
+    void collectionFlushPersisted(CollectionID cid, uint64_t seqno);
+
+    /**
      * @return true if a collection drop is in-progress, at least 1 collection
      *         is in the state isDeleting
      */
@@ -503,7 +514,7 @@ protected:
      */
     std::optional<BeginCollection> applyBeginCollection(
             VBucketStateLockRef vbStateLock,
-            const WriteHandle& wHandle,
+            WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<BeginCollection>& changes);
 
@@ -548,7 +559,7 @@ protected:
      *        none (none means the checkpoint will assign a seqno).
      */
     void beginCollection(VBucketStateLockRef vbStateLock,
-                         const WriteHandle& wHandle,
+                         WriteHandle& wHandle,
                          ::VBucket& vb,
                          ManifestUid newManUid,
                          ScopeCollectionPair identifiers,
@@ -1167,6 +1178,14 @@ protected:
     StatsForFlush getStatsForFlush(CollectionID cid, uint64_t seqno) const;
 
     /**
+     * @return the generation which cid@seqno belongs to: the open generation,
+     *         or a dropped (or flushed) generation whose end is not yet
+     *         persisted. nullopt if neither (no item of it can be flushing).
+     */
+    [[nodiscard]] std::optional<CollectionGeneration> getGeneration(
+            CollectionID cid, uint64_t seqno) const;
+
+    /**
      * Sets the default collection max-visible to seqno (if the collection
      * exists). This does not just set the value. The seqno passed is the value
      * warmup found during the scan from start to high-prepare.
@@ -1312,6 +1331,12 @@ protected:
         void remove(CollectionID cid, uint64_t seqno);
 
         /**
+         * Remove every generation of cid which ended at or before seqno
+         * @return true if a generation was removed
+         */
+        [[nodiscard]] bool tryRemove(CollectionID cid, uint64_t seqno);
+
+        /**
          * Apply changes as a result of flushing items in a collection to
          * disk to the specified Collection/seqno pair.
          * @param cid Collection to apply changes to
@@ -1329,6 +1354,10 @@ protected:
         size_t size() const;
         /// @return size of the mapped value
         std::optional<size_t> size(CollectionID cid) const;
+
+        /// @return the dropped generation which includes seqno, [start, end)
+        [[nodiscard]] std::optional<CollectionGeneration> getGeneration(
+                CollectionID cid, uint64_t seqno) const;
 
     private:
         /**

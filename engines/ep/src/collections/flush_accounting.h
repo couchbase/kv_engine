@@ -15,6 +15,8 @@
 #include "ep_types.h"
 #include <memcached/systemevent.h>
 
+#include <limits>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -24,6 +26,43 @@ struct PersistedStats;
 
 using DroppedMap = std::unordered_map<CollectionID, KVStore::DroppedCollection>;
 using FlushedMap = std::unordered_map<CollectionID, uint64_t>;
+
+class Manifest;
+
+/**
+ * A generation of a collection begins with its creation (or a flush of the
+ * collection) and ends with its drop (or a flush).
+ */
+struct CollectionGeneration {
+    /**
+     * The seqno of the event which began the generation (create or flush),
+     * part of the generation.
+     */
+    uint64_t startSeqno{0};
+
+    /**
+     * The seqno of the event which ended the generation (drop or flush), not
+     * part of it. Max for the open generation.
+     */
+    uint64_t endSeqno{std::numeric_limits<uint64_t>::max()};
+
+    /**
+     * @return true for the current (open) generation of the collection
+     */
+    [[nodiscard]] constexpr bool isOpen() const noexcept {
+        return endSeqno == std::numeric_limits<uint64_t>::max();
+    }
+
+    /**
+     * @return true if seqno belongs to the generation, startSeqno <= seqno <
+     *         endSeqno: the start is inclusive, the end exclusive (the drop or
+     *         flush at endSeqno is not part of the generation, a flush is the
+     *         start of the next).
+     */
+    [[nodiscard]] constexpr bool contains(uint64_t seqno) const noexcept {
+        return seqno >= startSeqno && seqno < endSeqno;
+    }
+};
 
 /**
  * The Collections::VB::FlushStats object provides code and data for accounting
@@ -35,26 +74,37 @@ using FlushedMap = std::unordered_map<CollectionID, uint64_t>;
  */
 class FlushAccounting {
 public:
-    FlushAccounting() = default;
+    /**
+     * Construct the FlushAccounting object for a flush batch.
+     * @param manifest identifies the generation of each flushing item, and so
+     *        whether a stored revision belongs to an earlier (logically
+     *        deleted) generation. Non-owning, must outlive this object (or be
+     *        replaced by setManifest).
+     */
+    explicit FlushAccounting(const Manifest& manifest) : manifest(&manifest) {
+    }
 
     /**
-     * Construct the FlushAccounting object and directly give the class a set
-     * of collections that a KVStore says are dropped. The dropped collection
-     * set is used for determining if updateStats should consider keys as
-     * dropped.
+     * Construct the FlushAccounting object for compaction replay, giving the
+     * class the collections that the store being copied says are dropped.
+     * The dropped collection set is used for determining if updateStats
+     * should consider keys as dropped.
+     * The data in v is placed into the droppedCollections map, as compaction
+     * knows ahead of the replay what collections are dropped.
      * @param v vector of collections that are known to be dropped
-     * @param isCompaction when Yes the data in v is placed into both the
-     *        droppedInStore and droppedCollections, when No only droppedInStore
-     *        is updated. The reason is because the IsCompaction::Yes usage, v
-     *        contains the total set of dropped collections for a statistic
-     *        update driven by compaction - whereas in the IsCompaction::No
-     *        usage (flushing) v represents the droppedInStore only and the
-     *        process of flushing may bring new dropped collections as the flush
-     *        runs.
      */
-    FlushAccounting(
-            const std::vector<Collections::KVStore::DroppedCollection>& v,
-            IsCompaction isCompaction);
+    explicit FlushAccounting(
+            const std::vector<Collections::KVStore::DroppedCollection>& v);
+
+    /**
+     * Replace the manifest given to the constructor, Flush::setManifest uses
+     * this when NexusKVStore accounts a flush against a copy of the manifest.
+     * @param manifest non-owning, must outlive this object (or be replaced)
+     */
+    void setManifest(const Manifest* manifest) {
+        this->manifest = manifest;
+        generations.clear();
+    }
     /**
      * preset the statistics of the collection. Subsequent updateStats calls
      * then account against preset values.
@@ -138,20 +188,6 @@ public:
     void maybeUpdatePersistedHighSeqno(const DocKeyView& key,
                                        uint64_t seqno,
                                        bool isDelete);
-
-    /**
-     * Method for KVStore implementation to call before flushing a batch of
-     * items - tells this Flush object about the collections that have been
-     * dropped (and to be purged). Note if a KVStore knows there are no dropped
-     * collections in storage, they can omit the call.
-     * @param v vector of DroppedCollection objects representing persisted
-     *        dropped collections.
-     * @param isCompaction the compaction usage of flush accounting can setup
-     *        the droppedCollections map, whilst flush cannot.
-     */
-    void setDroppedCollectionsForStore(
-            const std::vector<Collections::KVStore::DroppedCollection>& v,
-            IsCompaction isCompaction = IsCompaction::No);
 
     /**
      * For each collection that we have stats tracked for, call the given
@@ -333,16 +369,32 @@ private:
     bool isLogicallyDeleted(CollectionID cid, uint64_t seqno) const;
 
     /**
-     * Function determines if the collection @ seqno is dropped, but only
-     * in the current store we are flushing too, i.e. the committed data.
-     * E.g. if cid=0, seqno=100 and this function returns true it means that the
-     * committed store has a collection drop event for collection 0 with a
-     * seqno greater than 100.
+     * Function determines if the revision being replaced (oldSeqno) is
+     * logically deleted by generation: it is if it precedes the generation of
+     * the revision replacing it, which the in-memory manifest supplies (see
+     * getGenerationStart).
      *
      * @param cid Collection to look-up.
-     * @param seqno A seqno which was affected by the cid.
+     * @param seqno The seqno of the revision replacing the stored revision.
+     * @param oldSeqno The seqno of the stored revision.
      */
-    bool isLogicallyDeletedInStore(CollectionID cid, uint64_t seqno) const;
+    [[nodiscard]] bool isLogicallyDeletedByGeneration(CollectionID cid,
+                                                      uint64_t seqno,
+                                                      uint64_t oldSeqno) const;
+
+    /**
+     * Find the generation which cid@seqno belongs to, from the generations
+     * cache or else the manifest (see Manifest::getGeneration). The cache
+     * holds one generation per collection, the one most recently looked up,
+     * so the manifest is locked once for each distinct generation the batch
+     * updates.
+     *
+     * @return the start-seqno of the generation which cid@seqno belongs to,
+     *         nullopt if there is no manifest (compaction replay) or the
+     *         manifest has no generation of cid which holds seqno
+     */
+    [[nodiscard]] std::optional<uint64_t> getGenerationStart(
+            CollectionID cid, uint64_t seqno) const;
 
     /**
      * Obtain a Stats reference so insert/update/remove can be tracked.
@@ -420,9 +472,23 @@ private:
 
     /**
      * A map of collections that are currently dropped (and persisted) in the
-     * vbucket we are flushing to. As documents are flushed as 'updates' we need
-     * to know if the old document is logically deleted.
+     * source of the compaction replay. As documents are copied as 'updates'
+     * we need to know if the old document is logically deleted.
      */
     DroppedMap droppedInStore;
+
+    /**
+     * When flushing, the manifest identifies the generation of each item. As
+     * documents are flushed as 'updates' we need to know if the old document
+     * belongs to an earlier (logically deleted) generation.
+     */
+    const Manifest* manifest{nullptr};
+
+    /**
+     * The generation of each collection most recently looked up by this flush
+     * batch. The manifest is locked once for each distinct collection (and
+     * generation) the batch updates, not for every item.
+     */
+    mutable std::unordered_map<CollectionID, CollectionGeneration> generations;
 };
 } // namespace Collections::VB

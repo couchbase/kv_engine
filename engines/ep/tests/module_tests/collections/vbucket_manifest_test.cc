@@ -328,6 +328,11 @@ public:
         replica.collectionDropPersisted(cid, seqno);
     }
 
+    void collectionFlushPersisted(CollectionID cid, uint64_t seqno) {
+        active.collectionFlushPersisted(cid, seqno);
+        replica.collectionFlushPersisted(cid, seqno);
+    }
+
     VBucket& getActiveVB() {
         return *vbA;
     }
@@ -1446,6 +1451,39 @@ TEST_P(VBucketManifestTest, flush) {
     // Now that seqno is considered flush/deleted
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             StoredDocKey{"pear", CollectionEntry::fruit}, seqno));
+}
+
+// A flush saves the generation it ended, which is forgotten once the flush is
+// persisted. Two flushes in memory save one generation each.
+TEST_P(VBucketManifestTest, flush_saves_ended_generation) {
+    // Test requires FlatBuffers event to pass most up-to-date event types.
+    if (!GetParam()) {
+        GTEST_SKIP();
+    }
+
+    ASSERT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)));
+    EXPECT_TRUE(manifest.checkDroppedSize(0));
+
+    // Each flush is paired with an add so the manifestUid differs from the
+    // flushUid, the flush is the last event queued
+    cm.flush(CollectionEntry::fruit);
+    ASSERT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
+    const auto flush1 = manifest.getActiveVB().getHighSeqno();
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::fruit));
+
+    cm.flush(CollectionEntry::fruit);
+    ASSERT_TRUE(manifest.update(cm.add(CollectionEntry::meat)));
+    const auto flush2 = manifest.getActiveVB().getHighSeqno();
+    EXPECT_TRUE(manifest.checkDroppedSize(2, CollectionEntry::fruit));
+
+    manifest.collectionFlushPersisted(CollectionEntry::fruit, flush1);
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::fruit));
+    manifest.collectionFlushPersisted(CollectionEntry::fruit, flush2);
+    EXPECT_TRUE(manifest.checkDroppedSize(0));
+
+    // Absent generations are tolerated (e.g. removed by a drop)
+    EXPECT_NO_THROW(
+            manifest.collectionFlushPersisted(CollectionEntry::fruit, flush2));
 }
 
 // Test that creating a collection which was already flushed (the manifest

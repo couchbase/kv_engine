@@ -208,9 +208,10 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
 
     // A flushed collection is recorded in the on-disk dropped collections
     // list (the items before the flush must be erased by compaction), so a
-    // flush leaves a drop "in progress" just as a drop does.
-    if (!flushAccounting.getFlushedCollections().empty()) {
-        manifest.get().setDropInProgress(true);
+    // flush leaves a drop "in progress" just as a drop does, and the
+    // generation it ended is no longer needed by the flusher.
+    for (const auto& [cid, seqno] : flushAccounting.getFlushedCollections()) {
+        manifest.get().collectionFlushPersisted(cid, seqno);
     }
 }
 
@@ -230,11 +231,6 @@ void Flush::triggerPurge(Vbid vbid, EPBucket& bucket) {
                     bucket.getEPEngine()
                             .getConfiguration()
                             .getCollectionsDropCompactionDelay()));
-}
-
-void Flush::setDroppedCollectionsForStore(
-        const std::vector<Collections::KVStore::DroppedCollection>& v) {
-    flushAccounting.setDroppedCollectionsForStore(v);
 }
 
 void Flush::recordSystemEvent(const Item& item) {
@@ -824,10 +820,6 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
     return builder.Release();
 }
 
-bool Flush::droppedCollectionsExists() const {
-    return manifest.get().isDropInProgress();
-}
-
 FlushAccounting::StatisticsUpdate Flush::getDroppedStats(CollectionID cid) {
     auto itr = flushAccounting.getDroppedStats().find(cid);
     if (itr == flushAccounting.getDroppedStats().end()) {
@@ -899,6 +891,7 @@ FlushAccounting::UpdateStatsResult Flush::updateStats(
 
 void Flush::setManifest(Manifest& newManifest) {
     manifest = newManifest;
+    flushAccounting.setManifest(&newManifest);
 }
 
 VB::Manifest& Flush::getManifest() const {

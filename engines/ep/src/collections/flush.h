@@ -35,7 +35,8 @@ struct PersistedStats;
  */
 class Flush {
 public:
-    explicit Flush(Manifest& manifest) : manifest(manifest) {
+    explicit Flush(Manifest& manifest)
+        : flushAccounting(manifest), manifest(manifest) {
     }
 
     /**
@@ -122,15 +123,6 @@ public:
                                        bool isDelete) {
         flushAccounting.maybeUpdatePersistedHighSeqno(key, seqno, isDelete);
     }
-
-    /**
-     * Method for KVStore implementation to call before flushing a batch of
-     * items - tells this Flush object about the collections that have been
-     * dropped (and to be purged). Note if a KVStore knows there are no dropped
-     * collections in storage, they can omit the call.
-     */
-    void setDroppedCollectionsForStore(
-            const std::vector<Collections::KVStore::DroppedCollection>& v);
 
     /**
      * Set the ManifestUid from the create/drop events (but only the greatest
@@ -324,11 +316,6 @@ public:
     flatbuffers::DetachedBuffer encodeOpenScopes(cb::const_byte_buffer scopes);
 
     /**
-     * @return if dropped collections exist in storage
-     */
-    bool droppedCollectionsExists() const;
-
-    /**
      * Must only be called once all items of the batch are accounted (see
      * emptyDroppedCollections).
      * @return the greatest seqno of a non-empty collection drop or of a
@@ -448,7 +435,7 @@ private:
     /**
      * Used for accounting items, disk-size and high-seqno during flushing
      */
-    FlushAccounting flushAccounting{};
+    FlushAccounting flushAccounting;
 
     /**
      * The most recent manifest committed, if needsMetaCommit is true this value

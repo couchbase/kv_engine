@@ -11,6 +11,8 @@
 
 #include "collections/flush_accounting.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "systemevent_factory.h"
 
 namespace Collections::VB {
@@ -165,9 +167,13 @@ void FlushAccounting::StatisticsUpdate::handleEvent(
 }
 
 FlushAccounting::FlushAccounting(
-        const std::vector<Collections::KVStore::DroppedCollection>& v,
-        IsCompaction isCompaction) {
-    setDroppedCollectionsForStore(v, isCompaction);
+        const std::vector<Collections::KVStore::DroppedCollection>& v) {
+    for (const auto& c : v) {
+        droppedInStore.emplace(c.collectionId, c);
+        // Update the dropped map now as compaction knows ahead of the replay
+        // what collections are dropped.
+        droppedCollections.emplace(c.collectionId, c);
+    }
 }
 
 void FlushAccounting::presetStats(CollectionID cid,
@@ -295,10 +301,16 @@ FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
         return {};
     }
 
+    // The old revision may belong to an earlier generation of the collection
+    // (logically deleted) by a drop/flush in this batch, or precede the
+    // generation the new revision belongs to (from the manifest).
+    const bool oldIsDropped =
+            isLogicallyDeleted(cid.value(), oldSeqno) ||
+            isLogicallyDeletedByGeneration(cid.value(), seqno, oldSeqno);
+
     UpdateStatsResult result;
     if (!event && compactionCallbacks == CompactionCallbacks::AnyRevision &&
-        (isLogicallyDeleted(cid.value(), oldSeqno) ||
-         isLogicallyDeletedInStore(cid.value(), oldSeqno))) {
+        oldIsDropped) {
         // We are logically inserting an item into a collection (i.e. it existed
         // before in an older generation of the collection and we are now
         // adding it into this one). Backends that may see any revision of an
@@ -333,9 +345,6 @@ FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
     //
     // Note that old can be both dropped and deleted (a dropped tombstone). In
     // that case we process as dropped.
-    const bool oldIsDropped =
-            (isLogicallyDeleted(cid.value(), oldSeqno) ||
-             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
     if (isDelete == IsDeleted::No) {
         // new key is live
@@ -430,27 +439,34 @@ bool FlushAccounting::isLogicallyDeleted(CollectionID cid,
     return false;
 }
 
-bool FlushAccounting::isLogicallyDeletedInStore(CollectionID cid,
-                                                uint64_t seqno) const {
-    auto itr = droppedInStore.find(cid);
-    if (itr != droppedInStore.end()) {
-        return seqno < itr->second.endSeqno;
-    }
-    return false;
+bool FlushAccounting::isLogicallyDeletedByGeneration(CollectionID cid,
+                                                     uint64_t seqno,
+                                                     uint64_t oldSeqno) const {
+    const auto start = getGenerationStart(cid, seqno);
+    return start && oldSeqno < *start;
 }
 
-void FlushAccounting::setDroppedCollectionsForStore(
-        const std::vector<Collections::KVStore::DroppedCollection>& v,
-        IsCompaction isCompaction) {
-    for (const auto& c : v) {
-        droppedInStore.emplace(c.collectionId, c);
-
-        if (isCompaction == IsCompaction::Yes) {
-            // Update the dropped map now as compaction knows ahead of the
-            // replay what collections are dropped.
-            droppedCollections.emplace(c.collectionId, c);
-        }
+std::optional<uint64_t> FlushAccounting::getGenerationStart(
+        CollectionID cid, uint64_t seqno) const {
+    // The cached generation of the collection, if it holds seqno
+    if (const auto itr = generations.find(cid);
+        itr != generations.end() && itr->second.contains(seqno)) {
+        return itr->second.startSeqno;
     }
+    // Compaction replay has no manifest, the generation is unknown
+    if (!manifest) {
+        return std::nullopt;
+    }
+    // The open generation, or one a drop/flush ended which the manifest keeps
+    // until that event is persisted. A generation whose end was persisted is
+    // forgotten, its lookup is nullopt.
+    const auto generation = manifest->lock().getGeneration(cid, seqno);
+    if (!generation) {
+        return std::nullopt;
+    }
+    // Cache it, replacing any other generation of the collection
+    generations.insert_or_assign(cid, *generation);
+    return generation->startSeqno;
 }
 
 // Called from KVStore during flush or compaction replay

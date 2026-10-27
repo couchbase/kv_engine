@@ -241,6 +241,12 @@ public:
         return manifest->getStatsForFlush(collection, seqno);
     }
 
+    /// @return see Manifest::getGeneration
+    [[nodiscard]] std::optional<CollectionGeneration> getGeneration(
+            CollectionID cid, uint64_t seqno) const {
+        return manifest->getGeneration(cid, seqno);
+    }
+
     /// @return the metering state of the collection, throw for unknown cid
     Metered isMetered(CollectionID cid) const;
 

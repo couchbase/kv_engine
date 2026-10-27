@@ -2045,8 +2045,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     // compacted and has no dropped collections remaining). The dropped
     // collections must be known so that the accounting can 'ignore' items of
     // dropped collections (e.g. replace becomes insert etc...)
-    Collections::VB::FlushAccounting collectionStats(droppedCollections,
-                                                     IsCompaction::Yes);
+    Collections::VB::FlushAccounting collectionStats(droppedCollections);
     err = cb::couchstore::replay(
             source,
             destination,
@@ -3315,28 +3314,6 @@ couchstore_error_t CouchKVStore::saveDocs(
             maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
             // Accumulate the size of the useful data in this docinfo.
             docsLogicalBytes += calcLogicalDataSize(docs[idx], *docinfos[idx]);
-        }
-
-        // If dropped collections exists, read the dropped collections metadata
-        // so the flusher can do the correct stat calculations. This is
-        // conditional as (trying) to read this data slows down saveDocs.
-        if (kvctx.commitData.collections.droppedCollectionsExists()) {
-            auto [getDroppedStatus, droppedCollections] =
-                    getDroppedCollections(*db);
-            if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-                logger.warnWithContext(
-                        "CouchKVStore::saveDocs: getDroppedCollections error",
-                        {{"vb", vbid},
-                         {"error",
-                          {{"system", cb_strerror()},
-                           {"code", couchstore_strerror(getDroppedStatus)},
-                           {"message",
-                            cb::couchstore::getLastInternalError()}}}});
-                return getDroppedStatus;
-            }
-
-            kvctx.commitData.collections.setDroppedCollectionsForStore(
-                    droppedCollections);
         }
 
         auto cs_begin = cb::time::steady_clock::now();

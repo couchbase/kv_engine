@@ -22,16 +22,19 @@
 
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/flush.h"
 #include "collections/kvstore.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_entry.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "item.h"
 #include "stats.h"
+#include "systemevent_factory.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 
 #include <folly/portability/GMock.h>
@@ -152,13 +155,9 @@ protected:
                 key, seqno, IsCommitted::Yes, IsDeleted::No, 100 /*size*/);
     }
 
-    /**
-     * Begin a new flush batch, the Flush is given the dropped collections
-     * from "disk" as a KVStore would.
-     */
+    /// Begin a new flush batch
     void newBatch() {
         flush.emplace(manifest);
-        flush->setDroppedCollectionsForStore(getDiskDropped());
     }
 
     /**
@@ -982,4 +981,222 @@ TEST_F(CollectionsVBFlushManifestTest, emptyDroppedCollectionNotEncoded) {
     // Expects fruit gone and the dropped list never written
     expectDisk({.manifestUid = ManifestUid{cm.getUid()},
                 .collections = OpenCollections{defaultCollection}});
+}
+
+// The generation of a flushing item comes from the VB::Manifest. A dropped
+// generation is known until its drop is persisted, alongside a recreated one.
+TEST_F(CollectionsVBFlushManifestTest, getGeneration) {
+    using Collections::VB::CollectionGeneration;
+    auto generationOf = [this](uint64_t seqno) {
+        return manifest.lock().getGeneration(CollectionEntry::fruit, seqno);
+    };
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    const auto firstStart =
+            manifest.lock(CollectionEntry::fruit).getStartSeqno();
+    ASSERT_TRUE(generationOf(firstStart));
+    EXPECT_EQ(firstStart, generationOf(firstStart)->startSeqno);
+    EXPECT_TRUE(generationOf(firstStart)->isOpen());
+    EXPECT_FALSE(generationOf(firstStart - 1)) << "precedes the collection";
+
+    // vegetable moves the seqno on, firstStart + 1 stands for an item of the
+    // first generation of fruit
+    cm.add(CollectionEntry::vegetable);
+    updateAndRecord(cm);
+
+    // Drop and recreate, both generations are live in memory
+    cm.remove(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    const auto dropSeqno = uint64_t(vbucket->getHighSeqno());
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    const auto secondStart =
+            manifest.lock(CollectionEntry::fruit).getStartSeqno();
+    ASSERT_GT(secondStart, dropSeqno);
+
+    auto first = generationOf(firstStart + 1);
+    ASSERT_TRUE(first);
+    EXPECT_EQ(firstStart, first->startSeqno);
+    EXPECT_FALSE(first->isOpen());
+    EXPECT_EQ(dropSeqno, first->endSeqno);
+    EXPECT_TRUE(first->contains(firstStart + 1));
+    // The end is exclusive, the drop event is of neither generation
+    EXPECT_FALSE(generationOf(dropSeqno));
+    auto second = generationOf(secondStart + 1);
+    ASSERT_TRUE(second);
+    EXPECT_EQ(secondStart, second->startSeqno);
+    EXPECT_TRUE(second->isOpen());
+
+    // Once the drop is persisted the first generation is forgotten
+    commit();
+    manifest.collectionDropPersisted(CollectionEntry::fruit, dropSeqno, true);
+    EXPECT_FALSE(generationOf(firstStart + 1));
+    EXPECT_TRUE(generationOf(secondStart + 1));
+}
+
+// Flush uses the VB::Manifest to identify that a stored revision is of an
+// earlier generation, so the update is accounted as an insert. No local
+// document is read, the drop and recreate were persisted in an earlier batch.
+TEST_F(CollectionsVBFlushManifestTest, updateOfEarlierGeneration) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    // vegetable moves the seqno on, oldSeqno stands for a stored revision of
+    // the first generation of fruit
+    cm.add(CollectionEntry::vegetable);
+    updateAndRecord(cm);
+    const auto oldSeqno = uint64_t(vbucket->getHighSeqno());
+    cm.remove(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    const auto dropSeqno = uint64_t(vbucket->getHighSeqno());
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    commit();
+    manifest.collectionDropPersisted(CollectionEntry::fruit, dropSeqno, true);
+    const auto start = manifest.lock(CollectionEntry::fruit).getStartSeqno();
+    ASSERT_GT(start, dropSeqno);
+
+    auto flushUpdate = [this, start](uint64_t seq) {
+        flush->updateStats(StoredDocKey{"apple", CollectionEntry::fruit},
+                           start + 2,
+                           IsCommitted::Yes,
+                           IsDeleted::No,
+                           10,
+                           seq,
+                           IsDeleted::No,
+                           5);
+        int64_t itemCount = -1;
+        flush->saveCollectionStats(
+                Vbid(0),
+                [&itemCount](CollectionID cid,
+                             const Collections::VB::PersistedStats& stats) {
+                    if (cid == CollectionEntry::fruit.getId()) {
+                        itemCount = int64_t(stats.itemCount);
+                    }
+                });
+        newBatch();
+        return itemCount;
+    };
+
+    // The stored revision precedes the generation, it is an insert
+    EXPECT_EQ(1, flushUpdate(oldSeqno));
+    // The stored revision is of the same generation, it is an update
+    EXPECT_EQ(0, flushUpdate(start + 1));
+}
+
+// couchstore: a create event which replaces a persisted drop of the same
+// collection is an insert (the drop precedes the new generation), so the full
+// size of the create event is accounted.
+TEST_F(CollectionsVBFlushManifestTest, createReplacingPersistedDrop) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    cm.remove(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    const auto dropSeqno = uint64_t(vbucket->getHighSeqno());
+    commit();
+    manifest.collectionDropPersisted(CollectionEntry::fruit, dropSeqno, true);
+
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm.add(CollectionEntry::fruit)));
+    const auto start = manifest.lock(CollectionEntry::fruit).getStartSeqno();
+
+    Collections::VB::FlushAccounting accounting{manifest};
+    std::ignore = accounting.updateStats(
+            SystemEventFactory::makeCollectionEventKey(CollectionEntry::fruit,
+                                                       SystemEvent::Collection),
+            start,
+            IsCommitted::Yes,
+            IsDeleted::No,
+            100,
+            dropSeqno,
+            IsDeleted::Yes,
+            40,
+            IsCompaction::No,
+            CompactionCallbacks::LatestRevision);
+    EXPECT_EQ(100,
+              accounting.getStats()
+                      .at(CollectionEntry::fruit.getId())
+                      .getDiskSize());
+}
+
+// A collection flush (as for a drop) keeps the ended generation known until it
+// is persisted. An update of a key in the middle generation, flushed after a
+// further in-memory flush, must find the middle generation.
+TEST_F(CollectionsVBFlushManifestTest, updateOfFlushedGeneration) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    updateAndRecord(cm);
+    commit();
+    const auto start = manifest.lock(CollectionEntry::fruit).getStartSeqno();
+
+    // Flush F1 is persisted
+    updateAndRecord(cm.flush(CollectionEntry::fruit));
+    commit();
+    const auto f1 = manifest.lock(CollectionEntry::fruit).getStartSeqno();
+    manifest.collectionFlushPersisted(CollectionEntry::fruit, f1);
+
+    // Flush F2 is applied in memory, but is not in this batch
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm.flush(CollectionEntry::fruit)));
+    const auto f2 = manifest.lock(CollectionEntry::fruit).getStartSeqno();
+    ASSERT_GT(f2, f1);
+
+    Collections::VB::FlushAccounting accounting{manifest};
+
+    // First an update in the open generation (f2 onwards), which caches that
+    // generation. Later updates of the middle generation must not use it.
+    auto result =
+            accounting.updateStats(StoredDocKey{"k0", CollectionEntry::fruit},
+                                   f2 + 1,
+                                   IsCommitted::Yes,
+                                   IsDeleted::No,
+                                   100,
+                                   f1,
+                                   IsDeleted::No,
+                                   50,
+                                   IsCompaction::No,
+                                   CompactionCallbacks::AnyRevision);
+    EXPECT_TRUE(result.logicalInsert);
+
+    // An update at f1 (the middle generation, here the seqno of the F1 event)
+    // of a revision from before F1 is a (logical) insert
+    result = accounting.updateStats(StoredDocKey{"k", CollectionEntry::fruit},
+                                    f1,
+                                    IsCommitted::Yes,
+                                    IsDeleted::No,
+                                    100,
+                                    start,
+                                    IsDeleted::No,
+                                    50,
+                                    IsCompaction::No,
+                                    CompactionCallbacks::AnyRevision);
+    EXPECT_TRUE(result.logicalInsert);
+    EXPECT_EQ(2,
+              accounting.getStats()
+                      .at(CollectionEntry::fruit.getId())
+                      .getItemCount());
+
+    // A revision from the middle generation is a plain update
+    result = accounting.updateStats(StoredDocKey{"k2", CollectionEntry::fruit},
+                                    f1,
+                                    IsCommitted::Yes,
+                                    IsDeleted::No,
+                                    100,
+                                    f1,
+                                    IsDeleted::No,
+                                    50,
+                                    IsCompaction::No,
+                                    CompactionCallbacks::AnyRevision);
+    EXPECT_FALSE(result.logicalInsert);
+    EXPECT_EQ(2,
+              accounting.getStats()
+                      .at(CollectionEntry::fruit.getId())
+                      .getItemCount());
 }

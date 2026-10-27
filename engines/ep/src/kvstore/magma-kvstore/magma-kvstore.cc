@@ -2006,23 +2006,6 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         }
     }
 
-    // If dropped collections exists, read the dropped collections metadata
-    // so the flusher can do the correct stat calculations. This is
-    // conditional as (trying) to read this data slows down saveDocs.
-    if (commitData.collections.droppedCollectionsExists()) {
-        auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
-        if (!getDroppedStatus) {
-            logger->warn(
-                    "MagmaKVStore::saveDocs {} Failed to get dropped "
-                    "collections",
-                    vbid);
-            // We have to return some non-success status, Invalid will do
-            return Status::Invalid;
-        }
-
-        commitData.collections.setDroppedCollectionsForStore(dropped);
-    }
-
     // WriteOperations are non-owning, so temporary storage is required for
     // compressed values and updated meta, for use in per-document compression.
     // Must live for the duration of the WriteDocs call.

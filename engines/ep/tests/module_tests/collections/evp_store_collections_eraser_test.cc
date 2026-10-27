@@ -1355,6 +1355,109 @@ TEST_P(CollectionsEraserTest, flush_basic) {
     verifyDroppedCollectionsOnDisk({});
 }
 
+// An item queued before an in-memory flush of its collection is persisted in
+// an earlier batch than the flush. The item belongs to the generation the flush
+// ended, which must still be known to the flusher (this used to throw).
+TEST_P(CollectionsEraserTest, flush_persists_item_queued_before_flush) {
+    if (!persistent() || isNexus()) {
+        // @todo MB-41351: nexus detects a collection disk size mismatch between
+        // the persisted and in-memory stats of the flushed collection.
+        GTEST_SKIP();
+    }
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Queue an item then flush the collection, persist them separately
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "1");
+    vb->checkpointManager->createNewCheckpoint();
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    bucket.setFlusherBatchSplitTrigger(1);
+
+    // apple, of the ended generation
+    EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+
+    EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed); // the flush
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+
+    runCollectionsEraser(vbid);
+    // @todo MB-41351: magma does not move the on-disk count of a flushed
+    // collection to the dropped counts, so the purge of apple is not counted
+    // (full eviction counts items on disk).
+    if (!(isMagma() && isFullEviction())) {
+        EXPECT_EQ(0, vb->getNumItems());
+    }
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+}
+
+// Two flushes of a collection are in memory and persisted in separate batches,
+// each saved generation must be forgotten once its flush is persisted.
+TEST_P(CollectionsEraserTest, flush_twice_persisted_separately) {
+    if (!persistent() || isNexus()) {
+        // @todo MB-41351: see flush_persists_item_queued_before_flush
+        GTEST_SKIP();
+    }
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "1");
+    vb->checkpointManager->createNewCheckpoint();
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    vb->checkpointManager->createNewCheckpoint();
+    store_item(vbid, StoredDocKey{"banana", CollectionEntry::fruit}, "1");
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    bucket.setFlusherBatchSplitTrigger(1);
+
+    // Checkpoints split the batches: apple, then the first flush, then banana
+    // with the second flush
+    EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);
+    EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_EQ(2, bucket.flushVBucket(vbid).numFlushed);
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+
+    runCollectionsEraser(vbid);
+    // @todo MB-41351: see flush_persists_item_queued_before_flush
+    if (!(isMagma() && isFullEviction())) {
+        EXPECT_EQ(0, vb->getNumItems());
+    }
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+}
+
+// A flush and then a drop of a collection persisted in one batch. They share a
+// key, so the batch persists only the drop, which must also forget the
+// generation the flush saved.
+TEST_P(CollectionsEraserTest, flush_and_drop_in_one_batch) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "1");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    vb->checkpointManager->createNewCheckpoint();
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+}
+
 // After a flush is persisted (and before the eraser runs) a store of a key from
 // before the flush must be accounted as an insert into the collection, the old
 // revision on disk belongs to the flushed (dropped) items.

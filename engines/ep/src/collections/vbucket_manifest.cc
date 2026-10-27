@@ -30,6 +30,7 @@
 #include <xattr/blob.h>
 
 #include <memory>
+#include <tuple>
 
 namespace Collections::VB {
 
@@ -167,7 +168,7 @@ std::optional<CollectionID> Manifest::applyDrops(
 
 std::optional<Manifest::BeginCollection> Manifest::applyBeginCollection(
         VBucketStateLockRef vbStateLock,
-        const WriteHandle& wHandle,
+        WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<BeginCollection>& changes) {
     std::optional<BeginCollection> rv;
@@ -505,7 +506,7 @@ ManifestUpdateStatus Manifest::canUpdate(
 }
 
 void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
-                               const WriteHandle& wHandle,
+                               WriteHandle& wHandle,
                                ::VBucket& vb,
                                ManifestUid newManUid,
                                ScopeCollectionPair identifiers,
@@ -542,7 +543,18 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
     updateUid(newManUid, optionalSeqno.has_value());
 
     // 2. Queue a system event, this will take a copy of the manifest ready
-    //    for persistence into the vb state file.
+    //    for persistence into the vb state file. A flush ends the current
+    //    generation, which is saved (as for a drop) as items of it may still
+    //    be flushing. The saved generation ends at the flush seqno, which is
+    //    also the start of the new generation, so a lookup of the flush seqno
+    //    in the dropped collections (inclusive end, first match) can find the
+    //    ended generation. Both generations hold the same stats snapshot.
+    //    @todo MB-41351: consider an exclusive end for a flushed generation.
+    std::function<void(int64_t)> saveEndedGeneration;
+    if (flushing) {
+        saveEndedGeneration = vb.getSaveDroppedCollectionCallback(
+                identifiers.second, wHandle, *entry);
+    }
     auto seqno = queueCollectionSystemEvent(vbStateLock,
                                             wHandle,
                                             vb,
@@ -551,7 +563,7 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
                                             *entry,
                                             SystemEventType::Begin,
                                             optionalSeqno,
-                                            {/*no callback*/});
+                                            std::move(saveEndedGeneration));
 
     EP_LOG_DEBUG(
             "{} {} collection:id:{}, name:{} in scope:{}, metered:{}, "
@@ -767,6 +779,14 @@ void Manifest::collectionDropPersisted(CollectionID cid,
     }
 
     droppedCollections.wlock()->remove(cid, seqno);
+}
+
+void Manifest::collectionFlushPersisted(CollectionID cid, uint64_t seqno) {
+    dropInProgress.store(true);
+    // The generation may be absent: the flush was not of an open collection
+    // (e.g. replica create with flushUid of an unknown cid), or a drop
+    // persisted in the same batch already removed it.
+    std::ignore = droppedCollections.wlock()->tryRemove(cid, seqno);
 }
 
 const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
@@ -1317,6 +1337,15 @@ StatsForFlush Manifest::getStatsForFlush(CollectionID cid,
     return droppedCollections.rlock()->get(cid, seqno);
 }
 
+std::optional<CollectionGeneration> Manifest::getGeneration(
+        CollectionID cid, uint64_t seqno) const {
+    if (const auto itr = map.find(cid);
+        itr != map.end() && seqno >= itr->second.getStartSeqno()) {
+        return CollectionGeneration{.startSeqno = itr->second.getStartSeqno()};
+    }
+    return droppedCollections.rlock()->getGeneration(cid, seqno);
+}
+
 std::optional<DcpFilterMeta> Manifest::getMetaForDcpFilter(
         CollectionID cid) const {
     auto collection = map.find(cid);
@@ -1780,51 +1809,34 @@ void Manifest::DroppedCollections::insert(CollectionID cid,
     dropped->second.emplace_back(info);
 }
 
-void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
+bool Manifest::DroppedCollections::tryRemove(CollectionID cid, uint64_t seqno) {
     auto dropItr = droppedCollections.find(cid);
     if (dropItr == droppedCollections.end()) {
-        // bad time - every call of get should be from a flush which
-        // had items we created for a collection which is open or was open.
-        // to not find the collection at all means we have flushed an item
-        // to a collection that never existed.
-        std::stringstream ss;
-        ss << *this;
-        throw std::logic_error(std::string(__PRETTY_FUNCTION__) + ":" +
-                               std::to_string(__LINE__) +
-                               " The collection cannot be found collection:" +
-                               cid.to_string() + " seqno:" +
-                               std::to_string(seqno) + " " + ss.str());
+        return false;
     }
-
-    auto& [key, vector] = *dropItr;
-    (void)key;
-    bool erased = false;
-    for (auto itr = vector.begin(); itr != vector.end();) {
-        // remove every dropped collection in the 'list' if seqno is >=
-        if (seqno >= itr->end) {
-            itr = vector.erase(itr);
-            erased = true;
-        } else {
-            itr++;
-        }
+    auto& generations = dropItr->second;
+    const auto erased = std::erase_if(generations, [seqno](const auto& info) {
+        return seqno >= info.end;
+    });
+    if (generations.empty()) {
+        droppedCollections.erase(dropItr);
     }
+    return erased != 0;
+}
 
-    if (erased) {
-        // clear the map?
-        if (vector.empty()) {
-            droppedCollections.erase(dropItr);
-        }
+void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
+    if (tryRemove(cid, seqno)) {
         return;
     }
-
+    // Every drop persisted must have a saved generation
+    const auto* missing = droppedCollections.contains(cid) ? "collection@seqno"
+                                                           : "collection";
     std::stringstream ss;
     ss << *this;
-
     throw std::logic_error(std::string(__PRETTY_FUNCTION__) + ":" +
-                           std::to_string(__LINE__) +
-                           " The collection@seqno cannot be found collection:" +
-                           cid.to_string() + " seqno:" + std::to_string(seqno) +
-                           " " + ss.str());
+                           std::to_string(__LINE__) + " The " + missing +
+                           " cannot be found collection:" + cid.to_string() +
+                           " seqno:" + std::to_string(seqno) + " " + ss.str());
 }
 
 void Manifest::DroppedCollections::applyStatsChanges(
@@ -1887,6 +1899,23 @@ Manifest::DroppedCollectionInfo& Manifest::DroppedCollections::findInfo(
     return const_cast<DroppedCollectionInfo&>(
             const_cast<const DroppedCollections*>(this)->findInfo(
                     callerName, cid, seqno));
+}
+
+std::optional<CollectionGeneration> Manifest::DroppedCollections::getGeneration(
+        CollectionID cid, uint64_t seqno) const {
+    const auto dropItr = droppedCollections.find(cid);
+    if (dropItr == droppedCollections.end()) {
+        return std::nullopt;
+    }
+    for (const auto& info : dropItr->second) {
+        // The end is exclusive (as CollectionGeneration::contains), the end
+        // seqno is the event which ended the generation
+        if (seqno >= info.start && seqno < info.end) {
+            return CollectionGeneration{.startSeqno = info.start,
+                                        .endSeqno = info.end};
+        }
+    }
+    return std::nullopt;
 }
 
 size_t Manifest::DroppedCollections::size() const {
