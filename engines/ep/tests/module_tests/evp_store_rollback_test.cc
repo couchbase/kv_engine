@@ -411,6 +411,68 @@ protected:
                   vb->getManifest().lock().getHighSeqno(CollectionID::Default));
     }
 
+    /**
+     * A rollback to the drop of a collection schedules the purge of the
+     * dropped collection.
+     * @param storeList false if only the erase seqno records the drop
+     */
+    void rollbackToDroppedCollectionSchedulesPurge(bool storeList) {
+        if (!storeList) {
+            // The list is never stored, only the erase seqno records the drop
+            engine->getConfiguration().setCollectionsMaxDroppedListSize(0);
+        }
+        auto vb = store->getVBucket(vbid);
+        CollectionsManifest cm;
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::dairy)));
+        store_item(vbid,
+                   makeStoredDocKey("milk", CollectionEntry::dairy),
+                   "value");
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 2),
+                  getEPBucket().flushVBucket(vbid));
+
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm.remove(CollectionEntry::dairy)));
+        const auto dropSeqno = uint64_t(vb->getHighSeqno());
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 1),
+                  getEPBucket().flushVBucket(vbid));
+
+        for (int ii = 0; ii < 2; ii++) {
+            store_item(vbid,
+                       makeStoredDocKey("key_" + std::to_string(ii)),
+                       "default collection");
+        }
+        ASSERT_EQ(FlushResult(MoreAvailable::No, 2),
+                  getEPBucket().flushVBucket(vbid));
+
+        ASSERT_EQ(cb::engine_errc::success, store->cancelCompaction(vbid));
+        auto* mockEPBucket = dynamic_cast<MockEPBucket*>(store);
+        ASSERT_TRUE(mockEPBucket);
+        ASSERT_FALSE(mockEPBucket->getCompactionTask(vbid));
+
+        auto [status, dropped] =
+                store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+        ASSERT_TRUE(status);
+        ASSERT_EQ(storeList ? 1 : 0, dropped.size());
+        ASSERT_THAT(getEraseSeqnos(*store->getRWUnderlying(vbid), vbid),
+                    ::testing::ElementsAre(dropSeqno));
+
+        store->setVBucketState(vbid, vbStateAtRollback);
+        ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, dropSeqno));
+        EXPECT_TRUE(vb->getManifest().isDropInProgress());
+
+        const auto itemsBeforePurge = vb->ht.getNumInMemoryItems();
+        EXPECT_NO_THROW(runCollectionsEraser(vbid));
+
+        EXPECT_EQ(itemsBeforePurge - 1, vb->ht.getNumInMemoryItems());
+        std::tie(status, dropped) =
+                store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+        ASSERT_TRUE(status);
+        EXPECT_TRUE(dropped.empty());
+    }
+
     void rollback_to_middle_test(bool flush_before_rollback,
                                  bool rollbackCollectionCreate = false) {
         // create some more checkpoints just to see a few iterations
@@ -630,51 +692,11 @@ TEST_P(RollbackTest, RollbackCollectionCreate2) {
 }
 
 TEST_P(RollbackTest, RollbackToDroppedCollectionSchedulesPurge) {
-    auto vb = store->getVBucket(vbid);
-    CollectionsManifest cm;
-    vb->updateFromManifest(
-            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
-            makeManifest(cm.add(CollectionEntry::dairy)));
-    store_item(vbid, makeStoredDocKey("milk", CollectionEntry::dairy), "value");
-    ASSERT_EQ(FlushResult(MoreAvailable::No, 2),
-              getEPBucket().flushVBucket(vbid));
+    rollbackToDroppedCollectionSchedulesPurge(true);
+}
 
-    vb->updateFromManifest(
-            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
-            makeManifest(cm.remove(CollectionEntry::dairy)));
-    const auto dropSeqno = uint64_t(vb->getHighSeqno());
-    ASSERT_EQ(FlushResult(MoreAvailable::No, 1),
-              getEPBucket().flushVBucket(vbid));
-
-    for (int ii = 0; ii < 2; ii++) {
-        store_item(vbid,
-                   makeStoredDocKey("key_" + std::to_string(ii)),
-                   "default collection");
-    }
-    ASSERT_EQ(FlushResult(MoreAvailable::No, 2),
-              getEPBucket().flushVBucket(vbid));
-
-    ASSERT_EQ(cb::engine_errc::success, store->cancelCompaction(vbid));
-    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(store);
-    ASSERT_TRUE(mockEPBucket);
-    ASSERT_FALSE(mockEPBucket->getCompactionTask(vbid));
-
-    auto [status, dropped] =
-            store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
-    ASSERT_EQ(1, dropped.size());
-
-    store->setVBucketState(vbid, vbStateAtRollback);
-    ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, dropSeqno));
-
-    const auto itemsBeforePurge = vb->ht.getNumInMemoryItems();
-    EXPECT_NO_THROW(runCollectionsEraser(vbid));
-
-    EXPECT_EQ(itemsBeforePurge - 1, vb->ht.getNumInMemoryItems());
-    std::tie(status, dropped) =
-            store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
-    EXPECT_TRUE(dropped.empty());
+TEST_P(RollbackTest, RollbackToDroppedCollectionSchedulesPurgeWithoutList) {
+    rollbackToDroppedCollectionSchedulesPurge(false);
 }
 
 // Test what happens when we rollback the creation and the mutation of

@@ -15,6 +15,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "item.h"
+#include "kvstore/kvstore_iface.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/test_helpers.h"
@@ -257,6 +258,30 @@ void modifyCouchstoreVBState(
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to close file";
     err = couchstore_free_db(handle);
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to free db";
+}
+
+void writeCouchstoreLocalDoc(Vbid vbucket,
+                             const std::string& dbDir,
+                             uint64_t revision,
+                             std::string_view key,
+                             std::optional<std::string_view> value) {
+    const auto filename =
+            fmt::format("{}/{}.couch.{}", dbDir, vbucket.get(), revision);
+    Db* handle;
+    auto err = couchstore_open_db(filename.c_str(), 0, &handle);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open " << filename;
+
+    LocalDoc doc{};
+    doc.id = {const_cast<char*>(key.data()), key.size()};
+    if (value) {
+        doc.json = {const_cast<char*>(value->data()), value->size()};
+    }
+    doc.deleted = value ? 0 : 1;
+    err = couchstore_save_local_document(handle, &doc);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
+    ASSERT_EQ(COUCHSTORE_SUCCESS, couchstore_commit(handle));
+    ASSERT_EQ(COUCHSTORE_SUCCESS, couchstore_close_file(handle));
+    ASSERT_EQ(COUCHSTORE_SUCCESS, couchstore_free_db(handle));
 }
 
 std::string getProcessUniqueDatabaseName() {
@@ -734,3 +759,9 @@ std::vector<StoredValue::UniquePtr> createAll(
 }
 
 } // namespace cb::testing::sv
+
+std::vector<uint64_t> getEraseSeqnos(const KVStoreIface& kvstore, Vbid vbid) {
+    auto [status, eraseSeqnos] = kvstore.getEraseSeqnos(vbid);
+    EXPECT_TRUE(status) << "getEraseSeqnos failed for " << vbid;
+    return eraseSeqnos.getSeqnos();
+}

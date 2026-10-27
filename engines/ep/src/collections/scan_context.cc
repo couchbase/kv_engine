@@ -20,7 +20,9 @@ ScanContext::ScanContext(
         const std::vector<Collections::KVStore::OpenCollection>*
                 openCollections,
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections) {
+                droppedCollections,
+        uint64_t openMaxSeqno)
+    : openMaxSeqno(openMaxSeqno) {
     for (const auto& droppedCollection : droppedCollections) {
         // The list has one entry per collection (a flush extends the entry)
         const bool emplaced = droppedEndSeqnos
@@ -37,6 +39,7 @@ ScanContext::ScanContext(
 
     if (openCollections) {
         canCheckOpenMap = true;
+        open.reserve(openCollections->size());
         for (const auto& collection : *openCollections) {
             bool emplaced =
                     open.emplace(collection.metaData.cid, collection.startSeqno)
@@ -70,11 +73,14 @@ bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
         cid = key.getCollectionID();
     }
 
-    if (!droppedEndSeqnos.empty() &&
-        isLogicallyDeleted(cid, isDeleted, seqno)) {
+    return isLogicallyDeleted(cid, seqno);
+}
+
+bool ScanContext::isLogicallyDeleted(CollectionID cid, uint64_t seqno) const {
+    if (isInDroppedSet(cid, seqno)) {
         return true;
     }
-    if (canCheckOpenMap) {
+    if (canCheckOpenMap && seqno <= openMaxSeqno) {
         // Check open/alive collections
         auto itr = open.find(cid);
         if (itr != open.end()) {
@@ -90,12 +96,10 @@ bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
     return false;
 }
 
-bool ScanContext::isLogicallyDeleted(CollectionID cid,
-                                     bool isDeleted,
-                                     uint64_t seqno) const {
+bool ScanContext::isInDroppedSet(CollectionID cid, uint64_t seqno) const {
     // Is the key in a range which contains dropped collections? This is a
     // cheap filter before the per collection lookup.
-    if (seqno < startSeqno || seqno >= endSeqno) {
+    if (droppedEndSeqnos.empty() || seqno < startSeqno || seqno >= endSeqno) {
         return false;
     }
     // The key must be below the end-seqno of its own collection. A flushed
@@ -114,7 +118,8 @@ std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {
         os << cid.to_string() << ":" << end << ", ";
     }
     os << "]\n"
-       << "canCheckOpenMap:" << scanContext.canCheckOpenMap << ", open:[";
+       << "canCheckOpenMap:" << scanContext.canCheckOpenMap
+       << ", openMaxSeqno:" << scanContext.openMaxSeqno << ", open:[";
     for (const auto& entry : scanContext.open) {
         os << entry.first.to_string() << ":" << entry.second << ", ";
     }

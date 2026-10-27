@@ -580,16 +580,18 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
-        std::vector<Collections::KVStore::DroppedCollection>& existingDropped) {
+std::vector<KVStore::DroppedCollection> Flush::mergeDroppedCollections(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                existingDropped) const {
     // Empty collections are never written to the dropped list. There is
     // nothing on disk for compaction to erase and (as compaction is not
     // scheduled for an empty collection) an entry would otherwise remain in
     // the dropped list until some unrelated compaction ran.
     const auto& empty = getEmptyDroppedCollections();
-
-    flatbuffers::FlatBufferBuilder builder;
-    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
+    std::vector<KVStore::DroppedCollection> output;
+    output.reserve(existingDropped.size() +
+                   flushAccounting.getDroppedCollections().size() +
+                   flushAccounting.getFlushedCollections().size());
 
     // A collection must appear once in the output. Track the collections
     // already added so that the following loops can skip them.
@@ -609,7 +611,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the existing dropped collections and look each up in the
     // commit metadata. If the collection is in both lists, we will just update
     // the existing data (adjusting the endSeqno) and then mark as skipped
-    for (auto& collection : existingDropped) {
+    for (auto collection : existingDropped) {
         if (auto itr = flushAccounting.getDroppedCollections().find(
                     collection.collectionId);
             itr != flushAccounting.getDroppedCollections().end()) {
@@ -622,17 +624,10 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
         collection.endSeqno =
                 applyFlush(collection.collectionId, collection.endSeqno);
         skip.emplace(collection.collectionId);
-        auto newEntry = Collections::KVStore::CreateDropped(
-                builder,
-                collection.startSeqno,
-                collection.endSeqno,
-                uint32_t(collection.collectionId));
-        output.push_back(newEntry);
+        output.push_back(collection);
     }
 
     // Now add the newly dropped collections
-    // Iterate through the set of collections dropped in the commit batch and
-    // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
         if (empty.contains(cid) || !skip.emplace(cid).second) {
             // This collection is empty (so don't emit) or is already in output.
@@ -640,12 +635,8 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
             // batch must still be emitted.
             continue;
         }
-        auto newEntry = Collections::KVStore::CreateDropped(
-                builder,
-                dropped.startSeqno,
-                applyFlush(cid, dropped.endSeqno),
-                uint32_t(dropped.collectionId));
-        output.push_back(newEntry);
+        output.emplace_back(
+                dropped.startSeqno, applyFlush(cid, dropped.endSeqno), cid);
     }
 
     // Finally any flushed collections that are not yet in the output.
@@ -658,26 +649,83 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
         // encodeOpenCollections). Without it 0 is a safe lower bound, all of
         // the collection below seqno is logically deleted.
         const auto start = flushedStartSeqnos.find(cid);
-        auto newEntry = Collections::KVStore::CreateDropped(
-                builder,
+        output.emplace_back(
                 start == flushedStartSeqnos.end() ? 0 : start->second,
                 seqno,
-                uint32_t(cid));
-        output.push_back(newEntry);
+                cid);
     }
+    return output;
+}
 
-    // If the output vector is empty (e.g. only empty collections were dropped)
+/// @return the list encoded as DroppedCollections (kvstore.fbs)
+static flatbuffers::DetachedBuffer encodeDroppedList(
+        const std::vector<KVStore::DroppedCollection>& list) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
+    output.reserve(list.size());
+    for (const auto& dropped : list) {
+        output.push_back(Collections::KVStore::CreateDropped(
+                builder,
+                dropped.startSeqno,
+                dropped.endSeqno,
+                uint32_t(dropped.collectionId)));
+    }
+    auto vector = builder.CreateVector(output);
+    builder.Finish(
+            Collections::KVStore::CreateDroppedCollections(builder, vector));
+    return builder.Release();
+}
+
+flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                existingDropped) const {
+    const auto merged = mergeDroppedCollections(existingDropped);
+    // If the output is empty (e.g. only empty collections were dropped)
     // return an empty buffer so the caller knows there is nothing to store.
-    if (output.empty()) {
+    if (merged.empty()) {
         return {};
     }
+    return encodeDroppedList(merged);
+}
 
-    auto vector = builder.CreateVector(output);
-    auto final =
-            Collections::KVStore::CreateDroppedCollections(builder, vector);
-    builder.Finish(final);
+Flush::DroppedListUpdate Flush::encodeBoundedDroppedCollections(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                existingDropped,
+        uint64_t storedEraseSeqno,
+        size_t maxSize) const {
+    DroppedListUpdate update{.eraseSeqnos = getEraseSeqnos()};
+    // An erase seqno without a list means the list was abandoned (or cannot
+    // be trusted). It is not stored again until the purge completes.
+    if (existingDropped.empty() && storedEraseSeqno != 0) {
+        return update;
+    }
 
-    return builder.Release();
+    const auto merged = mergeDroppedCollections(existingDropped);
+    update.size = merged.size();
+    if (merged.empty()) {
+        return update; // Nothing to store
+    }
+    if (merged.size() <= maxSize) {
+        update.action = DroppedListUpdate::Action::Write;
+        update.data = encodeDroppedList(merged);
+        return update;
+    }
+    if (existingDropped.empty()) {
+        // No list is stored. The new entries are of non-empty drops (or
+        // flushes) so the erase seqno records the purge.
+        Expects(!update.eraseSeqnos.empty());
+        return update;
+    }
+
+    // Abandon the stored list. A list written before the erase seqno existed
+    // has none, so record the purge which the list required.
+    update.action = DroppedListUpdate::Action::Delete;
+    if (storedEraseSeqno == 0) {
+        for (const auto& dropped : merged) {
+            update.eraseSeqnos.push_back(dropped.endSeqno);
+        }
+    }
+    return update;
 }
 
 flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(

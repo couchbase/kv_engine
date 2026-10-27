@@ -80,6 +80,7 @@ public:
     }
 
     using CouchKVStore::setConcurrentCompactionPostLockHook;
+    using CouchKVStore::setConcurrentCompactionPostReplayHook;
     using CouchKVStore::setConcurrentCompactionPreLockHook;
     using CouchKVStore::setMb40415RegressionHook;
 

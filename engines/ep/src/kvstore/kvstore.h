@@ -472,16 +472,26 @@ struct vbucket_state;
 
 class ScanContext {
 public:
+    /**
+     * @param vbid the vbucket scanned
+     * @param handle the file handle of the snapshot scanned
+     * @param docFilter which documents the scan returns (e.g. no deletes)
+     * @param valFilter which values the scan returns (e.g. keys only)
+     * @param cb receives each item scanned
+     * @param cl the cache lookup callback, called before an item's value is
+     *        read
+     * @param collectionsScanContext identifies the logically deleted items
+     *        which the scan skips (see Collections::VB::ScanContext::make)
+     * @param maxSeqno the greatest seqno the scan covers
+     * @param historyStartSeqno the start of the history window (0 if none)
+     */
     ScanContext(Vbid vbid,
                 std::unique_ptr<KVFileHandle> handle,
                 DocumentFilter docFilter,
                 ValueFilter valFilter,
                 std::unique_ptr<StatusCallback<GetValue>> cb,
                 std::unique_ptr<StatusCallback<CacheLookup>> cl,
-                const std::vector<Collections::KVStore::OpenCollection>*
-                        openCollections,
-                const std::vector<Collections::KVStore::DroppedCollection>&
-                        droppedCollections,
+                Collections::VB::ScanContext collectionsScanContext,
                 uint64_t maxSeqno,
                 uint64_t historyStartSeqno = 0);
 
@@ -569,23 +579,19 @@ public:
 
 class BySeqnoScanContext : public ScanContext {
 public:
-    BySeqnoScanContext(
-            std::unique_ptr<StatusCallback<GetValue>> cb,
-            std::unique_ptr<StatusCallback<CacheLookup>> cl,
-            Vbid vb,
-            std::unique_ptr<KVFileHandle> handle,
-            uint64_t start,
-            uint64_t end,
-            uint64_t purgeSeqno,
-            DocumentFilter _docFilter,
-            ValueFilter _valFilter,
-            uint64_t _documentCount,
-            const vbucket_state& vbucketState,
-            const std::vector<Collections::KVStore::OpenCollection>*
-                    openCollections,
-            const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections,
-            uint64_t historyStartSeqno);
+    BySeqnoScanContext(std::unique_ptr<StatusCallback<GetValue>> cb,
+                       std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                       Vbid vb,
+                       std::unique_ptr<KVFileHandle> handle,
+                       uint64_t start,
+                       uint64_t end,
+                       uint64_t purgeSeqno,
+                       DocumentFilter _docFilter,
+                       ValueFilter _valFilter,
+                       uint64_t _documentCount,
+                       const vbucket_state& vbucketState,
+                       Collections::VB::ScanContext collectionsScanContext,
+                       uint64_t historyStartSeqno);
 
     uint64_t lastReadSeqno{0};
 
@@ -675,8 +681,7 @@ public:
                     std::vector<ByIdRange> ranges,
                     DocumentFilter _docFilter,
                     ValueFilter _valFilter,
-                    const std::vector<Collections::KVStore::DroppedCollection>&
-                            droppedCollections,
+                    Collections::VB::ScanContext collectionsScanContext,
                     uint64_t maxSeqno,
                     uint64_t historyStartSeqno = 0);
 

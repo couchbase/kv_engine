@@ -12,6 +12,7 @@
 #pragma once
 
 #include "collections/kvstore.h"
+#include "collections/scan_context.h"
 #include "ep_types.h"
 #include <memcached/systemevent.h>
 
@@ -105,6 +106,21 @@ public:
         this->manifest = manifest;
         generations.clear();
     }
+
+    /**
+     * For compaction replay from a store with no dropped list, set the context
+     * (built from the open collections of that store) which then defines the
+     * logically deleted items.
+     */
+    void setStoreScanContext(ScanContext scanContext) {
+        storeScanContext = std::move(scanContext);
+    }
+
+    /// @return the context given to setStoreScanContext
+    const std::optional<ScanContext>& getStoreScanContext() const {
+        return storeScanContext;
+    }
+
     /**
      * preset the statistics of the collection. Subsequent updateStats calls
      * then account against preset values.
@@ -372,7 +388,8 @@ private:
      * Function determines if the revision being replaced (oldSeqno) is
      * logically deleted by generation: it is if it precedes the generation of
      * the revision replacing it, which the in-memory manifest supplies (see
-     * getGenerationStart).
+     * getGenerationStart). A compaction replay from a store with no dropped
+     * list also checks the store's open collections (setStoreScanContext).
      *
      * @param cid Collection to look-up.
      * @param seqno The seqno of the revision replacing the stored revision.
@@ -490,5 +507,11 @@ private:
      * generation) the batch updates, not for every item.
      */
     mutable std::unordered_map<CollectionID, CollectionGeneration> generations;
+
+    /**
+     * The open collections of the store which compaction replays from, when
+     * that store has no dropped list.
+     */
+    std::optional<ScanContext> storeScanContext;
 };
 } // namespace Collections::VB

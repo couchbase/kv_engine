@@ -10,16 +10,39 @@
  */
 
 #include "collections/eraser_context.h"
+#include "collections/kvstore.h"
 
 #include <flatbuffers/flatbuffers.h>
 
 namespace Collections::VB {
 
+/// @return the open collections the ScanContext uses to define logically
+///         deleted keys (only when there is no dropped list)
+static const std::vector<Collections::KVStore::OpenCollection>* getOpenForErase(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections,
+        const std::vector<Collections::KVStore::OpenCollection>&
+                openCollections,
+        uint64_t maxEraseSeqno) {
+    if (!ScanContext::useOpenCollectionsForDroppedData(
+                !droppedCollections.empty(), maxEraseSeqno)) {
+        return nullptr;
+    }
+    // May be empty, e.g. every collection (including the default) dropped
+    return &openCollections;
+}
+
 EraserContext::EraserContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
+        const std::vector<Collections::KVStore::OpenCollection>&
+                openCollections,
         uint64_t maxEraseSeqno)
-    : ScanContext(nullptr, droppedCollections), maxEraseSeqno(maxEraseSeqno) {
+    : ScanContext(getOpenForErase(
+                          droppedCollections, openCollections, maxEraseSeqno),
+                  droppedCollections,
+                  maxEraseSeqno),
+      maxEraseSeqno(maxEraseSeqno) {
 }
 
 void EraserContext::processSystemEvent(const DocKeyView& key, SystemEvent se) {
@@ -38,13 +61,16 @@ void EraserContext::processSystemEvent(const DocKeyView& key, SystemEvent se) {
 }
 
 bool EraserContext::needToUpdateCollectionsMetadata() const {
-    return seenEndOfCollection;
+    // Erasing with the open collections purges all logically deleted keys
+    return seenEndOfCollection || isErasingOpenCollections();
 }
 
 std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {
     os << "EraserContext: seenEndOfCollection:"
        << (eraserContext.seenEndOfCollection ? "true, " : "false, ")
-       << "maxEraseSeqno:" << eraserContext.maxEraseSeqno << ", ";
+       << "erasingOpenCollections:"
+       << (eraserContext.isErasingOpenCollections() ? "true" : "false")
+       << ", maxEraseSeqno:" << eraserContext.maxEraseSeqno << ", ";
     os << static_cast<const ScanContext&>(eraserContext);
     return os;
 }

@@ -764,12 +764,58 @@ public:
     std::shared_ptr<BucketLogger> logger;
 
 protected:
+    /// Local doc updates which remove the metadata of purged collections
+    struct PurgedCollectionsUpdate {
+        LocalDbReqs localDbReqs;
+        /// true if dropped collection data remains after the update
+        bool droppedDataExists{false};
+    };
+
+    /**
+     * Read the current collections metadata and create the updates which
+     * remove what a compaction purged. A drop flushed since the eraser was
+     * created remains.
+     * @param eraser the compaction's EraserContext
+     * @param purgedCollections the dropped list entries which were purged
+     *        (each collection mapped to its end-seqno)
+     * @param eraseSeqnoPurged true if all data below the eraser's erase seqno
+     *        was purged
+     * @return the updates, or the error of reading the metadata
+     */
+    std::expected<PurgedCollectionsUpdate, magma::Status>
+    makePurgedCollectionsUpdate(
+            Vbid vbid,
+            const Collections::VB::EraserContext& eraser,
+            const std::unordered_map<CollectionID, uint64_t>& purgedCollections,
+            bool eraseSeqnoPurged) const;
+
+    /**
+     * @param filter the scan's filter, nothing is read when it does not use
+     *        the context (ALL_ITEMS_AND_DROPPED_COLLECTIONS)
+     * @return the context which identifies the logically deleted items of the
+     *         snapshot for a scan (see Collections::VB::ScanContext::make)
+     */
+    std::expected<Collections::VB::ScanContext, magma::Status>
+    makeCollectionsScanContext(Vbid vbid,
+                               magma::Magma::Snapshot& snapshot,
+                               DocumentFilter filter,
+                               Collections::VB::ScanContext::OpenCollections
+                                       openCollections) const;
+
     /**
      * Read the collections erase seqnos from the latest state
      * @return a pair of Status and the erase seqnos (empty if not stored)
      */
     std::pair<magma::Status, Collections::KVStore::EraseSeqnos>
     getCollectionsEraseSeqnos(Vbid vbid) const;
+
+    /**
+     * Read the collections erase seqnos from the snapshot
+     * @return the erase seqnos (empty if not stored), or the read's error
+     */
+    std::expected<Collections::KVStore::EraseSeqnos, magma::Status>
+    getCollectionsEraseSeqnos(Vbid vbid,
+                              magma::Magma::Snapshot& snapshot) const;
 
     // Opens the Magma instance and finishes initialisation.
     void initialize(EncryptionKeyProvider* encryptionKeyProvider,

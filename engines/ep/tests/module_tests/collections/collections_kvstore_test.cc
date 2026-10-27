@@ -12,6 +12,7 @@
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
+#include "collections/eraser_context.h"
 #include "collections/events_generated.h"
 #include "collections/flush.h"
 #include "collections/kvstore_generated.h"
@@ -1346,6 +1347,171 @@ TEST(CollectionsEraseSeqnoTest, decodeManifestDroppedCollectionsExist) {
                                 {junk.data(), junk.size()},
                                 {erase.data(), erase.size()}),
                  std::runtime_error);
+}
+
+// ScanContext::make prefers the dropped list, only reading the open
+// collections when there is no list but a purge is required.
+TEST(ScanContextTest, make) {
+    using namespace Collections::KVStore;
+    using Collections::VB::ScanContext;
+    using Error = std::string;
+    const std::vector<DroppedCollection> list{{1, 10, CollectionID(9)}};
+    // The default collection and cid 8, flushed at seqno 8
+    Collections::CollectionMetaData flushed;
+    flushed.cid = CollectionID(8);
+    const std::vector<OpenCollection> open{
+            OpenCollection{0, Collections::CollectionMetaData{}},
+            OpenCollection{8, flushed}};
+    const StoredDocKey dropped{"k", CollectionID(9)};
+
+    // Readers which record what was read
+    std::vector<std::string> reads;
+    auto make = [&reads, &open](
+                        std::vector<DroppedCollection> stored,
+                        uint64_t eraseSeqno,
+                        ScanContext::OpenCollections mode =
+                                ScanContext::OpenCollections::Fallback) {
+        reads.clear();
+        return ScanContext::make(
+                [&reads, stored]() -> std::expected<decltype(stored), Error> {
+                    reads.emplace_back("dropped");
+                    return stored;
+                },
+                [&reads, eraseSeqno]() -> std::expected<uint64_t, Error> {
+                    reads.emplace_back("erase");
+                    return eraseSeqno;
+                },
+                [&reads, &open]() -> std::expected<decltype(open), Error> {
+                    reads.emplace_back("open");
+                    return open;
+                },
+                mode);
+    };
+    using Reads = std::vector<std::string>;
+
+    // The list is preferred, nothing else is read
+    auto scanContext = make(list, 10);
+    ASSERT_TRUE(scanContext);
+    EXPECT_FALSE(scanContext->isUsingOpenCollections());
+    EXPECT_TRUE(scanContext->isLogicallyDeleted(dropped, false, 5));
+    EXPECT_EQ((Reads{"dropped"}), reads);
+
+    // No list, but an erase seqno, the open collections are used
+    scanContext = make({}, 10);
+    ASSERT_TRUE(scanContext);
+    EXPECT_TRUE(scanContext->isUsingOpenCollections());
+    EXPECT_TRUE(scanContext->isLogicallyDeleted(dropped, false, 5));
+    EXPECT_FALSE(scanContext->isLogicallyDeleted(
+            StoredDocKey{"k", CollectionID::Default}, false, 5));
+    // Items before the flush of cid 8 are logically deleted
+    EXPECT_TRUE(scanContext->isLogicallyDeleted(
+            StoredDocKey{"k", CollectionID(8)}, false, 5));
+    EXPECT_FALSE(scanContext->isLogicallyDeleted(
+            StoredDocKey{"k", CollectionID(8)}, false, 9));
+    // Above the erase seqno nothing awaits a purge
+    EXPECT_FALSE(scanContext->isLogicallyDeleted(dropped, false, 11));
+    EXPECT_EQ((Reads{"dropped", "erase", "open"}), reads);
+
+    // Neither, nothing is logically deleted
+    scanContext = make({}, 0);
+    ASSERT_TRUE(scanContext);
+    EXPECT_FALSE(scanContext->isUsingOpenCollections());
+    EXPECT_FALSE(scanContext->isLogicallyDeleted(dropped, false, 5));
+    EXPECT_EQ((Reads{"dropped", "erase"}), reads);
+
+    // Always using the open collections (and the list)
+    scanContext = make(list, 0, ScanContext::OpenCollections::Always);
+    ASSERT_TRUE(scanContext);
+    EXPECT_TRUE(scanContext->isUsingOpenCollections());
+    // Not bounded by the erase seqno (or the list), e.g. the create of an
+    // empty dropped collection (not in the erase seqno) in a magma history scan
+    EXPECT_TRUE(scanContext->isLogicallyDeleted(dropped, false, 15));
+    EXPECT_TRUE(scanContext->isLogicallyDeleted(
+            StoredDocKey{"k", CollectionID(10)}, false, 15));
+    EXPECT_EQ((Reads{"dropped", "open"}), reads);
+
+    // A read error is returned
+    auto failed = ScanContext::make(
+            []() -> std::expected<std::vector<DroppedCollection>, Error> {
+                return std::vector<DroppedCollection>{};
+            },
+            []() -> std::expected<uint64_t, Error> {
+                return std::unexpected("erase failed");
+            },
+            [&open]() -> std::expected<std::vector<OpenCollection>, Error> {
+                return open;
+            });
+    ASSERT_FALSE(failed);
+    EXPECT_EQ("erase failed", failed.error());
+
+    // The first error is returned, later readers are not called
+    failed = ScanContext::make(
+            []() -> std::expected<std::vector<DroppedCollection>, Error> {
+                return std::unexpected("dropped failed");
+            },
+            []() -> std::expected<uint64_t, Error> {
+                ADD_FAILURE() << "erase read after an error";
+                return 0;
+            },
+            []() -> std::expected<std::vector<OpenCollection>, Error> {
+                ADD_FAILURE() << "open read after an error";
+                return std::vector<OpenCollection>{};
+            });
+    ASSERT_FALSE(failed);
+    EXPECT_EQ("dropped failed", failed.error());
+
+    failed = ScanContext::make(
+            [&list]() -> std::expected<std::vector<DroppedCollection>, Error> {
+                return list;
+            },
+            []() -> std::expected<uint64_t, Error> { return 0; },
+            []() -> std::expected<std::vector<OpenCollection>, Error> {
+                return std::unexpected("open failed");
+            },
+            ScanContext::OpenCollections::Always);
+    ASSERT_FALSE(failed);
+    EXPECT_EQ("open failed", failed.error());
+}
+
+TEST(ScanContextTest, useOpenCollectionsForDroppedData) {
+    using Collections::VB::ScanContext;
+    EXPECT_FALSE(ScanContext::useOpenCollectionsForDroppedData(false, 0));
+    EXPECT_FALSE(ScanContext::useOpenCollectionsForDroppedData(true, 0));
+    EXPECT_FALSE(ScanContext::useOpenCollectionsForDroppedData(true, 10));
+    EXPECT_TRUE(ScanContext::useOpenCollectionsForDroppedData(false, 10));
+}
+
+// Compaction erases using the dropped list, or the open collections when only
+// an erase seqno is stored.
+TEST(EraserContextTest, erasingMode) {
+    using namespace Collections::KVStore;
+    std::vector<OpenCollection> open{
+            OpenCollection{0, Collections::CollectionMetaData{}}};
+    const StoredDocKey dropped{"k", CollectionID(9)};
+    const std::vector<DroppedCollection> list{{1, 10, CollectionID(9)}};
+
+    // The list is preferred
+    Collections::VB::EraserContext withList{list, open, 10};
+    EXPECT_FALSE(withList.isErasingOpenCollections());
+    EXPECT_TRUE(withList.isLogicallyDeleted(dropped, false, 5));
+    EXPECT_FALSE(withList.isLogicallyDeleted(dropped, false, 50));
+
+    // No list, but an erase seqno, the open collections define dropped keys,
+    // only up to the erase seqno (all dropped collection data is at or below
+    // it, the open collections may not describe greater seqnos)
+    Collections::VB::EraserContext withOpen{{}, open, 50};
+    EXPECT_TRUE(withOpen.isErasingOpenCollections());
+    EXPECT_TRUE(withOpen.needToUpdateCollectionsMetadata());
+    EXPECT_TRUE(withOpen.isLogicallyDeleted(dropped, false, 50));
+    EXPECT_FALSE(withOpen.isLogicallyDeleted(dropped, false, 51));
+    EXPECT_FALSE(withOpen.isLogicallyDeleted(
+            StoredDocKey{"k", CollectionID::Default}, false, 50));
+
+    // Nothing to purge
+    Collections::VB::EraserContext none{{}, open, 0};
+    EXPECT_FALSE(none.isErasingOpenCollections());
+    EXPECT_FALSE(none.needToUpdateCollectionsMetadata());
+    EXPECT_FALSE(none.isLogicallyDeleted(dropped, false, 50));
 }
 
 class TestScanContext : public Collections::VB::ScanContext {

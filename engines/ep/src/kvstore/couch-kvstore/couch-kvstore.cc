@@ -1227,6 +1227,16 @@ CompactDBStatus CouchKVStore::compactDB(
     return status;
 }
 
+/// @return the value of a couchstore read result, or its error
+template <class T>
+static std::expected<T, couchstore_error_t> toExpected(
+        std::pair<couchstore_error_t, T> result) {
+    if (result.first != COUCHSTORE_SUCCESS) {
+        return std::unexpected(result.first);
+    }
+    return std::move(result.second);
+}
+
 static FileInfo toFileInfo(const cb::couchstore::Header& info) {
     return FileInfo{
             info.docCount, info.deletedCount, info.fileSize, info.purgeSeqNum};
@@ -1234,8 +1244,11 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
 
 couchstore_error_t CouchKVStore::replayPrecommitHook(
         Db& db,
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                sourceDropped,
         CompactionReplayPrepareStats& prepareStats,
         const Collections::VB::FlushAccounting& collectionStats,
+        const std::unordered_set<CollectionID>& closedInReplay,
         uint64_t purge_seqno,
         CompactionContext& hook_ctx) {
     couchstore_set_purge_seq(&db, purge_seqno);
@@ -1255,8 +1268,11 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
         }
 
         PendingLocalDocRequestQueue localDocQueue =
-                replayPrecommitProcessDroppedCollections(
-                        db, hook_ctx, collectionStats);
+                replayPrecommitProcessDroppedCollections(db,
+                                                         sourceDropped,
+                                                         hook_ctx,
+                                                         collectionStats,
+                                                         closedInReplay);
 
         try {
             // forEachCollection which had item(s) copied in the replay(s) the
@@ -1302,45 +1318,68 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
 CouchKVStore::PendingLocalDocRequestQueue
 CouchKVStore::replayPrecommitProcessDroppedCollections(
         Db& db,
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                sourceDropped,
         const CompactionContext& hook_ctx,
-        const Collections::VB::FlushAccounting& collectionStats) {
+        const Collections::VB::FlushAccounting& collectionStats,
+        const std::unordered_set<CollectionID>& closedInReplay) {
     PendingLocalDocRequestQueue localDocQueue;
+
+    auto& eraser = *hook_ctx.eraserContext;
+
+    // The replay copies every local document of the source, including the
+    // erase seqnos.
+    auto [eraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(db);
+    if (eraseStatus != COUCHSTORE_SUCCESS) {
+        throw std::runtime_error(
+                "CouchKVStore::replayPrecommitProcessDroppedCollections "
+                "failed getCollectionsEraseSeqnos status:" +
+                std::string(couchstore_strerror(eraseStatus)));
+    }
 
     // Do we need to generate a new dropped collection 'list'? One which loses
     // the collections processed in *this* compaction run, but keeps any new
-    // data which may of been flushed whilst compacting.
-    if (hook_ctx.eraserContext->needToUpdateCollectionsMetadata()) {
-        // This compaction run processed dropped collections
-
-        // 1) Get the current state from disk
-        auto [getDroppedStatus, droppedCollections] = getDroppedCollections(db);
-        if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-            throw std::runtime_error(
-                    "CouchKVStore::replayPrecommitProcessDroppedCollections "
-                    "failed getDroppedCollections status:" +
-                    std::string(couchstore_strerror(getDroppedStatus)));
-        }
-
-        // 2) Generate a new flatbuffer document to write back
+    // data which may have been flushed whilst compacting. The replay copies
+    // the source's list, but cannot copy its deletion (by the flusher when the
+    // list exceeds its limit), so the source's list is used. Without a source
+    // list the target's list is deleted, a no-op if it has none.
+    bool droppedListExists = !sourceDropped.empty();
+    if (!droppedListExists) {
+        localDocQueue.emplace_back(std::string{LocalDocKey::droppedCollections},
+                                   CouchLocalDocRequest::IsDeleted{});
+    } else if (eraser.needToUpdateCollectionsMetadata()) {
         auto fbData = Collections::VB::Flush::
                 encodeRelativeComplementOfDroppedCollections(
-                        droppedCollections,
-                        hook_ctx.eraserContext->getDroppedCollections());
+                        sourceDropped, eraser.getDroppedCollections());
 
-        // 3) If the function returned data, write it, else the document is
-        //    deleted.
-        if (fbData.data()) {
-            hook_ctx.eraserContext->setOnDiskDroppedDataExists(true);
+        // If the function returned data, write it, else the document is
+        // deleted.
+        droppedListExists = fbData.data() != nullptr;
+        if (droppedListExists) {
             localDocQueue.emplace_back(
                     std::string{LocalDocKey::droppedCollections}, fbData);
         } else {
-            // Need to ensure the 'dropped' list on disk is now gone
-            hook_ctx.eraserContext->setOnDiskDroppedDataExists(false);
             localDocQueue.emplace_back(
                     std::string{LocalDocKey::droppedCollections},
                     CouchLocalDocRequest::IsDeleted{});
         }
     }
+
+    // The erase seqnos which this compaction purged were copied back, remove
+    // them. Any which remain are of drops flushed whilst compacting.
+    if (eraseSeqnos.removeUpTo(eraser.getMaxEraseSeqno())) {
+        if (eraseSeqnos.empty()) {
+            localDocQueue.emplace_back(
+                    std::string{LocalDocKey::collectionsEraseSeqno},
+                    CouchLocalDocRequest::IsDeleted{});
+        } else {
+            localDocQueue.emplace_back(
+                    std::string{LocalDocKey::collectionsEraseSeqno},
+                    Collections::VB::Flush::encodeEraseSeqnos(eraseSeqnos));
+        }
+    }
+    eraser.setOnDiskDroppedDataExists(droppedListExists ||
+                                      !eraseSeqnos.empty());
 
     // Any collections which were dropped in the replay need to have their stats
     // deleted from the target file - without doing this the compacted file
@@ -1350,27 +1389,17 @@ CouchKVStore::replayPrecommitProcessDroppedCollections(
                 this->deleteCollectionStats(localDocQueue, id);
             });
 
-    // The replay copies every local document of the source, so the erase
-    // seqnos which this compaction purged are copied back, remove them. Any
-    // which remain are of drops flushed whilst compacting.
-    if (const auto purged = hook_ctx.eraserContext->getMaxEraseSeqno();
-        purged) {
-        auto [eraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(db);
-        if (eraseStatus != COUCHSTORE_SUCCESS) {
-            throw std::runtime_error(
-                    "CouchKVStore::replayPrecommitProcessDroppedCollections "
-                    "failed getCollectionsEraseSeqnos status:" +
-                    std::string(couchstore_strerror(eraseStatus)));
+    // Without a dropped list in the source, the dropped collections are those
+    // not open in the source, which may have stats from the target (if closed
+    // during the replay) or from the replay.
+    if (const auto& sourceScanContext = collectionStats.getStoreScanContext()) {
+        const auto& open = sourceScanContext->getOpenCollections();
+        for (CollectionID cid : closedInReplay) {
+            deleteCollectionStats(localDocQueue, cid);
         }
-        if (eraseSeqnos.removeUpTo(purged)) {
-            if (eraseSeqnos.empty()) {
-                localDocQueue.emplace_back(
-                        std::string{LocalDocKey::collectionsEraseSeqno},
-                        CouchLocalDocRequest::IsDeleted{});
-            } else {
-                localDocQueue.emplace_back(
-                        std::string{LocalDocKey::collectionsEraseSeqno},
-                        Collections::VB::Flush::encodeEraseSeqnos(eraseSeqnos));
+        for (const auto& [cid, stats] : collectionStats.getStats()) {
+            if (!open.contains(cid) && !closedInReplay.contains(cid)) {
+                deleteCollectionStats(localDocQueue, cid);
             }
         }
     }
@@ -1612,9 +1641,25 @@ CompactDBStatus CouchKVStore::compactDBInternal(
             return CompactDBStatus::Failed;
         }
 
+        std::vector<Collections::KVStore::OpenCollection> openCollections;
+        if (Collections::VB::ScanContext::useOpenCollectionsForDroppedData(
+                    !droppedCollections.empty(), eraseSeqno)) {
+            couchstore_error_t openStatus;
+            std::tie(openStatus, openCollections) =
+                    getOpenCollections(*sourceDb);
+            if (openStatus != COUCHSTORE_SUCCESS) {
+                logger.warnWithContext(
+                        "CouchKVStore::compactDBInternal: Failed to get open "
+                        "collections",
+                        {{"vb", vbid},
+                         {"error", couchstore_strerror(openStatus)}});
+                return CompactDBStatus::Failed;
+            }
+        }
+
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
-                        droppedCollections, eraseSeqno);
+                        droppedCollections, openCollections, eraseSeqno);
 
         {
             // MB-71917: Cache per-collection persisted high seqnos so we can
@@ -1983,6 +2028,13 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
     return COUCHSTORE_SUCCESS;
 }
 
+[[noreturn]] static void throwCatchUpReadError(couchstore_error_t error) {
+    throw std::runtime_error(
+            "CouchKVStore::tryToCatchUpDbFile: failed reading collections "
+            "metadata error: " +
+            std::string(couchstore_strerror(error)));
+}
+
 bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                                       Db& destination,
                                       std::unique_lock<std::mutex>& lock,
@@ -2014,18 +2066,42 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     // Get the dropped collections from the source file so the copy hook can
     // account (ignore) any items that belong to dropped collections. This is
     // done after seek end, so we read the most recent state.
-    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(source);
-    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        throw std::runtime_error(
-                "CouchKVStore::tryToCatchUpDbFile: getDroppedCollections"
-                "error: " +
-                std::string(couchstore_strerror(getDroppedStatus)));
-        return getDroppedStatus;
+    auto sourceDropped = toExpected(getDroppedCollections(source));
+    if (!sourceDropped) {
+        throwCatchUpReadError(sourceDropped.error());
+    }
+    auto sourceScanContext = Collections::VB::ScanContext::make(
+            [&sourceDropped] { return sourceDropped; },
+            [this, &source] {
+                auto [status, eraseSeqnos] = getCollectionsEraseSeqnos(source);
+                return toExpected(
+                        std::pair{status, eraseSeqnos.getEraseSeqno()});
+            },
+            [this, &source] { return toExpected(getOpenCollections(source)); });
+    if (!sourceScanContext) {
+        throwCatchUpReadError(sourceScanContext.error());
     }
 
     if (cb::couchstore::seek(source, start.headerPosition) !=
         COUCHSTORE_SUCCESS) {
         throw std::runtime_error("Failed to move back to the current position");
+    }
+
+    // Without a dropped list, the collections dropped by the replayed data are
+    // those open at the start (which may have stats in the target) and not open
+    // at the end.
+    std::unordered_set<CollectionID> closedInReplay;
+    if (sourceScanContext->isUsingOpenCollections()) {
+        auto open = toExpected(getOpenCollections(source));
+        if (!open) {
+            throwCatchUpReadError(open.error());
+        }
+        const auto& openAtEnd = sourceScanContext->getOpenCollections();
+        for (const auto& collection : *open) {
+            if (!openAtEnd.contains(collection.metaData.cid)) {
+                closedInReplay.insert(collection.metaData.cid);
+            }
+        }
     }
 
     if (copyWithoutLock) {
@@ -2045,7 +2121,12 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     // compacted and has no dropped collections remaining). The dropped
     // collections must be known so that the accounting can 'ignore' items of
     // dropped collections (e.g. replace becomes insert etc...)
-    Collections::VB::FlushAccounting collectionStats(droppedCollections);
+    // Without a dropped list (but with an erase seqno) the open collections of
+    // the source define the dropped collections.
+    Collections::VB::FlushAccounting collectionStats(*sourceDropped);
+    if (sourceScanContext->isUsingOpenCollections()) {
+        collectionStats.setStoreScanContext(std::move(*sourceScanContext));
+    }
     err = cb::couchstore::replay(
             source,
             destination,
@@ -2062,11 +2143,18 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                 return replayPreCopyHook(
                         target, docInfo, prepareStats, collectionStats);
             },
-            [&prepareStats, &collectionStats, &purge_seqno, &hook_ctx, this](
-                    Db&, Db& compacted) {
+            [&sourceDropped,
+             &prepareStats,
+             &collectionStats,
+             &closedInReplay,
+             &purge_seqno,
+             &hook_ctx,
+             this](Db&, Db& compacted) {
                 return replayPrecommitHook(compacted,
+                                           *sourceDropped,
                                            prepareStats,
                                            collectionStats,
+                                           closedInReplay,
                                            purge_seqno,
                                            hook_ctx);
             });
@@ -2078,6 +2166,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
 
     bool ret = true;
     if (copyWithoutLock) {
+        concurrentCompactionPostReplayHook();
         logger.infoWithContext(
                 "CouchKVStore::tryToCatchUpDbFile: Stopping flusher",
                 {{"vb", vbid}});
@@ -2357,30 +2446,31 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         return nullptr;
     }
 
-    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
-    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+    auto collectionsScanContext = makeCollectionsScanContext(*db, options);
+    if (!collectionsScanContext) {
         logger.warnWithContext(
                 "CouchKVStore::initBySeqnoScanContext: Failed to get "
-                "dropped collections",
+                "collections metadata",
                 {{"vb", vbid},
-                 {"error", couchstore_strerror(getDroppedStatus)}});
+                 {"error",
+                  couchstore_strerror(collectionsScanContext.error())}});
         return nullptr;
     }
 
-    auto sctx = std::make_unique<BySeqnoScanContext>(std::move(cb),
-                                                     std::move(cl),
-                                                     vbid,
-                                                     std::move(handle),
-                                                     startSeqno,
-                                                     header.updateSeqNum,
-                                                     header.purgeSeqNum,
-                                                     options,
-                                                     valOptions,
-                                                     count,
-                                                     readVbStateResult.state,
-                                                     nullptr,
-                                                     droppedCollections,
-                                                     0);
+    auto sctx = std::make_unique<BySeqnoScanContext>(
+            std::move(cb),
+            std::move(cl),
+            vbid,
+            std::move(handle),
+            startSeqno,
+            header.updateSeqNum,
+            header.purgeSeqNum,
+            options,
+            valOptions,
+            count,
+            readVbStateResult.state,
+            std::move(*collectionsScanContext),
+            0);
     sctx->logger = &logger;
     return sctx;
 }
@@ -2410,25 +2500,27 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
 
     const auto info = cb::couchstore::getHeader(*db.getDb());
 
-    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
-    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+    auto collectionsScanContext = makeCollectionsScanContext(*db, options);
+    if (!collectionsScanContext) {
         logger.warnWithContext(
                 "CouchKVStore::initByIdScanContext: Failed to get "
-                "dropped collections",
+                "collections metadata",
                 {{"vb", vbid},
-                 {"error", couchstore_strerror(getDroppedStatus)}});
+                 {"error",
+                  couchstore_strerror(collectionsScanContext.error())}});
         return nullptr;
     }
 
-    auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
-                                                  std::move(cl),
-                                                  vbid,
-                                                  std::move(handle),
-                                                  ranges,
-                                                  options,
-                                                  valOptions,
-                                                  droppedCollections,
-                                                  info.updateSeqNum);
+    auto sctx = std::make_unique<ByIdScanContext>(
+            std::move(cb),
+            std::move(cl),
+            vbid,
+            std::move(handle),
+            ranges,
+            options,
+            valOptions,
+            std::move(*collectionsScanContext),
+            info.updateSeqNum);
     sctx->logger = &logger;
     return sctx;
 }
@@ -4368,6 +4460,35 @@ CouchKVStore::getDroppedCollections(Db& db) const {
                     droppedRes.doc.getBuffer())};
 }
 
+std::pair<couchstore_error_t, std::vector<Collections::KVStore::OpenCollection>>
+CouchKVStore::getOpenCollections(Db& db) const {
+    auto openRes = readLocalDoc(db, LocalDocKey::openCollections);
+    if (openRes.status != COUCHSTORE_SUCCESS &&
+        openRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        return {openRes.status, {}};
+    }
+    return {COUCHSTORE_SUCCESS,
+            Collections::KVStore::decodeOpenCollections(
+                    openRes.doc.getLocalDoc() ? openRes.doc.getBuffer()
+                                              : cb::const_byte_buffer{})};
+}
+
+std::expected<Collections::VB::ScanContext, couchstore_error_t>
+CouchKVStore::makeCollectionsScanContext(Db& db, DocumentFilter filter) const {
+    if (filter == DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+        // Nothing is filtered, so no metadata is read
+        return Collections::VB::ScanContext{nullptr, {}};
+    }
+    return Collections::VB::ScanContext::make(
+            [this, &db] { return toExpected(getDroppedCollections(db)); },
+            [this, &db] {
+                auto [status, eraseSeqnos] = getCollectionsEraseSeqnos(db);
+                return toExpected(
+                        std::pair{status, eraseSeqnos.getEraseSeqno()});
+            },
+            [this, &db] { return toExpected(getOpenCollections(db)); });
+}
+
 std::pair<couchstore_error_t, Collections::KVStore::EraseSeqnos>
 CouchKVStore::getCollectionsEraseSeqnos(Db& db) const {
     auto eraseRes = readLocalDoc(db, LocalDocKey::collectionsEraseSeqno);
@@ -4473,23 +4594,37 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
         return getDroppedStatus;
     }
 
-    auto encodedDroppedCollections =
-            collectionsFlush.encodeDroppedCollections(dropped);
-    if (encodedDroppedCollections.data()) {
-        txnCtx.pendingLocalReqsQ.emplace_back(
-                std::string{LocalDocKey::droppedCollections},
-                encodedDroppedCollections);
+    auto [getEraseStatus, storedEraseSeqnos] = getCollectionsEraseSeqnos(db);
+    if (getEraseStatus != COUCHSTORE_SUCCESS) {
+        return getEraseStatus;
     }
 
-    // Add the erase seqnos of this batch to those stored
-    if (const auto seqnos = collectionsFlush.getEraseSeqnos();
-        !seqnos.empty()) {
-        auto [getEraseStatus, storedEraseSeqnos] =
-                getCollectionsEraseSeqnos(db);
-        if (getEraseStatus != COUCHSTORE_SUCCESS) {
-            return getEraseStatus;
-        }
-        storedEraseSeqnos.add(seqnos, configuration.getMaxEraseSeqnos());
+    using Action = Collections::VB::Flush::DroppedListUpdate::Action;
+    // Read once, the limit is dynamic
+    const auto limit = configuration.getMaxDroppedListSize();
+    auto update = collectionsFlush.encodeBoundedDroppedCollections(
+            dropped, storedEraseSeqnos.getEraseSeqno(), limit);
+    switch (update.action) {
+    case Action::None:
+        break;
+    case Action::Write:
+        txnCtx.pendingLocalReqsQ.emplace_back(
+                std::string{LocalDocKey::droppedCollections}, update.data);
+        break;
+    case Action::Delete:
+        logger.infoWithContext(
+                "CouchKVStore::updateDroppedCollections: The dropped "
+                "collections list exceeds the limit and is no longer stored",
+                {{"vb", txnCtx.vbid}, {"size", update.size}, {"limit", limit}});
+        txnCtx.pendingLocalReqsQ.emplace_back(
+                std::string{LocalDocKey::droppedCollections},
+                CouchLocalDocRequest::IsDeleted{});
+        break;
+    }
+
+    if (!update.eraseSeqnos.empty()) {
+        storedEraseSeqnos.add(update.eraseSeqnos,
+                              configuration.getMaxEraseSeqnos());
         txnCtx.pendingLocalReqsQ.emplace_back(
                 std::string{LocalDocKey::collectionsEraseSeqno},
                 Collections::VB::Flush::encodeEraseSeqnos(storedEraseSeqnos));

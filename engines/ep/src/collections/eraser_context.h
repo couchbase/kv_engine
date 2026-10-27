@@ -19,17 +19,38 @@ namespace Collections::VB {
 /**
  * The EraserContext subclasses ScanContext and provides extra methods for
  * tracking when collections are completely erased.
+ *
+ * Compaction erases the collections of the dropped list. When no list is
+ * stored but an erase seqno is, compaction erases every key which the open
+ * collections define as logically deleted.
  */
 class EraserContext : public ScanContext {
 public:
     /**
-     * @param droppedCollections the collections to erase
+     * @param droppedCollections the stored dropped list
+     * @param openCollections the open collections of the data to compact,
+     *        only read when ScanContext::useOpenCollectionsForDroppedData
+     *        (else empty)
      * @param maxEraseSeqno the greatest of the stored erase seqnos (0 if none)
-     *        when the snapshot to be compacted was read
+     *        when the snapshot to be compacted was read. With the open
+     *        collections only keys at or below it are erased, all dropped
+     *        collection data is at or below it, and greater seqnos may be of
+     *        collections the open collections do not describe (e.g. created
+     *        whilst a magma compaction runs).
      */
     EraserContext(const std::vector<Collections::KVStore::DroppedCollection>&
                           droppedCollections,
+                  const std::vector<Collections::KVStore::OpenCollection>&
+                          openCollections,
                   uint64_t maxEraseSeqno);
+
+    /**
+     * @return true if (without a dropped list) the open collections define
+     *         which keys are erased
+     */
+    bool isErasingOpenCollections() const {
+        return isUsingOpenCollections();
+    }
 
     /**
      * Called by kvstore for deleted keys, when the deleted key is a drop of a

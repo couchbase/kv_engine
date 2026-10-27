@@ -362,6 +362,16 @@
             "dynamic": false,
             "type": "bool"
         },
+        "collections_max_dropped_list_size" : {
+            "added": "ponyo",
+            "default": "100",
+            "descr": "The maximum number of entries the persisted dropped collections list may hold. Beyond this the list is no longer stored, only the erase seqno, and scans and compaction identify dropped collection data using the open collections.",
+            "dynamic": true,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
         "collections_max_erase_seqnos" : {
             "added": "ponyo",
             "default": "64",

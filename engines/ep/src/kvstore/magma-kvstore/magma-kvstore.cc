@@ -51,6 +51,7 @@
 #include <cstring>
 #include <filesystem>
 #include <limits>
+#include <numeric>
 #include <utility>
 
 class Snapshot;
@@ -2148,10 +2149,7 @@ public:
                      ValueFilter _valFilter,
                      uint64_t _documentCount,
                      const vbucket_state& vbucketState,
-                     const std::vector<Collections::KVStore::OpenCollection>*
-                             openCollections,
-                     const std::vector<Collections::KVStore::DroppedCollection>&
-                             droppedCollections,
+                     Collections::VB::ScanContext collectionsScanContext,
                      uint64_t historyStartSeqno)
         : BySeqnoScanContext(std::move(cb),
                              std::move(cl),
@@ -2164,8 +2162,7 @@ public:
                              _valFilter,
                              _documentCount,
                              vbucketState,
-                             openCollections,
-                             droppedCollections,
+                             std::move(collectionsScanContext),
                              historyStartSeqno) {
     }
 };
@@ -2215,34 +2212,25 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     uint64_t purgeSeqno = readState.state.purgeSeqno;
     uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus) {
+    // To correctly scan all versions, the open collections are always
+    // required for correct handling of any versions of data in dropped
+    // collections.
+    using OpenCollections = Collections::VB::ScanContext::OpenCollections;
+    auto collectionsScanContext =
+            makeCollectionsScanContext(vbid,
+                                       snapshot,
+                                       options,
+                                       source == SnapshotSource::HeadAllVersions
+                                               ? OpenCollections::Always
+                                               : OpenCollections::Fallback);
+    if (!collectionsScanContext) {
         logger->warnWithContext(
                 "MagmaKVStore::initBySeqnoScanContext failed "
-                "getDroppedCollections",
+                "makeCollectionsScanContext",
                 {{"vb", vbid},
-                 {"error", getDroppedStatus.String()},
+                 {"error", collectionsScanContext.error().String()},
                  {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
-    }
-
-    std::vector<Collections::KVStore::OpenCollection> openCollections;
-    if (source == SnapshotSource::HeadAllVersions) {
-        // To correctly scan all versions, the open collections are also
-        // required for correct handling of any versions of data in dropped
-        // collections.
-        magma::Status status;
-        std::tie(status, openCollections) = getOpenCollections(vbid, snapshot);
-        if (!status) {
-            logger->warnWithContext(
-                    "MagmaKVStore::initBySeqnoScanContext failed "
-                    "getOpenCollections",
-                    {{"vb", vbid},
-                     {"error", status.String()},
-                     {"duration",
-                      std::chrono::steady_clock::now() - startTime}});
-            return nullptr;
-        }
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
@@ -2269,9 +2257,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
             valOptions,
             nDocsToRead,
             readState.state,
-            source == SnapshotSource::HeadAllVersions ? &openCollections
-                                                      : nullptr,
-            dropped,
+            std::move(*collectionsScanContext),
             historyStartSeqno);
 }
 
@@ -2281,18 +2267,16 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
  */
 class MagmaByIdScanContext : public ByIdScanContext {
 public:
-    MagmaByIdScanContext(
-            std::unique_ptr<StatusCallback<GetValue>> cb,
-            std::unique_ptr<StatusCallback<CacheLookup>> cl,
-            Vbid vb,
-            std::unique_ptr<KVFileHandle> handle,
-            std::vector<ByIdRange> ranges,
-            DocumentFilter _docFilter,
-            ValueFilter _valFilter,
-            const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections,
-            uint64_t maxSeqno,
-            uint64_t historyStartSeqno)
+    MagmaByIdScanContext(std::unique_ptr<StatusCallback<GetValue>> cb,
+                         std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                         Vbid vb,
+                         std::unique_ptr<KVFileHandle> handle,
+                         std::vector<ByIdRange> ranges,
+                         DocumentFilter _docFilter,
+                         ValueFilter _valFilter,
+                         Collections::VB::ScanContext collectionsScanContext,
+                         uint64_t maxSeqno,
+                         uint64_t historyStartSeqno)
         : ByIdScanContext(std::move(cb),
                           std::move(cl),
                           vb,
@@ -2300,7 +2284,7 @@ public:
                           ranges,
                           _docFilter,
                           _valFilter,
-                          droppedCollections,
+                          std::move(collectionsScanContext),
                           maxSeqno,
                           historyStartSeqno) {
     }
@@ -2341,13 +2325,17 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         return nullptr;
     }
 
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus) {
+    auto collectionsScanContext = makeCollectionsScanContext(
+            vbid,
+            snapshot,
+            options,
+            Collections::VB::ScanContext::OpenCollections::Fallback);
+    if (!collectionsScanContext) {
         logger->warnWithContext(
                 "MagmaKVStore::initByIdScanContext failed "
-                "getDroppedCollections",
+                "makeCollectionsScanContext",
                 {{"vb", vbid},
-                 {"error", getDroppedStatus.String()},
+                 {"error", collectionsScanContext.error().String()},
                  {"duration", std::chrono::steady_clock::now() - startTime}});
         return nullptr;
     }
@@ -2358,16 +2346,17 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
             {{"vb", vbid},
              {"history_start_seqno", historyStartSeqno},
              {"duration", std::chrono::steady_clock::now() - startTime}});
-    return std::make_unique<MagmaByIdScanContext>(std::move(cb),
-                                                  std::move(cl),
-                                                  vbid,
-                                                  std::move(handle),
-                                                  ranges,
-                                                  options,
-                                                  valOptions,
-                                                  dropped,
-                                                  readState.state.highSeqno,
-                                                  historyStartSeqno);
+    return std::make_unique<MagmaByIdScanContext>(
+            std::move(cb),
+            std::move(cl),
+            vbid,
+            std::move(handle),
+            ranges,
+            options,
+            valOptions,
+            std::move(*collectionsScanContext),
+            readState.state.highSeqno,
+            historyStartSeqno);
 }
 
 ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
@@ -3269,28 +3258,62 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     ctx->highCompletedSeqno = diskState.state.persistedCompletedSeqno;
 
     // The collections metadata is read once the kvstore exists (see above).
-    // Read the erase seqno before the collections metadata, then any drop
-    // at or below the erase seqno is also known to this compaction.
-    const auto [getEraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
-    if (!getEraseStatus) {
-        logger->warn(
-                "MagmaKVStore::compactDBInternal: {} Failed to get "
-                "erase seqnos",
-                vbid);
-        return CompactDBStatus::Failed;
+    // Read the collections metadata under the vbucket lock (which a flush
+    // holds), so it is consistent with the dropped collection item counts.
+    // The open collections (with the item counts which account their erase)
+    // are only read when required for erasing, and are decoded once the lock
+    // is released.
+    Status getEraseStatus;
+    Collections::KVStore::EraseSeqnos eraseSeqnos;
+    bool getDroppedStatus = false;
+    std::vector<Collections::KVStore::DroppedCollection> dropped;
+    Status getOpenStatus;
+    std::string openCollectionsData;
+    Status getDbStatsStatus;
+    decltype(getMagmaDbStats(vbid)) preDbStats;
+    {
+        std::lock_guard<std::unique_lock<std::mutex>> guard(vbLock);
+        std::tie(getEraseStatus, eraseSeqnos) = getCollectionsEraseSeqnos(vbid);
+        std::tie(getDroppedStatus, dropped) = getDroppedCollections(vbid);
+        if (getEraseStatus && getDroppedStatus &&
+            Collections::VB::ScanContext::useOpenCollectionsForDroppedData(
+                    !dropped.empty(), eraseSeqnos.getEraseSeqno())) {
+            std::tie(getOpenStatus, openCollectionsData) =
+                    readLocalDoc(vbid, LocalDocKey::openCollections);
+            // Without the counts the erased items cannot be accounted
+            preDbStats = getMagmaDbStats(vbid);
+            if (!preDbStats) {
+                getDbStatsStatus = {Status::Code::Internal, "No MagmaDbStats"};
+            }
+        }
     }
-
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
-    if (!getDroppedStatus) {
-        logger->warn(
-                "MagmaKVStore::compactDBInternal: {} Failed to get "
-                "dropped collections",
-                vbid);
+    if (!getEraseStatus || !getDroppedStatus || !getOpenStatus ||
+        !getDbStatsStatus) {
+        logger->warnWithContext(
+                "MagmaKVStore::compactDBInternal: Failed to read the "
+                "collections metadata",
+                {{"vb", vbid},
+                 {"erase_seqno", getEraseStatus.String()},
+                 {"dropped_ok", getDroppedStatus},
+                 {"open", getOpenStatus.String()},
+                 {"db_stats", getDbStatsStatus.String()}});
         return CompactDBStatus::Failed;
     }
 
     ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
-            dropped, eraseSeqnos.getEraseSeqno());
+            dropped,
+            Collections::KVStore::decodeOpenCollections(
+                    {reinterpret_cast<const uint8_t*>(
+                             openCollectionsData.data()),
+                     openCollectionsData.length()}),
+            eraseSeqnos.getEraseSeqno());
+
+    // Erasing with the open collections purges every dropped collection, the
+    // item counts read with the metadata are removed from the doc count.
+    MagmaDbStats::DroppedCollectionsCountsMap droppedCounts;
+    if (ctx->eraserContext->isErasingOpenCollections() && preDbStats) {
+        droppedCounts = std::move(preDbStats->droppedCollectionCounts);
+    }
 
     ErasedCollectionEvents erasedCollectionEvents;
     auto compactionCB = [this, vbid, ctx, &erasedCollectionEvents](
@@ -3298,8 +3321,6 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(
                 *this, vbid, ctx, std::nullopt, &erasedCollectionEvents);
     };
-
-    LocalDbReqs localDbReqs;
 
     Status status;
     std::unordered_map<CollectionID, uint64_t> purgedCollections;
@@ -3309,10 +3330,20 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             dcInfo;
 
     if (dropped.empty()) {
-        // Compact the entire key range
+        // Compact the entire key range. Without a dropped list (but with an
+        // erase seqno) this erases all logically deleted keys. The hooks allow
+        // tests to interpose on an erasing compaction (as per collection
+        // below).
+        const bool erasing = ctx->eraserContext->isErasingOpenCollections();
+        if (erasing) {
+            preCompactKVStoreHook();
+        }
         Slice nullKey;
         status = magma->CompactKVStore(
                 vbid.get(), nullKey, nullKey, compactionCB, ctx->obsolete_keys);
+        if (erasing) {
+            compactionStatusHook(status);
+        }
         if (!status) {
             if (status.ErrorCode() == Status::Cancelled) {
                 return CompactDBStatus::Aborted;
@@ -3324,6 +3355,21 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                     status.String());
             return CompactDBStatus::Failed;
         }
+
+        // Can't track number of collection items purged in the compaction
+        // callback as it may be called multiple times per key. The dropped
+        // collections' item counts are what was erased.
+        const auto itemsPurged =
+                std::accumulate(droppedCounts.begin(),
+                                droppedCounts.end(),
+                                int64_t{0},
+                                [](int64_t sum, const auto& entry) {
+                                    return sum + entry.second;
+                                });
+        ctx->stats.collectionsItemsPurged =
+                gsl::narrow_cast<size_t>(std::max<int64_t>(itemsPurged, 0));
+        // Approximate, dropped collections with no items have no count
+        ctx->stats.collectionsPurged = droppedCounts.size();
     } else {
         for (auto& dc : dropped) {
             auto [st, itemCount] =
@@ -3474,6 +3520,23 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         }
     }
 
+    // The in-memory update (completionCallback) needs to know if dropped
+    // collection data remains. Unlike couchstore the callback runs without
+    // the vbucket lock, as magma always has: a flush may run during it (and
+    // tests flush from within the callback). So the metadata is read again
+    // under the lock below, before it is written.
+    const bool eraseSeqnoPurged = compactionStatus == CompactDBStatus::Success;
+    {
+        std::lock_guard<std::unique_lock<std::mutex>> guard(vbLock);
+        const auto update = makePurgedCollectionsUpdate(
+                vbid, *ctx->eraserContext, purgedCollections, eraseSeqnoPurged);
+        if (!update) {
+            return CompactDBStatus::Failed;
+        }
+        ctx->eraserContext->setOnDiskDroppedDataExists(
+                update->droppedDataExists);
+    }
+
     // Make our completion callback before writing the new file. We should
     // update our in memory state before we finalize on disk state so that we
     // don't have to worry about race conditions with things like the purge
@@ -3487,124 +3550,77 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         }
     }
 
-    // The erase seqnos at or below the erase seqno read with the data can be
-    // removed if this compaction purged everything at or below it. Seqnos of
-    // drops flushed since it was read remain.
-    const bool maybeClearEraseSeqno =
-            ctx->eraserContext->getMaxEraseSeqno() != 0 &&
-            compactionStatus == CompactDBStatus::Success;
-    if (ctx->eraserContext->needToUpdateCollectionsMetadata() ||
-        maybeClearEraseSeqno) {
-        // Need to write back some collections metadata, in particular we need
-        // to remove from the dropped collections doc all of the collections
-        // that we have just purged. This is also where we update the item
-        // counts. A collection drop might have happened after we started this
-        // compaction though and we may not have dropped it yet so we can't just
-        // delete the doc. To avoid a flusher coming along and dropping another
-        // collection while we do this we need to hold the vBucket write lock.
-        vbLock.lock();
+    // Remove the collections metadata of what was purged. A collection drop
+    // might have happened after we started this compaction and must remain.
+    // To avoid a flusher coming along and dropping another collection while
+    // we do this we need to hold the vBucket write lock (and re-read).
+    vbLock.lock();
+    auto update = makePurgedCollectionsUpdate(
+            vbid, *ctx->eraserContext, purgedCollections, eraseSeqnoPurged);
+    if (!update) {
+        return CompactDBStatus::Failed;
+    }
 
+    // A drop flushed since the completionCallback read the state must leave
+    // the drop in progress (the callback may have cleared it). Set before the
+    // write so a failure cannot leave it cleared.
+    if (update->droppedDataExists) {
+        ctx->getVBucket()->getManifest().setDropInProgress(true);
+    }
+
+    // Update the dbStats together with the collections metadata, to ensure
+    // that we will not persist an inconsistent state.
+    MagmaDbStats dbStatsDelta;
+    if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
+        for (auto& [dc, itemCount] : dcInfo) {
+            processCollectionPurgeDelta(dbStatsDelta,
+                                        dc.collectionId,
+                                        -static_cast<int64_t>(itemCount));
+        }
+    }
+    for (const auto& [cid, itemCount] : droppedCounts) {
+        processCollectionPurgeDelta(
+                dbStatsDelta, CollectionID(cid), -itemCount);
+    }
+    // The dropped item counts exclude system events. The document of each
+    // erased collection event counted until erased is subtracted once.
+    dbStatsDelta.docCount -=
+            static_cast<int64_t>(erasedCollectionEvents.rlock()->size());
+
+    if (!update->localDbReqs.empty() ||
+        !dbStatsDelta.droppedCollectionCounts.empty() ||
+        dbStatsDelta.docCount != 0) {
         // writeOps may reference dbStatsDelta, both must outlive WriteDocs
-        MagmaDbStats dbStatsDelta;
-        WriteOps writeOps; // may reference dbStatsDelta
-        if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
-            // 1) Get the current state from disk
-            auto [collDroppedStatus, droppedCollections] =
-                    getDroppedCollections(vbid);
-            if (!collDroppedStatus) {
-                logger->critical(
-                        "MagmaKVStore::compactDBInternal {} failed "
-                        "getDroppedCollections",
-                        vbid);
-                return CompactDBStatus::Failed;
-            }
-
-            // 2) Generate a new flatbuffer document to write back
-            auto fbData = Collections::VB::Flush::
-                    encodeRelativeComplementOfDroppedCollections(
-                            droppedCollections, purgedCollections);
-
-            // 3) If the function returned data, write it, else the document
-            // is delete.
-            if (fbData.data()) {
-                localDbReqs.emplace_back(LocalDocKey::droppedCollections,
-                                         fbData);
-            } else {
-                // Need to ensure the 'dropped' list on disk is now gone
-                localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
-                        LocalDocKey::droppedCollections));
-            }
-
-            // Update the dbStats together with clearing droppedCollections,
-            // to ensure that we will not persist an inconsistent state.
-            for (auto& [dc, itemCount] : dcInfo) {
-                processCollectionPurgeDelta(dbStatsDelta,
-                                            dc.collectionId,
-                                            -static_cast<int64_t>(itemCount));
-            }
-            // The dropped item counts exclude system events. The document of
-            // each erased collection event counted until erased is subtracted
-            // once.
-            dbStatsDelta.docCount -= static_cast<int64_t>(
-                    erasedCollectionEvents.rlock()->size());
-            addStatUpdateToWriteOps(dbStatsDelta, writeOps);
-        }
-
-        if (maybeClearEraseSeqno) {
-            auto [eraseStatus, currentEraseSeqnos] =
-                    getCollectionsEraseSeqnos(vbid);
-            if (!eraseStatus) {
-                logger->critical(
-                        "MagmaKVStore::compactDBInternal {} failed "
-                        "getCollectionsEraseSeqnos",
-                        vbid);
-                return CompactDBStatus::Failed;
-            }
-            if (currentEraseSeqnos.removeUpTo(
-                        ctx->eraserContext->getMaxEraseSeqno())) {
-                if (currentEraseSeqnos.empty()) {
-                    localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
-                            LocalDocKey::collectionsEraseSeqno));
-                } else {
-                    localDbReqs.emplace_back(
-                            LocalDocKey::collectionsEraseSeqno,
-                            Collections::VB::Flush::encodeEraseSeqnos(
-                                    currentEraseSeqnos));
-                }
-            }
-        }
+        WriteOps writeOps;
+        addStatUpdateToWriteOps(dbStatsDelta, writeOps);
+        auto& localDbReqs = update->localDbReqs;
         addLocalDbReqs(localDbReqs, writeOps);
 
-        // Nothing is written if only a newer erase seqno was found
-        if (!writeOps.empty()) {
-            const auto historyMode =
-                    ctx->getVBucket()->isHistoryRetentionEnabled()
-                            ? Magma::HistoryMode::Enabled
-                            : Magma::HistoryMode::Disabled;
-            status = magma->WriteDocs(vbid.get(),
-                                      writeOps,
-                                      kvstoreRevList[getCacheSlot(vbid)],
-                                      historyMode);
+        const auto historyMode = ctx->getVBucket()->isHistoryRetentionEnabled()
+                                         ? Magma::HistoryMode::Enabled
+                                         : Magma::HistoryMode::Disabled;
+        status = magma->WriteDocs(vbid.get(),
+                                  writeOps,
+                                  kvstoreRevList[getCacheSlot(vbid)],
+                                  historyMode);
+        if (!status) {
+            logger->critical(
+                    "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
+                    "Status:{}",
+                    vbid,
+                    status.String());
+            return CompactDBStatus::Failed;
+        }
+
+        if (doSyncEveryBatch) {
+            status = magma->Sync(true);
             if (!status) {
                 logger->critical(
-                        "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
+                        "MagmaKVStore::compactDBInternal {} Sync failed. "
                         "Status:{}",
                         vbid,
                         status.String());
                 return CompactDBStatus::Failed;
-            }
-
-            if (doSyncEveryBatch) {
-                status = magma->Sync(true);
-                if (!status) {
-                    logger->critical(
-                            "MagmaKVStore::compactDBInternal {} Sync "
-                            "failed. "
-                            "Status:{}",
-                            vbid,
-                            status.String());
-                    return CompactDBStatus::Failed;
-                }
             }
         }
 
@@ -3624,8 +3640,70 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                 ctx->stats.preparesPurged);
     }
 
+    // The collections metadata is written, the flusher can continue whilst the
+    // post compaction stats are read
+    vbLock.unlock();
     updateStats(ctx->stats.post);
     return compactionStatus;
+}
+
+std::expected<MagmaKVStore::PurgedCollectionsUpdate, magma::Status>
+MagmaKVStore::makePurgedCollectionsUpdate(
+        Vbid vbid,
+        const Collections::VB::EraserContext& eraser,
+        const std::unordered_map<CollectionID, uint64_t>& purgedCollections,
+        bool eraseSeqnoPurged) const {
+    PurgedCollectionsUpdate update;
+    auto [droppedStatus, dropped] = getDroppedCollections(vbid);
+    if (!droppedStatus) {
+        logger->critical(
+                "MagmaKVStore::makePurgedCollectionsUpdate {} failed "
+                "getDroppedCollections",
+                vbid);
+        return std::unexpected(Status{Status::Code::Internal,
+                                      "Failed to get dropped collections"});
+    }
+    auto [eraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
+    if (!eraseStatus) {
+        logger->critical(
+                "MagmaKVStore::makePurgedCollectionsUpdate {} failed "
+                "getCollectionsEraseSeqnos status:{}",
+                vbid,
+                eraseStatus.String());
+        return std::unexpected(eraseStatus);
+    }
+
+    // The dropped list loses the purged collections, but keeps any which
+    // were dropped since the compacted metadata was read.
+    bool droppedListExists = !dropped.empty();
+    if (eraser.needToUpdateCollectionsMetadata()) {
+        auto fbData = Collections::VB::Flush::
+                encodeRelativeComplementOfDroppedCollections(dropped,
+                                                             purgedCollections);
+        droppedListExists = fbData.data() != nullptr;
+        if (droppedListExists) {
+            update.localDbReqs.emplace_back(LocalDocKey::droppedCollections,
+                                            fbData);
+        } else if (!dropped.empty()) {
+            update.localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
+                    LocalDocKey::droppedCollections));
+        }
+    }
+
+    // The erase seqnos at or below the compacted erase seqno were purged, any
+    // others are of drops flushed since
+    if (eraseSeqnoPurged && eraseSeqnos.removeUpTo(eraser.getMaxEraseSeqno())) {
+        if (eraseSeqnos.empty()) {
+            update.localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
+                    LocalDocKey::collectionsEraseSeqno));
+        } else {
+            update.localDbReqs.emplace_back(
+                    LocalDocKey::collectionsEraseSeqno,
+                    Collections::VB::Flush::encodeEraseSeqnos(eraseSeqnos));
+        }
+    }
+    update.droppedDataExists = droppedListExists || !eraseSeqnos.empty();
+    return update;
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
@@ -3960,17 +4038,72 @@ MagmaKVStore::getDroppedCollections(Vbid vbid,
                      dropped.length()})};
 }
 
+/// @return the value of a magma read result, or its error
+template <class T>
+static std::expected<T, magma::Status> toExpected(
+        std::pair<magma::Status, T> result) {
+    if (!result.first) {
+        return std::unexpected(result.first);
+    }
+    return std::move(result.second);
+}
+
+std::expected<Collections::VB::ScanContext, magma::Status>
+MagmaKVStore::makeCollectionsScanContext(
+        Vbid vbid,
+        magma::Magma::Snapshot& snapshot,
+        DocumentFilter filter,
+        Collections::VB::ScanContext::OpenCollections openCollections) const {
+    if (filter == DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+        // Nothing is filtered, so no metadata is read
+        return Collections::VB::ScanContext{nullptr, {}};
+    }
+    return Collections::VB::ScanContext::make(
+            [this, vbid, &snapshot] {
+                return toExpected(getDroppedCollections(vbid, snapshot));
+            },
+            [this, vbid, &snapshot]() -> std::expected<uint64_t, Status> {
+                const auto eraseSeqnos =
+                        getCollectionsEraseSeqnos(vbid, snapshot);
+                if (!eraseSeqnos) {
+                    return std::unexpected(eraseSeqnos.error());
+                }
+                return eraseSeqnos->getEraseSeqno();
+            },
+            [this, vbid, &snapshot] {
+                return toExpected(getOpenCollections(vbid, snapshot));
+            },
+            openCollections);
+}
+
+/**
+ * @return the erase seqnos decoded from a read of their local doc
+ */
+static std::expected<Collections::KVStore::EraseSeqnos, magma::Status>
+decodeEraseSeqnosRead(const std::pair<magma::Status, std::string>& read) {
+    const auto& [status, erase] = read;
+    if (!status) {
+        return std::unexpected(status);
+    }
+    return Collections::KVStore::decodeEraseSeqnos(
+            {reinterpret_cast<const uint8_t*>(erase.data()), erase.length()});
+}
+
 std::pair<magma::Status, Collections::KVStore::EraseSeqnos>
 MagmaKVStore::getCollectionsEraseSeqnos(Vbid vbid) const {
-    auto [status, erase] =
-            readLocalDoc(vbid, LocalDocKey::collectionsEraseSeqno);
-    if (!status) {
-        return {status, {}};
+    auto eraseSeqnos = decodeEraseSeqnosRead(
+            readLocalDoc(vbid, LocalDocKey::collectionsEraseSeqno));
+    if (!eraseSeqnos) {
+        return {eraseSeqnos.error(), {}};
     }
-    return {status,
-            Collections::KVStore::decodeEraseSeqnos(
-                    {reinterpret_cast<const uint8_t*>(erase.data()),
-                     erase.length()})};
+    return {Status::OK(), std::move(*eraseSeqnos)};
+}
+
+std::expected<Collections::KVStore::EraseSeqnos, magma::Status>
+MagmaKVStore::getCollectionsEraseSeqnos(
+        Vbid vbid, magma::Magma::Snapshot& snapshot) const {
+    return decodeEraseSeqnosRead(readLocalDoc(
+            vbid, snapshot, Slice{LocalDocKey::collectionsEraseSeqno}));
 }
 
 std::pair<bool, Collections::KVStore::EraseSeqnos> MagmaKVStore::getEraseSeqnos(
@@ -4117,23 +4250,35 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         }
     }
 
-    // encodeDroppedCollections returns an empty buffer when there is nothing
-    // to store (e.g. only empty collections were dropped), in which case the
-    // dropped collections document is left as is.
-    auto buf = collectionsFlush.encodeDroppedCollections(dropped);
-    if (buf.data()) {
-        localDbReqs.emplace_back(LocalDocKey::droppedCollections, buf);
+    auto [getEraseStatus, storedEraseSeqnos] = getCollectionsEraseSeqnos(vbid);
+    if (!getEraseStatus) {
+        return getEraseStatus;
     }
 
-    // Add the erase seqnos of this batch to those stored
-    if (const auto seqnos = collectionsFlush.getEraseSeqnos();
-        !seqnos.empty()) {
-        auto [getEraseStatus, storedEraseSeqnos] =
-                getCollectionsEraseSeqnos(vbid);
-        if (!getEraseStatus) {
-            return getEraseStatus;
-        }
-        storedEraseSeqnos.add(seqnos, configuration.getMaxEraseSeqnos());
+    using Action = Collections::VB::Flush::DroppedListUpdate::Action;
+    // Read once, the limit is dynamic
+    const auto limit = configuration.getMaxDroppedListSize();
+    auto update = collectionsFlush.encodeBoundedDroppedCollections(
+            dropped, storedEraseSeqnos.getEraseSeqno(), limit);
+    switch (update.action) {
+    case Action::None:
+        break;
+    case Action::Write:
+        localDbReqs.emplace_back(LocalDocKey::droppedCollections, update.data);
+        break;
+    case Action::Delete:
+        logger->infoWithContext(
+                "MagmaKVStore::updateDroppedCollections: The dropped "
+                "collections list exceeds the limit and is no longer stored",
+                {{"vb", vbid}, {"size", update.size}, {"limit", limit}});
+        localDbReqs.emplace_back(
+                MagmaLocalReq::makeDeleted(LocalDocKey::droppedCollections));
+        break;
+    }
+
+    if (!update.eraseSeqnos.empty()) {
+        storedEraseSeqnos.add(update.eraseSeqnos,
+                              configuration.getMaxEraseSeqnos());
         localDbReqs.emplace_back(
                 LocalDocKey::collectionsEraseSeqno,
                 Collections::VB::Flush::encodeEraseSeqnos(storedEraseSeqnos));

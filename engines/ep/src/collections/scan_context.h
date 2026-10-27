@@ -14,6 +14,10 @@
 #include "collections/collections_types.h"
 
 #include <fmt/ostream.h>
+#include <concepts>
+#include <expected>
+#include <limits>
+#include <type_traits>
 #include <unordered_map>
 
 struct DocKeyView;
@@ -44,16 +48,109 @@ public:
      *        OpenCollection objects used to build the open map.
      * @param droppedCollections a reference to a vector of DroppedCollection
      *        objects used to build the dropped set.
+     * @param openMaxSeqno seqnos above this are not checked against the open
+     *        map (only meaningful with openCollections)
      */
     explicit ScanContext(
             const std::vector<Collections::KVStore::OpenCollection>*
                     openCollections,
             const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections);
+                    droppedCollections,
+            uint64_t openMaxSeqno = std::numeric_limits<uint64_t>::max());
+
+    /// Which collections metadata ScanContext::make uses
+    enum class OpenCollections {
+        /// Only when no dropped list but an erase seqno is stored
+        Fallback,
+        /// Always (with any dropped list), e.g. a scan of all versions
+        Always
+    };
+
+    /**
+     * The (bounded) dropped list is preferred for identifying logically
+     * deleted keys. Without a list but with an erase seqno, the open
+     * collections are used. With neither, nothing is logically deleted.
+     *
+     * @return true if the open collections must be used
+     */
+    static bool useOpenCollectionsForDroppedData(bool droppedListStored,
+                                                 uint64_t eraseSeqno) {
+        return !droppedListStored && eraseSeqno != 0;
+    }
+
+    /**
+     * Create the ScanContext for a scan of stored data, reading only the
+     * metadata which useOpenCollectionsForDroppedData selects. Each reader
+     * returns a std::expected<T, E>, the first error is returned.
+     *
+     * @param readDropped reads the dropped list
+     * @param readEraseSeqno reads the erase seqno (0 when not stored)
+     * @param readOpen reads the open collections
+     * @param openCollections when to use the open collections
+     */
+    template <std::invocable ReadDropped,
+              std::invocable ReadEraseSeqno,
+              std::invocable ReadOpen>
+    [[nodiscard]] static auto make(
+            ReadDropped readDropped,
+            ReadEraseSeqno readEraseSeqno,
+            ReadOpen readOpen,
+            OpenCollections openCollections = OpenCollections::Fallback)
+            -> std::expected<
+                    ScanContext,
+                    typename std::invoke_result_t<ReadDropped>::error_type> {
+        using Error = typename std::invoke_result_t<ReadDropped>::error_type;
+        static_assert(std::is_same_v<Error,
+                                     typename std::invoke_result_t<
+                                             ReadEraseSeqno>::error_type> &&
+                              std::is_same_v<Error,
+                                             typename std::invoke_result_t<
+                                                     ReadOpen>::error_type>,
+                      "ScanContext::make readers must share an error type");
+
+        // 1) The dropped list is always read first
+        auto dropped = readDropped();
+        if (!dropped) {
+            return std::unexpected(dropped.error());
+        }
+        if (openCollections == OpenCollections::Fallback) {
+            // 2) A stored list defines the dropped data, nothing else is read
+            if (!dropped->empty()) {
+                return ScanContext{nullptr, *dropped};
+            }
+            // 3) No list, read the erase seqno
+            auto eraseSeqno = readEraseSeqno();
+            if (!eraseSeqno) {
+                return std::unexpected(eraseSeqno.error());
+            }
+            // 4) No list and no erase seqno, nothing is dropped
+            if (!useOpenCollectionsForDroppedData(!dropped->empty(),
+                                                  *eraseSeqno)) {
+                return ScanContext{nullptr, *dropped};
+            }
+            // 5) Fallback: no list but an erase seqno, the open collections
+            //    define the dropped data
+            auto open = readOpen();
+            if (!open) {
+                return std::unexpected(open.error());
+            }
+            // Only data at or below the erase seqno awaits a purge
+            return ScanContext{&*open, *dropped, *eraseSeqno};
+        }
+        // OpenCollections::Always: the open collections are used with any
+        // list (the erase seqno is not read)
+        auto open = readOpen();
+        if (!open) {
+            return std::unexpected(open.error());
+        }
+        return ScanContext{&*open, *dropped};
+    }
 
     bool operator==(const ScanContext& other) const {
         return droppedEndSeqnos == other.droppedEndSeqnos &&
-               startSeqno == other.startSeqno && endSeqno == other.endSeqno;
+               startSeqno == other.startSeqno && endSeqno == other.endSeqno &&
+               canCheckOpenMap == other.canCheckOpenMap &&
+               openMaxSeqno == other.openMaxSeqno && open == other.open;
     }
 
     bool operator!=(const ScanContext& other) const {
@@ -82,6 +179,20 @@ public:
                             bool isDeleted,
                             uint64_t seqno) const;
 
+    /// @return true if the collection@seqno is logically deleted
+    bool isLogicallyDeleted(CollectionID cid, uint64_t seqno) const;
+
+    /// @return true if the open collections identify logically deleted keys
+    bool isUsingOpenCollections() const {
+        return canCheckOpenMap;
+    }
+
+    /// @return the open collections (and start-seqno) if built from them
+    const std::unordered_map<CollectionID, uint64_t>& getOpenCollections()
+            const {
+        return open;
+    }
+
     /// @return if true dropped set is empty
     bool empty() const {
         return droppedEndSeqnos.empty();
@@ -108,9 +219,8 @@ public:
     }
 
 protected:
-    bool isLogicallyDeleted(CollectionID cid,
-                            bool isDeleted,
-                            uint64_t seqno) const;
+    /// @return true if cid@seqno is within the dropped set (and its range)
+    bool isInDroppedSet(CollectionID cid, uint64_t seqno) const;
 
     friend std::ostream& operator<<(std::ostream&, const ScanContext&);
 
@@ -133,6 +243,13 @@ protected:
     uint64_t startSeqno = std::numeric_limits<uint64_t>::max();
     uint64_t endSeqno = 0;
     bool canCheckOpenMap{false};
+
+    /**
+     * Seqnos above this are not logically deleted by the open map. Without a
+     * dropped list, all data of dropped collections is at or below the erase
+     * seqno, so a scan avoids a map lookup for every newer item.
+     */
+    uint64_t openMaxSeqno{std::numeric_limits<uint64_t>::max()};
 };
 
 std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext);

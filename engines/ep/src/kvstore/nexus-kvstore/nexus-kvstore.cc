@@ -2391,8 +2391,7 @@ public:
             ValueFilter _valFilter,
             uint64_t _documentCount,
             const vbucket_state& vbucketState,
-            const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections)
+            Collections::VB::ScanContext collectionsScanContext)
         : BySeqnoScanContext(std::move(cb),
                              std::move(cl),
                              vb,
@@ -2404,8 +2403,7 @@ public:
                              _valFilter,
                              _documentCount,
                              vbucketState,
-                             nullptr, // no open collections
-                             droppedCollections,
+                             std::move(collectionsScanContext),
                              0) {
     }
 
@@ -2553,6 +2551,8 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
         handleError(msg, vbid);
     }
 
+    // The contexts include the dropped list, the erase seqno and (when used)
+    // the open collections, so both KVStores must agree on all of them.
     if (primaryCtx->collectionsContext != secondaryCtx->collectionsContext) {
         auto msg = fmt::format(
                 "NexusKVStore::initBySeqnoScanContext: {}: "
@@ -2589,7 +2589,7 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
         handleError(msg, vbid);
     }
 
-    // We need the vbstate and dropped collections to construct the scan
+    // We need the vbstate to construct the scan
     // context. Again, the lock acquired at the start of this function means
     // that these should be consistent even though we're not getting them from a
     // snapshot
@@ -2602,8 +2602,6 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
                 vbid);
         handleError(msg, vbid);
     }
-
-    auto [droppedStatus, droppedCollections] = getDroppedCollections(vbid);
 
     // Dummy callbacks won't get invoked
     auto dummyCb = std::make_unique<NexusDummyScanCallback>();
@@ -2620,7 +2618,8 @@ std::unique_ptr<BySeqnoScanContext> NexusKVStore::initBySeqnoScanContext(
             valOptions,
             primaryCtx->documentCount,
             vbstate.state,
-            droppedCollections);
+            // Equal to the secondary context (checked above)
+            primaryCtx->collectionsContext);
 
     nexusScanContext->primaryCtx = std::move(primaryCtx);
     nexusScanContext->secondaryCtx = std::move(secondaryCtx);
@@ -2638,8 +2637,7 @@ public:
             std::vector<ByIdRange> ranges,
             DocumentFilter _docFilter,
             ValueFilter _valFilter,
-            const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections,
+            Collections::VB::ScanContext collectionsScanContext,
             int64_t maxSeqno)
         : ByIdScanContext(std::move(cb),
                           std::move(cl),
@@ -2648,7 +2646,7 @@ public:
                           ranges,
                           _docFilter,
                           _valFilter,
-                          droppedCollections,
+                          std::move(collectionsScanContext),
                           maxSeqno) {
     }
 
@@ -2800,21 +2798,20 @@ std::unique_ptr<ByIdScanContext> NexusKVStore::initByIdScanContext(
     }
 
     auto vbstate = getPersistedVBucketState(vbid);
-    auto [droppedStatus, droppedCollections] = getDroppedCollections(vbid);
 
     // Dummy callbacks won't get invoked
     auto dummyCb = std::make_unique<NexusDummyScanCallback>();
     auto dummyCl = std::make_unique<NexusDummyCacheLookup>();
-    auto nexusScanContext =
-            std::make_unique<NexusKVStoreByIdScanContext>(std::move(dummyCb),
-                                                          std::move(dummyCl),
-                                                          vbid,
-                                                          std::move(handle),
-                                                          ranges,
-                                                          docFilter,
-                                                          valFilter,
-                                                          droppedCollections,
-                                                          primaryCtx->maxSeqno);
+    auto nexusScanContext = std::make_unique<NexusKVStoreByIdScanContext>(
+            std::move(dummyCb),
+            std::move(dummyCl),
+            vbid,
+            std::move(handle),
+            ranges,
+            docFilter,
+            valFilter,
+            primaryCtx->collectionsContext,
+            primaryCtx->maxSeqno);
 
     nexusScanContext->primaryCtx = std::move(primaryCtx);
     nexusScanContext->secondaryCtx = std::move(secondaryCtx);

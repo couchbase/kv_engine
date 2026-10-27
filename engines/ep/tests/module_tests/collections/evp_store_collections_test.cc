@@ -27,6 +27,7 @@
 #include "item_pager.h"
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/kvstore.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/ep_request_utils.h"
@@ -2037,6 +2038,151 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     kvstore.setConcurrentCompactionPreLockHook([](auto&) {});
 
     EXPECT_TRUE(eraseSeqnos().empty());
+}
+
+// The flusher deletes the dropped list when it exceeds its limit. The
+// compaction catch-up replay copies the source's local documents but cannot
+// copy a deletion, the compacted file must not keep a stale list (which would
+// no longer describe all of the dropped data).
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       DroppedListDeletedDuringCompactionCatchUp) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(2);
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    const std::vector<CollectionEntry::Entry> collections{
+            CollectionEntry::fruit,
+            CollectionEntry::dairy,
+            CollectionEntry::vegetable,
+            CollectionEntry::meat};
+    for (const auto& entry : collections) {
+        cm.add(entry);
+    }
+    setCollections(cookie, cm);
+    for (const auto& entry : collections) {
+        store_item(vbid, StoredDocKey{"key", entry}, "value");
+    }
+    flushVBucketToDiskIfPersistent(vbid, 8);
+
+    auto drop = [this, &cm, &vb](CollectionEntry::Entry entry) {
+        cm.remove(entry);
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    };
+    drop(CollectionEntry::fruit);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+    auto droppedListSize = [&kvstore, this]() {
+        auto [status, dropped] = kvstore.getDroppedCollections(vbid);
+        EXPECT_TRUE(status);
+        return dropped.size();
+    };
+
+    // Before the catch-up, the list is {fruit, dairy}
+    kvstore.setConcurrentCompactionPreLockHook([&](auto&) {
+        drop(CollectionEntry::dairy);
+        EXPECT_EQ(2, droppedListSize());
+    });
+    // After the first catch-up iteration copied that list, exceed the limit
+    bool abandoned = false;
+    kvstore.setConcurrentCompactionPostReplayHook([&]() {
+        if (std::exchange(abandoned, true)) {
+            return;
+        }
+        drop(CollectionEntry::vegetable);
+        drop(CollectionEntry::meat);
+        EXPECT_EQ(0, droppedListSize());
+    });
+
+    runCompaction(vbid, 0, false);
+    kvstore.setConcurrentCompactionPreLockHook([](auto&) {});
+    kvstore.setConcurrentCompactionPostReplayHook([]() {});
+    ASSERT_TRUE(abandoned);
+
+    // No list, the erase seqnos of the drops flushed during the compaction
+    // (dairy, vegetable and meat) remain
+    EXPECT_EQ(0, droppedListSize());
+    const auto meatDrop = static_cast<uint64_t>(vb->getHighSeqno());
+    EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
+                ::testing::ElementsAre(meatDrop - 2, meatDrop - 1, meatDrop));
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+    // The replay copied the stats of the collections dropped during it, they
+    // are deleted as they are no longer open
+    for (const auto& entry :
+         {CollectionEntry::vegetable, CollectionEntry::meat}) {
+        EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound,
+                  kvstore.getCollectionStats(vbid, entry).first)
+                << entry.name;
+    }
+
+    // The next purge erases all of the dropped data
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+
+// A compaction which started with a dropped list written before the erase seqno
+// existed (so no erase seqno) must keep the erase seqno which the flusher
+// stores when it deletes that list during the compaction catch-up.
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       UpgradedDroppedListDeletedDuringCompactionCatchUp) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::dairy);
+    cm.add(CollectionEntry::vegetable);
+    setCollections(cookie, cm);
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 5);
+    cm.remove(CollectionEntry::fruit);
+    cm.remove(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    const auto dropSeqno = uint64_t(store->getVBucket(vbid)->getHighSeqno());
+
+    // Remove the erase seqno, as if the list was written before it existed
+    store->cancelCompaction(vbid);
+    writeCouchstoreLocalDoc(
+            vbid,
+            test_dbname,
+            dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid))
+                    .getDbRevision(vbid),
+            LocalDocKey::collectionsEraseSeqno,
+            std::nullopt);
+    resetEngineAndWarmup();
+    replaceCouchKVStoreWithMock();
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+    ASSERT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
+    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).second.size());
+
+    // Whilst compacting, a drop of the empty vegetable exceeds the limit. The
+    // flusher deletes the list and stores the erase seqno of the list.
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(1);
+    kvstore.setConcurrentCompactionPreLockHook([&](auto&) {
+        setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+        EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
+                    ::testing::ElementsAre(dropSeqno - 1, dropSeqno));
+    });
+    runCompaction(vbid, 0, false);
+    kvstore.setConcurrentCompactionPreLockHook([](auto&) {});
+
+    // The erase seqno differs from the compaction's (0), so it is kept
+    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+    EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
+                ::testing::ElementsAre(dropSeqno - 1, dropSeqno));
+    EXPECT_TRUE(store->getVBucket(vbid)->getManifest().isDropInProgress());
+
+    // The next purge (with the open collections) completes
+    runCollectionsEraser(vbid);
+    EXPECT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems());
 }
 
 // Issue was found with MB-49472

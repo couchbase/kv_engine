@@ -34,6 +34,8 @@ public:
             config.setPeriodicSyncBytes(value);
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(std::chrono::seconds{value});
+        } else if (key == "collections_max_dropped_list_size") {
+            config.setMaxDroppedListSize(value);
         } else if (key == "collections_max_erase_seqnos") {
             config.setMaxEraseSeqnos(value);
         }
@@ -63,6 +65,11 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
             "persistent_metadata_purge_age",
             std::make_unique<ConfigChangeListener>(*this));
 
+    setMaxDroppedListSize(config.getCollectionsMaxDroppedListSize());
+    config.addValueChangedListener(
+            "collections_max_dropped_list_size",
+            std::make_unique<ConfigChangeListener>(*this));
+
     setMaxEraseSeqnos(config.getCollectionsMaxEraseSeqnos());
     config.addValueChangedListener(
             "collections_max_erase_seqnos",
@@ -89,6 +96,7 @@ KVStoreConfig::KVStoreConfig(const KVStoreConfig& other)
       backend(other.backend),
       shardId(other.shardId),
       logger(other.logger),
+      maxDroppedListSize(other.maxDroppedListSize.load()),
       maxEraseSeqnos(other.maxEraseSeqnos.load()) {
 }
 

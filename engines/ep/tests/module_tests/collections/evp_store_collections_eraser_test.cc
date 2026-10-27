@@ -17,6 +17,7 @@
 #include "ephemeral_vb.h"
 #include "item.h"
 #include "kvstore/kvstore.h"
+#include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_couch_kvstore.h"
@@ -70,10 +71,17 @@ public:
     /// Body of the flush_then_drop_other_collection tests, see the definition
     void flushThenDropOtherCollection(bool warmup);
 
+    /// @return true if the dropped collections list is never stored
+    bool isDroppedListDisabled() const {
+        return engine->getConfiguration().getCollectionsMaxDroppedListSize() ==
+               0;
+    }
+
     /**
      * Check that the persisted dropped collections list holds exactly the
-     * given collections and that the persisted manifest and in-memory manifest
-     * agree on whether any dropped data exists on disk.
+     * given collections (or is not stored if disabled), that erase seqnos are
+     * stored when any are expected, and that the persisted manifest and
+     * in-memory manifest agree on whether any dropped data exists on disk.
      */
     void verifyDroppedCollectionsOnDisk(
             const std::vector<CollectionID>& expected) {
@@ -81,7 +89,12 @@ public:
         auto* kvstore = store->getRWUnderlying(vbid);
         auto [droppedStatus, dropped] = kvstore->getDroppedCollections(vbid);
         ASSERT_TRUE(droppedStatus);
-        ASSERT_EQ(expected.size(), dropped.size());
+        EXPECT_EQ(expected.empty(), getEraseSeqnosOnDisk().empty());
+        if (isDroppedListDisabled()) {
+            EXPECT_TRUE(dropped.empty());
+        } else {
+            ASSERT_EQ(expected.size(), dropped.size());
+        }
         for (const auto& entry : dropped) {
             EXPECT_TRUE(std::ranges::find(expected, entry.collectionId) !=
                         expected.end())
@@ -181,6 +194,328 @@ TEST_P(CollectionsEraserTest, eraseSeqnoPersisted) {
     // The flushed collection is still open, compaction erases its old items
     runCollectionsEraser(vbid);
     EXPECT_TRUE(getEraseSeqnosOnDisk().empty());
+}
+
+/**
+ * Scan the vbucket from disk (by-seqno or by-id over all keys)
+ * @param filter the scan's DocumentFilter
+ * @param usingOpenCollections if not null, set to whether the scan identified
+ *        logically deleted items using the open collections
+ * @return the keys returned by the scan
+ */
+static std::vector<StoredDocKey> scanKeys(
+        KVStoreIface& kvstore,
+        Vbid vbid,
+        bool byId,
+        DocumentFilter filter = DocumentFilter::ALL_ITEMS,
+        bool* usingOpenCollections = nullptr) {
+    struct KeyCallback : public StatusCallback<GetValue> {
+        explicit KeyCallback(std::vector<StoredDocKey>& keys) : keys(keys) {
+        }
+        void callback(GetValue& value) override {
+            keys.emplace_back(value.item->getKey());
+        }
+        std::vector<StoredDocKey>& keys;
+    };
+    struct NoCacheCallback : public StatusCallback<CacheLookup> {
+        void callback(CacheLookup&) override {
+        }
+    };
+
+    std::vector<StoredDocKey> keys;
+    if (byId) {
+        std::vector<ByIdRange> ranges{
+                {DiskDocKey{StoredDocKey{"", CollectionID::Default}},
+                 DiskDocKey{StoredDocKey{"\xff", CollectionID{0xffff}}}}};
+        auto scanContext =
+                kvstore.initByIdScanContext(std::make_unique<KeyCallback>(keys),
+                                            std::make_unique<NoCacheCallback>(),
+                                            vbid,
+                                            ranges,
+                                            filter,
+                                            ValueFilter::KEYS_ONLY);
+        if (!scanContext) {
+            ADD_FAILURE() << "initByIdScanContext failed";
+            return keys;
+        }
+        if (usingOpenCollections) {
+            *usingOpenCollections =
+                    scanContext->collectionsContext.isUsingOpenCollections();
+        }
+        EXPECT_EQ(ScanStatus::Success, kvstore.scan(*scanContext));
+    } else {
+        auto scanContext = kvstore.initBySeqnoScanContext(
+                std::make_unique<KeyCallback>(keys),
+                std::make_unique<NoCacheCallback>(),
+                vbid,
+                1,
+                filter,
+                ValueFilter::KEYS_ONLY,
+                SnapshotSource::Head);
+        if (!scanContext) {
+            ADD_FAILURE() << "initBySeqnoScanContext failed";
+            return keys;
+        }
+        if (usingOpenCollections) {
+            *usingOpenCollections =
+                    scanContext->collectionsContext.isUsingOpenCollections();
+        }
+        EXPECT_EQ(ScanStatus::Success, kvstore.scan(*scanContext));
+    }
+    return keys;
+}
+
+// Without a dropped collections list, but with an erase seqno, a scan skips the
+// logically deleted items using the open collections.
+TEST_P(CollectionsEraserTest, scanWithoutDroppedList) {
+    if (!persistent() || !isCouchstore() || isNexus()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm(CollectionEntry::dairy);
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    const StoredDocKey milk{"milk", CollectionEntry::dairy};
+    const StoredDocKey apple{"apple", CollectionEntry::fruit};
+    store_item(vbid, milk, "nice");
+    store_item(vbid, apple, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto dropSeqno = static_cast<uint64_t>(vb->getHighSeqno());
+
+    vb.reset();
+    store->cancelCompaction(vbid);
+    writeCouchstoreLocalDoc(
+            vbid,
+            test_dbname,
+            dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid))
+                    .getDbRevision(vbid),
+            LocalDocKey::droppedCollections,
+            std::nullopt);
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    ASSERT_THAT(getEraseSeqnos(kvstore, vbid),
+                ::testing::ElementsAre(dropSeqno));
+    for (bool byId : {false, true}) {
+        bool usingOpenCollections = false;
+        const auto keys = scanKeys(kvstore,
+                                   vbid,
+                                   byId,
+                                   DocumentFilter::ALL_ITEMS,
+                                   &usingOpenCollections);
+        EXPECT_TRUE(usingOpenCollections) << "byId:" << byId;
+        EXPECT_EQ(1, std::ranges::count(keys, apple)) << "byId:" << byId;
+        EXPECT_EQ(0, std::ranges::count(keys, milk)) << "byId:" << byId;
+
+        // milk is still stored, the scan above filtered it
+        const auto all =
+                scanKeys(kvstore,
+                         vbid,
+                         byId,
+                         DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS);
+        EXPECT_EQ(1, std::ranges::count(all, milk)) << "byId:" << byId;
+    }
+}
+
+// Without a dropped collections list, but with an erase seqno, warmup schedules
+// the purge and compaction erases using the open collections.
+TEST_P(CollectionsEraserTest, eraseWithoutDroppedList) {
+    if (!persistent() || !isCouchstore() || isNexus()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm(CollectionEntry::dairy);
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    const StoredDocKey milk{"milk", CollectionEntry::dairy};
+    const StoredDocKey apple{"apple", CollectionEntry::fruit};
+    store_item(vbid, milk, "nice");
+    store_item(vbid, apple, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb.reset();
+    store->cancelCompaction(vbid);
+    writeCouchstoreLocalDoc(
+            vbid,
+            test_dbname,
+            dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid))
+                    .getDbRevision(vbid),
+            LocalDocKey::droppedCollections,
+            std::nullopt);
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+    EXPECT_EQ(2, vb->getNumTotalItems());
+
+    const auto& stats = engine->getEpStats();
+    const auto purgedBefore = stats.compactionCollectionItemsPurged.load();
+    runCollectionsEraser(vbid);
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+    EXPECT_EQ(1, vb->getNumTotalItems());
+    EXPECT_EQ(purgedBefore + 1, stats.compactionCollectionItemsPurged.load());
+
+    // Only apple remains on disk, so even an unfiltered scan cannot see milk
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    EXPECT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
+    const auto keys = scanKeys(kvstore, vbid, false);
+    EXPECT_EQ(1, std::ranges::count(keys, apple));
+    EXPECT_EQ(0, std::ranges::count(keys, milk));
+    EXPECT_EQ(KVStore::GetCollectionStatsStatus::NotFound,
+              kvstore.getCollectionStats(vbid, CollectionEntry::dairy).first);
+    EXPECT_EQ(KVStore::GetCollectionStatsStatus::Success,
+              kvstore.getCollectionStats(vbid, CollectionEntry::fruit).first);
+}
+
+// The dropped list is bounded. Exceeding the limit removes the list, scans and
+// compaction then use the open collections until the purge completes, then
+// the list is used again.
+TEST_P(CollectionsEraserTest, droppedListLimit) {
+    if (!persistent() || isDroppedListDisabled()) {
+        GTEST_SKIP();
+    }
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(2);
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    auto droppedListSize = [&kvstore, this]() {
+        auto [status, dropped] = kvstore.getDroppedCollections(vbid);
+        EXPECT_TRUE(status);
+        return dropped.size();
+    };
+
+    CollectionsManifest cm;
+    const std::vector<CollectionEntry::Entry> collections{
+            CollectionEntry::fruit,
+            CollectionEntry::dairy,
+            CollectionEntry::vegetable,
+            CollectionEntry::meat};
+    for (const auto& entry : collections) {
+        cm.add(entry);
+    }
+    setCollections(cookie, cm);
+    for (const auto& entry : collections) {
+        store_item(vbid, StoredDocKey{"key", entry}, "value");
+    }
+    const StoredDocKey kept{"kept", CollectionID::Default};
+    store_item(vbid, kept, "value");
+    flushVBucketToDiskIfPersistent(vbid, 9);
+
+    auto drop = [this, &cm](CollectionEntry::Entry entry) {
+        setCollections(cookie, cm.remove(entry));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    };
+    drop(CollectionEntry::fruit);
+    drop(CollectionEntry::dairy);
+    EXPECT_EQ(2, droppedListSize());
+
+    // A third drop exceeds the limit, only the erase seqno is stored
+    drop(CollectionEntry::vegetable);
+    EXPECT_EQ(0, droppedListSize());
+    const auto vegetableDrop = static_cast<uint64_t>(vb->getHighSeqno());
+    EXPECT_THAT(getEraseSeqnosOnDisk(),
+                ::testing::ElementsAre(
+                        vegetableDrop - 2, vegetableDrop - 1, vegetableDrop));
+
+    // The list is not stored again until the purge completes, even if the
+    // limit is raised
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(100);
+    drop(CollectionEntry::meat);
+    EXPECT_EQ(0, droppedListSize());
+    EXPECT_THAT(
+            getEraseSeqnosOnDisk(),
+            ::testing::ElementsAre(vegetableDrop - 2,
+                                   vegetableDrop - 1,
+                                   vegetableDrop,
+                                   static_cast<uint64_t>(vb->getHighSeqno())));
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+
+    // Scans skip the dropped data (only the drop markers remain visible)
+    for (bool byId : {false, true}) {
+        auto keys = scanKeys(kvstore, vbid, byId);
+        std::erase_if(keys, [](const auto& key) {
+            return key.isInSystemEventCollection();
+        });
+        EXPECT_EQ(std::vector<StoredDocKey>{kept}, keys) << "byId:" << byId;
+    }
+
+    // The purge erases the dropped data using the open collections
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(1, vb->getNumTotalItems());
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+
+    // With the purge complete, a drop is recorded in the list again
+    setCollections(cookie, cm.add(CollectionEntry::dairy2));
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::dairy2}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    drop(CollectionEntry::dairy2);
+    EXPECT_EQ(1, droppedListSize());
+    const auto dairy2Drop = static_cast<uint64_t>(vb->getHighSeqno());
+
+    // Lowering the limit below the list size deletes the list on the next drop
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(1);
+    setCollections(cookie, cm.add(CollectionEntry::vegetable2));
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::vegetable2}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    drop(CollectionEntry::vegetable2);
+    EXPECT_EQ(0, droppedListSize());
+    EXPECT_THAT(getEraseSeqnosOnDisk(),
+                ::testing::ElementsAre(
+                        dairy2Drop, static_cast<uint64_t>(vb->getHighSeqno())));
+}
+
+// A list written by a version without the erase seqno is deleted (when over
+// the limit) by a batch of only an empty drop. The erase seqno must then be
+// stored, else nothing records that the dropped data requires a purge.
+TEST_P(CollectionsEraserTest, droppedListWithoutEraseSeqnoDeleted) {
+    if (!persistent() || !isCouchstore() || isNexus() ||
+        isDroppedListDisabled()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto lastDrop = vb->getHighSeqno();
+
+    // Remove the erase seqno, as if the list was written before it existed
+    vb.reset();
+    store->cancelCompaction(vbid);
+    writeCouchstoreLocalDoc(
+            vbid,
+            test_dbname,
+            dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid))
+                    .getDbRevision(vbid),
+            LocalDocKey::collectionsEraseSeqno,
+            std::nullopt);
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+    auto& kvstore = *store->getRWUnderlying(vbid);
+    ASSERT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
+    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).second.size());
+
+    // Lower the limit and drop an empty collection, the list is deleted
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(1);
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+    // The end seqno of each entry of the deleted list is stored
+    EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
+                ::testing::ElementsAre(lastDrop - 1, lastDrop));
+
+    // The purge still happens
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumTotalItems());
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
 }
 
 // Small numbers of items for easier debug
@@ -675,12 +1010,18 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     store->cancelCompaction(vbid);
     resetEngineAndWarmup();
 
-    auto [status, dropped] = store->getVBucket(vbid)
-                                     ->getShard()
-                                     ->getRWUnderlying()
-                                     ->getDroppedCollections(vbid);
+    auto [status, manifest] = store->getVBucket(vbid)
+                                      ->getShard()
+                                      ->getRWUnderlying()
+                                      ->getCollectionsManifest(vbid);
     ASSERT_TRUE(status);
-    EXPECT_FALSE(dropped.empty());
+    EXPECT_TRUE(manifest.droppedCollectionsExist);
+    if (!isDroppedListDisabled()) {
+        auto [droppedStatus, dropped] =
+                store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+        ASSERT_TRUE(droppedStatus);
+        EXPECT_FALSE(dropped.empty());
+    }
 
     // Now the eraser should ready to run, warmup will have noticed a dropped
     // collection in the manifest and schedule the eraser
@@ -977,6 +1318,12 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
         using namespace testing;
 
+        // Without a list a full key range compaction may discard the stale
+        // revisions without a callback. That is not needed for correctness,
+        // a stale revision is never in memory (the hash-table and durability
+        // monitor only hold the latest revision, for which dropKey is called).
+        const auto staleRevisions =
+                isDroppedListDisabled() ? AtMost(1) : Exactly(1);
         // Magma will make two extra calls here when the test is not against
         // the default collection.
         // The original create collection event and one for the first value that
@@ -989,6 +1336,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
                                     seqnoOffset,
                                     false /*isAbort*/,
                                     0 /*PCS*/))
+                        .Times(staleRevisions)
                         .RetiresOnSaturation();
             }
             EXPECT_CALL(*bucket,
@@ -997,6 +1345,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
                                 1 + seqnoOffset,
                                 false /*isAbort*/,
                                 0 /*PCS*/))
+                    .Times(staleRevisions)
                     .RetiresOnSaturation();
         }
 
@@ -1143,6 +1492,12 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
         using namespace testing;
 
+        // Without a list a full key range compaction may discard the stale
+        // revisions without a callback. That is not needed for correctness,
+        // a stale revision is never in memory (the hash-table and durability
+        // monitor only hold the latest revision, for which dropKey is called).
+        const auto staleRevisions =
+                isDroppedListDisabled() ? AtMost(1) : Exactly(1);
         // Magma will make two extra calls here.
         // The original create collection event and one for the first value that
         // logically does not exist any-more
@@ -1153,6 +1508,7 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
                                 seqnoOffset,
                                 false /*isAbort*/,
                                 0 /*PCS*/))
+                    .Times(staleRevisions)
                     .RetiresOnSaturation();
             EXPECT_CALL(*bucket,
                         dropKey(Ref(*bucket->getVBucket(vbid)),
@@ -1160,6 +1516,7 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
                                 1 + seqnoOffset,
                                 false /*isAbort*/,
                                 0 /*PCS*/))
+                    .Times(staleRevisions)
                     .RetiresOnSaturation();
         }
 
@@ -1657,6 +2014,9 @@ TEST_P(CollectionsEraserTest, flush_twice_dropped_list) {
     flushVBucketToDiskIfPersistent(vbid, 1);
     setCollections(cookie, cm.flush(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
+    if (isDroppedListDisabled()) {
+        return;
+    }
     auto [status, dropped] =
             store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
@@ -1692,7 +2052,7 @@ TEST_P(CollectionsEraserTest, drop_recreate_flush_dropped_list) {
     store_item(vbid, plum, "1");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    {
+    if (!isDroppedListDisabled()) {
         auto [status, dropped] =
                 store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
         ASSERT_TRUE(status);
@@ -3038,6 +3398,25 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+// Run every eraser test without the dropped collections list (as when it has
+// exceeded its limit), scans and compaction use the open collections.
+static config::Config noDroppedListConfigValues() {
+    return STParameterizedBucketTest::persistentConfigValues() *
+           config::Config{{"collections_max_dropped_list_size", "0"}};
+}
+
+static std::string noDroppedListParamName(
+        const ::testing::TestParamInfo<std::string>& info) {
+    auto name = STParameterizedBucketTest::PrintToStringParamName(info);
+    std::ranges::replace(name, '=', '_');
+    return name;
+}
+
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserNoDroppedListTests,
+                         CollectionsEraserTest,
+                         noDroppedListConfigValues(),
+                         noDroppedListParamName);
 
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserSyncWriteTests,
                          CollectionsEraserSyncWriteTest,

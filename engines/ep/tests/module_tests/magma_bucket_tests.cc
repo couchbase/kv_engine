@@ -1014,6 +1014,54 @@ TEST_P(STParamMagmaBucketTest, DropDuringPurgeKeepsNewEraseSeqno) {
 }
 
 /**
+ * Without a dropped list magma compacts (erases) the entire live key range. A
+ * collection created whilst a purge runs is not described by the collections
+ * metadata which the purge read, its items must not be erased.
+ */
+TEST_P(STParamMagmaBucketTest, CollectionCreatedDuringPurgeIsNotErased) {
+    replaceMagmaKVStore();
+    engine->getConfiguration().setCollectionsMaxDroppedListSize(0);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& magmaKVStore =
+            static_cast<MockMagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto [status, dropped] = magmaKVStore.getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    ASSERT_TRUE(dropped.empty());
+
+    const StoredDocKey carrot{"carrot", CollectionEntry::vegetable};
+    bool created = false;
+    magmaKVStore.setPreCompactKVStoreHook([&]() {
+        if (std::exchange(created, true)) {
+            return;
+        }
+        cm.add(CollectionEntry::vegetable);
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm));
+        store_item(vbid, carrot, "v");
+        flushVBucketToDiskIfPersistent(vbid, 2);
+        ASSERT_TRUE(magmaKVStore.newCheckpoint(vbid));
+    });
+
+    runCompaction(vbid);
+    magmaKVStore.setPreCompactKVStoreHook([]() {});
+    ASSERT_TRUE(created);
+
+    auto gv = magmaKVStore.get(DiskDocKey{carrot}, vbid);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+    EXPECT_EQ(1, vb->getNumTotalItems());
+}
+
+/**
  * MB-50061:
  * Test that we correctly track the document count when we update an item in a
  * collection at an interesting point during compaction. The issue before this
@@ -1365,6 +1413,10 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
     ctx->completionCallback = realCompletionCallback;
     {
         ObjectRegistry::onSwitchThread(engine.get());
+        // compactDB requires the lock, which may be released on return
+        if (!vb.getLock().owns_lock()) {
+            vb.getLock().lock();
+        }
         EXPECT_EQ(CompactDBStatus::Success,
                   kvstore->compactDB(vb.getLock(), ctx));
     }

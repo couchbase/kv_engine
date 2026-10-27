@@ -757,6 +757,23 @@ protected:
     getDroppedCollections(Db& db) const;
 
     /**
+     * Read the open collections from an already open db handle
+     * @return a pair of status and the open collections
+     */
+    std::pair<couchstore_error_t,
+              std::vector<Collections::KVStore::OpenCollection>>
+    getOpenCollections(Db& db) const;
+
+    /**
+     * @param filter the scan's filter, nothing is read when it does not use
+     *        the context (ALL_ITEMS_AND_DROPPED_COLLECTIONS)
+     * @return the context which identifies the logically deleted items of the
+     *         db for a scan (see Collections::VB::ScanContext::make)
+     */
+    std::expected<Collections::VB::ScanContext, couchstore_error_t>
+    makeCollectionsScanContext(Db& db, DocumentFilter filter) const;
+
+    /**
      * Read the collections erase seqnos from an already open db handle
      * @return a pair of status and the erase seqnos (empty if not stored)
      */
@@ -874,6 +891,10 @@ protected:
         concurrentCompactionPreLockHook = std::move(hook);
     }
 
+    void setConcurrentCompactionPostReplayHook(std::function<void()> hook) {
+        concurrentCompactionPostReplayHook = std::move(hook);
+    }
+
     /**
      * Read the vbucket_state from disk.
      */
@@ -927,6 +948,8 @@ protected:
      * @param db The database instance to update
      * @param prepareStats All the prepare stats changed during compaction
      * @param collectionStats object tracking collection stats during replay
+     * @param closedInReplay collections open at the start of the replay but
+     *        not at its end, when the source has no dropped list (else empty)
      * @param purgeSeqno The new value to store in the couchstore header
      * @param hook_ctx The CompactionContext
      * @returns COUCHSTORE_SUCCESS on success, couchstore error otherwise (which
@@ -934,8 +957,11 @@ protected:
      */
     couchstore_error_t replayPrecommitHook(
             Db& db,
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    sourceDropped,
             CompactionReplayPrepareStats& prepareStats,
             const Collections::VB::FlushAccounting& collectionStats,
+            const std::unordered_set<CollectionID>& closedInReplay,
             uint64_t purgeSeqno,
             CompactionContext& hook_ctx);
 
@@ -960,15 +986,22 @@ protected:
      * (if any) and returns a local doc queue that has the correct dropped
      * collection data in it (or is an empty queue)
      * @param db The database instance to read and update
+     * @param sourceDropped The dropped list of the source (replayed) database.
+     *        The replay copies the list, but cannot copy its deletion.
      * @param hook_ctx The CompactionContext
      * @param collectionStats object tracking changes to collections during
      *        replay
+     * @param closedInReplay collections open at the start of the replay but
+     *        not at its end, when the source has no dropped list (else empty)
      * @return queue that replayPrecommitHook uses for further local doc updates
      */
     PendingLocalDocRequestQueue replayPrecommitProcessDroppedCollections(
             Db& db,
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    sourceDropped,
             const CompactionContext& hook_ctx,
-            const Collections::VB::FlushAccounting& collectionStats);
+            const Collections::VB::FlushAccounting& collectionStats,
+            const std::unordered_set<CollectionID>& closedInReplay);
 
     /**
      * Open the current vbid.couch.rev file if it exists, or atomic-create it.
@@ -1115,6 +1148,10 @@ protected:
     /// re-acquired. This allows the actual flusher to run in the hook rather
     /// poking the kvstore manually
     TestingHook<const std::string&> concurrentCompactionPreLockHook;
+
+    /// Called after each catch-up replay which ran without the vBucket lock,
+    /// before the lock is re-acquired (so the flusher can run in the hook).
+    TestingHook<> concurrentCompactionPostReplayHook;
 
 private:
     // Stats from the underlying OS file operations

@@ -49,6 +49,7 @@ using Collections::ScopeMetaData;
 using Collections::KVStore::DroppedCollection;
 using Collections::KVStore::OpenCollection;
 using Collections::KVStore::OpenScope;
+using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
 using SystemEventType = Collections::VB::Manifest::SystemEventType;
@@ -613,6 +614,62 @@ TEST_F(CollectionsVBFlushTest, droppedMergeWithDisk) {
                                        {2, 7, vegetable.cid},
                                        {3, 12, dairy.cid}},
                 .eraseSeqno = 12});
+}
+
+// The dropped list is bounded, beyond the limit it is deleted and is not stored
+// again whilst the erase seqno exists.
+TEST_F(CollectionsVBFlushTest, boundedDroppedCollections) {
+    using Action = Collections::VB::Flush::DroppedListUpdate::Action;
+    createCollection(1, ManifestUid{1}, fruit);
+    createCollection(2, ManifestUid{2}, dairy);
+    createCollection(3, ManifestUid{3}, vegetable);
+    commit();
+
+    // Within the limit, the list is written
+    flushMutation(fruit.cid, 4);
+    dropCollection(5, ManifestUid{4}, fruit);
+    DroppedList none;
+    auto update = flush->encodeBoundedDroppedCollections(none, 0, 1);
+    EXPECT_EQ(Action::Write, update.action);
+    EXPECT_THAT(
+            Collections::KVStore::decodeDroppedCollections(view(update.data)),
+            UnorderedElementsAre(DroppedCollection{0, 5, fruit.cid}));
+
+    // Merged with the stored list there are 2 entries, the list is deleted
+    newBatch();
+    flushMutation(dairy.cid, 6);
+    dropCollection(7, ManifestUid{5}, dairy);
+    DroppedList stored{{1, 5, fruit.cid}};
+    update = flush->encodeBoundedDroppedCollections(stored, 5, 1);
+    EXPECT_EQ(Action::Delete, update.action);
+    EXPECT_EQ(2, update.size);
+    EXPECT_THAT(update.eraseSeqnos, ElementsAre(7));
+
+    // Nothing stored and a limit of 0, the list (of dairy) is never stored
+    // (and there is nothing to delete), the erase seqno records the purge
+    update = flush->encodeBoundedDroppedCollections(none, 0, 0);
+    EXPECT_EQ(Action::None, update.action);
+    EXPECT_EQ(1, update.size);
+    EXPECT_THAT(update.eraseSeqnos, ElementsAre(7));
+
+    // No list, but an erase seqno, the list is not stored again
+    newBatch();
+    flushMutation(vegetable.cid, 8);
+    dropCollection(9, ManifestUid{6}, vegetable);
+    update = flush->encodeBoundedDroppedCollections(none, 7, 100);
+    EXPECT_EQ(Action::None, update.action);
+    EXPECT_THAT(update.eraseSeqnos, ElementsAre(9));
+
+    // A list written before the erase seqno existed (none is stored) is
+    // deleted by a batch of only an empty drop, the erase seqno must then
+    // record the purge which the list required
+    newBatch();
+    dropCollection(10, ManifestUid{7}, CollectionMetaData{});
+    ASSERT_EQ(0, flush->getEraseSeqno());
+    const DroppedList upgraded{{1, 5, fruit.cid}, {6, 7, dairy.cid}};
+    update = flush->encodeBoundedDroppedCollections(upgraded, 0, 1);
+    EXPECT_EQ(Action::Delete, update.action);
+    EXPECT_THAT(update.eraseSeqnos, UnorderedElementsAre(5, 7));
 }
 
 // A create event with a flushUid is a collection flush. The open collection
@@ -1194,4 +1251,52 @@ TEST_F(CollectionsVBFlushManifestTest, updateOfFlushedGeneration) {
               accounting.getStats()
                       .at(CollectionEntry::fruit.getId())
                       .getItemCount());
+}
+
+// Compaction replay from a store without a dropped list, the open collections
+// of the store define which items (and old revisions) are logically deleted.
+TEST(FlushAccountingTest, storeScanContext) {
+    using namespace Collections::KVStore;
+    Collections::CollectionMetaData fruit;
+    fruit.cid = CollectionEntry::fruit.getId();
+    const std::vector<OpenCollection> open{
+            OpenCollection{0, Collections::CollectionMetaData{}},
+            OpenCollection{10, fruit}};
+
+    Collections::VB::FlushAccounting accounting{
+            std::vector<Collections::KVStore::DroppedCollection>{}};
+    accounting.setStoreScanContext(Collections::VB::ScanContext{&open, {}});
+    ASSERT_TRUE(accounting.getStoreScanContext());
+
+    auto update = [&accounting](
+                          CollectionID cid, uint64_t seqno, uint64_t oldSeqno) {
+        return accounting.updateStats(StoredDocKey{"k", cid},
+                                      seqno,
+                                      IsCommitted::Yes,
+                                      IsDeleted::No,
+                                      100,
+                                      oldSeqno,
+                                      IsDeleted::No,
+                                      50,
+                                      IsCompaction::Yes,
+                                      CompactionCallbacks::AnyRevision);
+    };
+
+    // The old revision precedes the start of fruit, it is an insert
+    EXPECT_TRUE(update(CollectionEntry::fruit, 20, 5).logicalInsert);
+    // The old revision is of the open generation, an update
+    EXPECT_FALSE(update(CollectionEntry::fruit, 21, 15).logicalInsert);
+    EXPECT_EQ(1,
+              accounting.getStats()
+                      .at(CollectionEntry::fruit.getId())
+                      .getItemCount());
+
+    // dairy is not open in the store, it is dropped and gets no stats update
+    update(CollectionEntry::dairy, 22, 15);
+    std::vector<CollectionID> updated;
+    accounting.forEachCollection([&updated](CollectionID cid, const auto&) {
+        updated.push_back(cid);
+    });
+    EXPECT_EQ(std::vector<CollectionID>{CollectionEntry::fruit.getId()},
+              updated);
 }

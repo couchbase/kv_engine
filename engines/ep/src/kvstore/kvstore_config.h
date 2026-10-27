@@ -90,6 +90,15 @@ public:
         return metadataPurgeAge;
     }
 
+    /// @return the maximum number of entries of the dropped collections list
+    size_t getMaxDroppedListSize() const {
+        return maxDroppedListSize;
+    }
+
+    void setMaxDroppedListSize(size_t size) {
+        maxDroppedListSize = size;
+    }
+
     /**
      * @return the maximum number of stored erase seqnos
      */
@@ -149,6 +158,14 @@ protected:
      * DCP clients to reconnect without rollback
      */
     std::atomic<std::chrono::seconds> metadataPurgeAge;
+
+    /**
+     * Beyond this many entries the dropped collections list is no longer
+     * stored (only the erase seqno). Set from collections_max_dropped_list_size
+     * (configuration.json), the default here is only used by the test-only
+     * constructor.
+     */
+    std::atomic<size_t> maxDroppedListSize{100};
 
     /**
      * The maximum number of stored erase seqnos. Set from

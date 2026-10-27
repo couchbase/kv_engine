@@ -436,14 +436,19 @@ bool FlushAccounting::isLogicallyDeleted(CollectionID cid,
             return seqno < itr->second;
         }
     }
-    return false;
+    return storeScanContext && storeScanContext->isLogicallyDeleted(cid, seqno);
 }
 
 bool FlushAccounting::isLogicallyDeletedByGeneration(CollectionID cid,
                                                      uint64_t seqno,
                                                      uint64_t oldSeqno) const {
-    const auto start = getGenerationStart(cid, seqno);
-    return start && oldSeqno < *start;
+    if (const auto start = getGenerationStart(cid, seqno);
+        start && oldSeqno < *start) {
+        return true;
+    }
+    // Compaction replay from a store with no dropped list
+    return storeScanContext &&
+           storeScanContext->isLogicallyDeleted(cid, oldSeqno);
 }
 
 std::optional<uint64_t> FlushAccounting::getGenerationStart(
@@ -484,8 +489,11 @@ void FlushAccounting::forEachCollection(
         // 2) the kvstore may not be able handle an update of a 'local' doc
         //    and a delete of the same in one flush (couchstore doesn't)
         auto itr = droppedInStore.find(cid);
-        if (itr != droppedInStore.end() &&
-            flushStats.getPersistedHighSeqno() < itr->second.endSeqno) {
+        if ((itr != droppedInStore.end() &&
+             flushStats.getPersistedHighSeqno() < itr->second.endSeqno) ||
+            (storeScanContext &&
+             storeScanContext->isLogicallyDeleted(
+                     cid, flushStats.getPersistedHighSeqno()))) {
             continue;
         }
 

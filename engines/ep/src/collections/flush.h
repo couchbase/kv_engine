@@ -260,19 +260,51 @@ public:
             cb::const_byte_buffer collections);
 
     /**
-     * Encode the dropped collection list as flatbuffer.
+     * Encode the (unbounded) dropped collection list as flatbuffer. KVStores
+     * use encodeBoundedDroppedCollections.
      *
-     * @param dropped list of collections that are already dropped (read from
-     *        storage)
+     * @param existingDropped list of collections that are already dropped
+     *        (read from storage)
      * @return The dropped list (as a flatbuffer type)
      */
     flatbuffers::DetachedBuffer encodeDroppedCollections(
-            std::vector<Collections::KVStore::DroppedCollection>&
-                    existingDropped);
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    existingDropped) const;
+
+    /// How a KVStore must update its stored dropped collections list
+    struct DroppedListUpdate {
+        enum class Action { None, Write, Delete };
+        Action action{Action::None};
+        /// The list to store when action is Write
+        flatbuffers::DetachedBuffer data{};
+        /// The number of entries of the (merged) list, 0 if not computed
+        size_t size{0};
+        /**
+         * The erase seqnos to add to those stored (if any)
+         */
+        std::vector<uint64_t> eraseSeqnos;
+    };
+
+    /**
+     * The dropped list is bounded. If it would hold more than maxSize entries
+     * it is deleted, and is not stored again until the purge completes (when
+     * compaction removes the erase seqno). Until then scans and compaction
+     * identify dropped collection data using the open collections. Whenever
+     * the list is deleted an erase seqno is stored.
+     *
+     * @param existingDropped the stored dropped list
+     * @param storedEraseSeqno the stored erase seqno
+     * @param maxSize the maximum number of entries of the list
+     */
+    [[nodiscard]] DroppedListUpdate encodeBoundedDroppedCollections(
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    existingDropped,
+            uint64_t storedEraseSeqno,
+            size_t maxSize) const;
 
     /**
      * Method is used by compaction, but works with data that flush maintains
-     * i.e. the output of encodeDroppedCollections.
+     * i.e. the stored dropped list.
      *
      * This method encodes a new dropped collections 'list'. The new list is the
      * relative complement of the parameters:
@@ -357,6 +389,14 @@ private:
      * @return the set of dropped collections which are empty.
      */
     std::unordered_set<CollectionID> findEmptyDroppedCollections() const;
+
+    /**
+     * @return the stored dropped list merged with the (non-empty) drops and
+     *         flushes of this batch
+     */
+    std::vector<KVStore::DroppedCollection> mergeDroppedCollections(
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    existingDropped) const;
 
     /// @return findEmptyDroppedCollections, evaluated once per batch
     const std::unordered_set<CollectionID>& getEmptyDroppedCollections() const;

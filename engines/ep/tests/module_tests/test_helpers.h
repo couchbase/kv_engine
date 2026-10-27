@@ -154,6 +154,7 @@ static std::string magmaRollbackConfig =
         "magma_min_checkpoint_interval=0;"
         "magma_sync_every_batch=true";
 
+class KVStoreIface;
 class VBucket;
 
 /// Creates an item with the given vbucket id, key and value.
@@ -274,6 +275,25 @@ void modifyCouchstoreVBState(
         const std::string& dbDir,
         int revision,
         std::function<void(nlohmann::json& vbState)> modifyFn);
+
+/**
+ * @return the collections erase seqnos which the KVStore stores for vbid,
+ *         empty when none are stored (no dropped collection data awaits a
+ *         purge)
+ */
+std::vector<uint64_t> getEraseSeqnos(const KVStoreIface& kvstore, Vbid vbid);
+
+/**
+ * Write (or delete) a '_local' document of the couchstore file, e.g. to create
+ * collections metadata as an earlier version (or another code path) would.
+ *
+ * @param value the document value, std::nullopt deletes the document
+ */
+void writeCouchstoreLocalDoc(Vbid vbucket,
+                             const std::string& dbDir,
+                             uint64_t revision,
+                             std::string_view key,
+                             std::optional<std::string_view> value);
 
 /**
  * Removes the given path if it exists, NOP otherwise.

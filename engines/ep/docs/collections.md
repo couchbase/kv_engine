@@ -118,12 +118,29 @@ KVStore maintains the following persisted data which can be retrieved by calling
 * `getDroppedCollections`
 
 ### Dropped Collections
-The management of dropped collections is owned by the KVStore implementation.
-For example couch-kvstore has to use compaction to remove the keys of dropped
-collections so it does maintain a list of collections. Other kvstore's may have
-the ability to drop a collection atomically as part of the commit, those
-implementations don't need to maintain a list of dropped collections and can
-return empty via `getDroppedCollections`.
+Data of a dropped (or flushed) collection is "logically deleted" until
+compaction purges it. Two documents record that a purge is required:
+
+* `_local/collections/dropped` - the list of dropped collections and their
+  seqno ranges. The list is bounded by `collections_max_dropped_list_size`. If
+  a flush would exceed the limit the list is deleted, and it is not stored
+  again until the purge completes. When stored, the list describes all of the
+  dropped data which awaits a purge, so "no list but an erase seqno" means the
+  open collections must identify the dropped data.
+* `_local/collections/erase` - the erase seqno, the greatest seqno of a
+  non-empty collection drop or flush. Only the greatest value is kept,
+  compaction removes it when the purge completes.
+
+Warmup and rollback schedule a purge if either is stored.
+
+Scans (e.g. DCP backfill) skip logically deleted keys using the dropped list.
+With no list but an erase seqno, a key is logically deleted if its collection
+is not in the open collections or it precedes the collection's start-seqno.
+With neither, nothing is logically deleted.
+
+Compaction erases the collections of the dropped list. With no list but an
+erase seqno it erases every logically deleted key as defined by the open
+collections (magma compacts the entire key range).
 
 ## Dropping a collection (couch-kvstore)
 

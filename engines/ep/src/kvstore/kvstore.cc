@@ -85,25 +85,21 @@ void CompactionContext::setCollectionHighSeqnos(
     collectionHighSeqnos.lastRefreshTime = now;
 }
 
-ScanContext::ScanContext(
-        Vbid vbid,
-        std::unique_ptr<KVFileHandle> handle,
-        DocumentFilter docFilter,
-        ValueFilter valFilter,
-        std::unique_ptr<StatusCallback<GetValue>> cb,
-        std::unique_ptr<StatusCallback<CacheLookup>> cl,
-        const std::vector<Collections::KVStore::OpenCollection>*
-                openCollections,
-        const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections,
-        uint64_t maxSeqno,
-        uint64_t historyStartSeqno)
+ScanContext::ScanContext(Vbid vbid,
+                         std::unique_ptr<KVFileHandle> handle,
+                         DocumentFilter docFilter,
+                         ValueFilter valFilter,
+                         std::unique_ptr<StatusCallback<GetValue>> cb,
+                         std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                         Collections::VB::ScanContext collectionsScanContext,
+                         uint64_t maxSeqno,
+                         uint64_t historyStartSeqno)
     : vbid(vbid),
       handle(std::move(handle)),
       docFilter(docFilter),
       valFilter(valFilter),
       logger(getGlobalBucketLogger().get()),
-      collectionsContext(openCollections, droppedCollections),
+      collectionsContext(std::move(collectionsScanContext)),
       maxSeqno(maxSeqno),
       historyStartSeqno(historyStartSeqno),
       callback(std::move(cb)),
@@ -124,10 +120,7 @@ BySeqnoScanContext::BySeqnoScanContext(
         ValueFilter _valFilter,
         uint64_t _documentCount,
         const vbucket_state& vbucketState,
-        const std::vector<Collections::KVStore::OpenCollection>*
-                openCollections,
-        const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections,
+        Collections::VB::ScanContext collectionsScanContext,
         uint64_t historyStartSeqno)
 
     : ScanContext(vb,
@@ -136,8 +129,7 @@ BySeqnoScanContext::BySeqnoScanContext(
                   _valFilter,
                   std::move(cb),
                   std::move(cl),
-                  openCollections,
-                  droppedCollections,
+                  std::move(collectionsScanContext),
                   end,
                   historyStartSeqno),
       startSeqno(start),
@@ -173,8 +165,7 @@ ByIdScanContext::ByIdScanContext(
         std::vector<ByIdRange> ranges,
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
-        const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections,
+        Collections::VB::ScanContext collectionsScanContext,
         uint64_t maxSeqno,
         uint64_t historyStartSeqno)
     : ScanContext(vb,
@@ -183,8 +174,7 @@ ByIdScanContext::ByIdScanContext(
                   _valFilter,
                   std::move(cb),
                   std::move(cl),
-                  nullptr, // no open collections required on this path
-                  droppedCollections,
+                  std::move(collectionsScanContext),
                   maxSeqno,
                   historyStartSeqno),
       ranges(std::move(ranges)),
