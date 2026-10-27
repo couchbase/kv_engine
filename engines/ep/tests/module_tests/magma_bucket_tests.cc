@@ -805,6 +805,7 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     setCollections(cookie, cm.remove(CollectionEntry::fruit));
     setCollections(cookie, cm.remove(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 2);
+    const auto lastDropSeqno = static_cast<uint64_t>(vb->getHighSeqno());
 
     // Still 2 items, waiting for purge
     ASSERT_EQ(2, vb->getNumTotalItems());
@@ -835,6 +836,13 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     ASSERT_TRUE(status);
     EXPECT_FALSE(dc.empty());
 
+    // The failed compaction keeps the erase seqnos of both drops. Which
+    // collection failed depends on the order of the stored dropped list.
+    auto [eraseStatus, eraseSeqnos] = kvstore->getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseStatus);
+    EXPECT_THAT(eraseSeqnos.getSeqnos(),
+                ::testing::ElementsAre(lastDropSeqno - 1, lastDropSeqno));
+
     // Our hook wouldn't do anything now, but reset it anyway for simplicity
     // and run the compaction again allowing the other collection to compact.
     magmaKVStore.setCompactionStatusHook([](magma::Status&) {});
@@ -845,6 +853,9 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
     EXPECT_TRUE(dc.empty());
+    std::tie(eraseStatus, eraseSeqnos) = kvstore->getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseStatus);
+    EXPECT_TRUE(eraseSeqnos.empty()) << eraseSeqnos;
 }
 
 /**
@@ -950,6 +961,56 @@ TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
     std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
     ASSERT_TRUE(status);
     EXPECT_TRUE(dc.empty());
+}
+
+/**
+ * A drop flushed whilst a compaction purges an earlier drop leaves the erase
+ * seqno of the new drop, which the compaction has not purged.
+ */
+TEST_P(STParamMagmaBucketTest, DropDuringPurgeKeepsNewEraseSeqno) {
+    replaceMagmaKVStore();
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::meat);
+    setCollections(cookie, cm);
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v");
+    store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& magmaKVStore =
+            static_cast<MockMagmaKVStore&>(*store->getRWUnderlying(vbid));
+    uint64_t meatDropSeqno = 0;
+    magmaKVStore.setPreCompactKVStoreHook([&]() {
+        if (meatDropSeqno) {
+            return;
+        }
+        cm.remove(CollectionEntry::meat);
+        vb->updateFromManifest(
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+                makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        meatDropSeqno = vb->getHighSeqno();
+    });
+    runCompaction(vbid);
+    magmaKVStore.setPreCompactKVStoreHook([]() {});
+    ASSERT_NE(0, meatDropSeqno);
+
+    // Only the erase seqno of the drop flushed during compaction remains
+    auto [status, eraseSeqnos] = magmaKVStore.getEraseSeqnos(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_THAT(eraseSeqnos.getSeqnos(), ::testing::ElementsAre(meatDropSeqno));
+
+    // The list and the erase seqno were written together, only meat remains
+    auto [droppedStatus, dropped] = magmaKVStore.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedStatus);
+    ASSERT_EQ(1, dropped.size());
+    EXPECT_EQ(CollectionID(CollectionEntry::meat),
+              dropped.front().collectionId);
 }
 
 /**

@@ -7161,6 +7161,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                 "ep_alog_resident_ratio_threshold",
                 "ep_alog_sleep_time",
                 "ep_alog_task_time",
+                "ep_collections_max_erase_seqnos",
                 "ep_item_eviction_policy",
                 "ep_persistent_metadata_purge_age",
                 "ep_warmup",

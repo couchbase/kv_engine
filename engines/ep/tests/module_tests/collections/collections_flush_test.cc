@@ -191,6 +191,11 @@ protected:
             disk.scopes = flush->encodeOpenScopes(view(disk.scopes));
         }
 
+        if (const auto seqno = flush->getEraseSeqno(); seqno != 0) {
+            disk.erase = Collections::VB::Flush::encodeEraseSeqnos(
+                    Collections::KVStore::EraseSeqnos{{seqno}});
+        }
+
         newBatch();
     }
 
@@ -212,6 +217,7 @@ protected:
         std::optional<std::vector<OpenCollection>> collections = std::nullopt;
         std::optional<std::vector<OpenScope>> scopes = std::nullopt;
         std::optional<std::vector<DroppedCollection>> dropped = std::nullopt;
+        std::optional<uint64_t> eraseSeqno = std::nullopt;
     };
 
     /**
@@ -246,7 +252,7 @@ protected:
         if (expected.scopes) {
             ASSERT_NE(0, disk.scopes.size()) << "scopes not written";
             EXPECT_THAT(Collections::KVStore::decodeManifest(
-                                {}, {}, view(disk.scopes), {})
+                                {}, {}, view(disk.scopes), {}, {})
                                 .scopes,
                         UnorderedElementsAreArray(*expected.scopes));
         } else {
@@ -259,6 +265,16 @@ protected:
                         UnorderedElementsAreArray(*expected.dropped));
         } else {
             EXPECT_EQ(0, disk.dropped.size()) << "dropped unexpectedly written";
+        }
+
+        if (expected.eraseSeqno) {
+            ASSERT_NE(0, disk.erase.size()) << "eraseSeqno not written";
+            EXPECT_EQ(*expected.eraseSeqno,
+                      Collections::KVStore::decodeEraseSeqnos(view(disk.erase))
+                              .getEraseSeqno());
+        } else {
+            EXPECT_EQ(0, disk.erase.size())
+                    << "eraseSeqno unexpectedly written";
         }
     }
 
@@ -303,6 +319,7 @@ protected:
         flatbuffers::DetachedBuffer collections;
         flatbuffers::DetachedBuffer scopes;
         flatbuffers::DetachedBuffer dropped;
+        flatbuffers::DetachedBuffer erase;
     } disk;
 };
 
@@ -324,7 +341,8 @@ TEST_F(CollectionsVBFlushTest, manifestUid) {
     expectDisk({.manifestUid = ManifestUid{7},
                 .collections = OpenCollections{defaultCollection},
                 .scopes = OpenScopes{defaultScope, {2, shop1}, {5, shop2}},
-                .dropped = DroppedList{{1, 4, fruit.cid}}});
+                .dropped = DroppedList{{1, 4, fruit.cid}},
+                .eraseSeqno = 4});
 }
 
 // A batch with no system events (e.g. just mutations) writes no metadata
@@ -486,7 +504,8 @@ TEST_F(CollectionsVBFlushTest, createAndDropCollection) {
     // Expects fruit gone from open and in the dropped list for 1 to 3
     expectDisk({.manifestUid = ManifestUid{2},
                 .collections = OpenCollections{defaultCollection},
-                .dropped = DroppedList{{1, 3, fruit.cid}}});
+                .dropped = DroppedList{{1, 3, fruit.cid}},
+                .eraseSeqno = 3});
 }
 
 // Drop a collection which is on disk, startSeqno comes from disk.
@@ -501,7 +520,8 @@ TEST_F(CollectionsVBFlushTest, dropCollectionOnDisk) {
     // Expects fruit in the dropped list using the start seqno from disk
     expectDisk({.manifestUid = ManifestUid{2},
                 .collections = OpenCollections{defaultCollection},
-                .dropped = DroppedList{{10, 12, fruit.cid}}});
+                .dropped = DroppedList{{10, 12, fruit.cid}},
+                .eraseSeqno = 12});
 }
 
 // Drop the default collection when nothing is on disk. The open collections
@@ -533,7 +553,8 @@ TEST_F(CollectionsVBFlushTest, resurrectCollectionOnDisk) {
     // Expects the new fruit open from 13 and the old one dropped 10 to 12
     expectDisk({.manifestUid = ManifestUid{3},
                 .collections = OpenCollections{defaultCollection, {13, fruit2}},
-                .dropped = DroppedList{{10, 12, fruit.cid}}});
+                .dropped = DroppedList{{10, 12, fruit.cid}},
+                .eraseSeqno = 12});
 }
 
 // Create, drop and create again in the same batch. Open is the last create and
@@ -551,7 +572,8 @@ TEST_F(CollectionsVBFlushTest, createDropCreateCollection) {
     // Expects the second fruit open and the first one dropped 1 to 3
     expectDisk({.manifestUid = ManifestUid{3},
                 .collections = OpenCollections{defaultCollection, {4, fruit2}},
-                .dropped = DroppedList{{1, 3, fruit.cid}}});
+                .dropped = DroppedList{{1, 3, fruit.cid}},
+                .eraseSeqno = 3});
 }
 
 // The dropped list on disk is merged with drops of the batch. A collection in
@@ -577,7 +599,8 @@ TEST_F(CollectionsVBFlushTest, droppedMergeWithDisk) {
     expectDisk(
             {.manifestUid = ManifestUid{5},
              .collections = OpenCollections{defaultCollection, {3, dairy}},
-             .dropped = DroppedList{{1, 6, fruit.cid}, {2, 7, vegetable.cid}}});
+             .dropped = DroppedList{{1, 6, fruit.cid}, {2, 7, vegetable.cid}},
+             .eraseSeqno = 7});
 
     // fruit (still in the dropped list) is resurrected and dropped again.
     // dairy is dropped for the first time.
@@ -594,7 +617,8 @@ TEST_F(CollectionsVBFlushTest, droppedMergeWithDisk) {
                 .collections = OpenCollections{defaultCollection},
                 .dropped = DroppedList{{1, 11, fruit.cid},
                                        {2, 7, vegetable.cid},
-                                       {3, 12, dairy.cid}}});
+                                       {3, 12, dairy.cid}},
+                .eraseSeqno = 12});
 }
 
 // A create event with a flushUid is a collection flush. The open collection
@@ -611,7 +635,8 @@ TEST_F(CollectionsVBFlushTest, flushCollection) {
     expectDisk(
             {.manifestUid = ManifestUid{7},
              .collections = OpenCollections{defaultCollection, {20, flushed}},
-             .dropped = DroppedList{{10, 20, fruit.cid}}});
+             .dropped = DroppedList{{10, 20, fruit.cid}},
+             .eraseSeqno = 20});
 }
 
 // A collection created and flushed in one batch, the dropped entry starts at
@@ -625,7 +650,8 @@ TEST_F(CollectionsVBFlushTest, createAndFlushCollection) {
     expectDisk(
             {.manifestUid = ManifestUid{2},
              .collections = OpenCollections{defaultCollection, {12, flushed}},
-             .dropped = DroppedList{{10, 12, fruit.cid}}});
+             .dropped = DroppedList{{10, 12, fruit.cid}},
+             .eraseSeqno = 12});
 }
 
 // With nothing on disk the default collection exists from seqno 0, a flush of
@@ -637,7 +663,47 @@ TEST_F(CollectionsVBFlushTest, flushDefaultCollectionEpoch) {
 
     expectDisk({.manifestUid = ManifestUid{1},
                 .collections = OpenCollections{{5, flushed}},
-                .dropped = DroppedList{{0, 5, CollectionID::Default}}});
+                .dropped = DroppedList{{0, 5, CollectionID::Default}},
+                .eraseSeqno = 5});
+}
+
+// The erase seqno is the greatest seqno of a non-empty drop or a flush in the
+// batch, an empty drop is ignored.
+TEST_F(CollectionsVBFlushTest, eraseSeqno) {
+    createCollection(1, ManifestUid{1}, fruit);
+    createCollection(2, ManifestUid{2}, dairy);
+    commit();
+
+    flushMutation(dairy.cid, 3);
+    dropCollection(4, ManifestUid{3}, dairy);
+    const auto flushed = flushCollection(5, ManifestUid{4}, fruit);
+    // The default collection is empty
+    dropCollection(6, ManifestUid{5}, CollectionMetaData{});
+    EXPECT_EQ(5, flush->getEraseSeqno());
+    commit();
+    expectDisk({.manifestUid = ManifestUid{5},
+                .collections = OpenCollections{{5, flushed}},
+                .dropped = DroppedList{{2, 4, dairy.cid}, {1, 5, fruit.cid}},
+                .eraseSeqno = 5});
+
+    // A batch without drops leaves the erase seqno unchanged
+    createCollection(7, ManifestUid{6}, vegetable);
+    EXPECT_EQ(0, flush->getEraseSeqno());
+    commit();
+    expectDisk({.manifestUid = ManifestUid{6},
+                .collections = OpenCollections{{5, flushed}, {7, vegetable}},
+                .dropped = DroppedList{{2, 4, dairy.cid}, {1, 5, fruit.cid}},
+                .eraseSeqno = 5});
+
+    // A non-empty drop greater than a flush in the batch
+    std::ignore = flushCollection(8, ManifestUid{7}, fruit);
+    flushMutation(vegetable.cid, 9);
+    dropCollection(10, ManifestUid{8}, vegetable);
+    EXPECT_EQ(10, flush->getEraseSeqno());
+    commit();
+    EXPECT_EQ(10,
+              Collections::KVStore::decodeEraseSeqnos(view(disk.erase))
+                      .getEraseSeqno());
 }
 
 // A collection flushed again before compaction purges its dropped entry keeps
@@ -650,14 +716,16 @@ TEST_F(CollectionsVBFlushTest, flushCollectionTwice) {
     expectDisk(
             {.manifestUid = ManifestUid{2},
              .collections = OpenCollections{defaultCollection, {20, flushed1}},
-             .dropped = DroppedList{{10, 20, fruit.cid}}});
+             .dropped = DroppedList{{10, 20, fruit.cid}},
+             .eraseSeqno = 20});
 
     const auto flushed2 = flushCollection(30, ManifestUid{3}, fruit);
     commit();
     expectDisk(
             {.manifestUid = ManifestUid{3},
              .collections = OpenCollections{defaultCollection, {30, flushed2}},
-             .dropped = DroppedList{{10, 30, fruit.cid}}});
+             .dropped = DroppedList{{10, 30, fruit.cid}},
+             .eraseSeqno = 30});
 }
 
 // A dropped collection (in the list on disk) which is resurrected and then
@@ -672,14 +740,16 @@ TEST_F(CollectionsVBFlushTest, flushResurrectedCollectionOnDisk) {
     commit();
     expectDisk({.manifestUid = ManifestUid{3},
                 .collections = OpenCollections{defaultCollection, {13, fruit}},
-                .dropped = DroppedList{{10, 12, fruit.cid}}});
+                .dropped = DroppedList{{10, 12, fruit.cid}},
+                .eraseSeqno = 12});
 
     const auto flushed = flushCollection(20, ManifestUid{4}, fruit);
     commit();
     expectDisk(
             {.manifestUid = ManifestUid{4},
              .collections = OpenCollections{defaultCollection, {20, flushed}},
-             .dropped = DroppedList{{10, 20, fruit.cid}}});
+             .dropped = DroppedList{{10, 20, fruit.cid}},
+             .eraseSeqno = 20});
 }
 
 // Drop, re-create and flush a collection in one batch. The dropped entry ends
@@ -697,7 +767,8 @@ TEST_F(CollectionsVBFlushTest, dropCreateFlushCollection) {
     expectDisk(
             {.manifestUid = ManifestUid{4},
              .collections = OpenCollections{defaultCollection, {14, flushed}},
-             .dropped = DroppedList{{10, 14, fruit.cid}}});
+             .dropped = DroppedList{{10, 14, fruit.cid}},
+             .eraseSeqno = 14});
 }
 
 // A collection in the dropped list on disk which is resurrected, dropped,
@@ -710,7 +781,8 @@ TEST_F(CollectionsVBFlushTest, dropCreateFlushCollectionOnDisk) {
     commit();
     expectDisk({.manifestUid = ManifestUid{2},
                 .collections = OpenCollections{defaultCollection},
-                .dropped = DroppedList{{10, 12, fruit.cid}}});
+                .dropped = DroppedList{{10, 12, fruit.cid}},
+                .eraseSeqno = 12});
 
     createCollection(13, ManifestUid{3}, fruit);
     flushMutation(fruit.cid, 14);
@@ -722,7 +794,8 @@ TEST_F(CollectionsVBFlushTest, dropCreateFlushCollectionOnDisk) {
     expectDisk(
             {.manifestUid = ManifestUid{6},
              .collections = OpenCollections{defaultCollection, {17, flushed}},
-             .dropped = DroppedList{{10, 17, fruit.cid}}});
+             .dropped = DroppedList{{10, 17, fruit.cid}},
+             .eraseSeqno = 17});
 }
 
 // A create of a collection which is already on disk (and is not a flush) is a
@@ -816,7 +889,8 @@ TEST_F(CollectionsVBFlushTest, encodeRelativeComplementOfDroppedCollections) {
                 .collections = OpenCollections{defaultCollection},
                 .dropped = DroppedList{{1, 7, fruit.cid},
                                        {2, 8, dairy.cid},
-                                       {3, 9, vegetable.cid}}});
+                                       {3, 9, vegetable.cid}},
+                .eraseSeqno = 9});
 
     using Collections::VB::Flush;
     // fruit is removed. dairy is not erased so remains. vegetable was dropped

@@ -22,9 +22,14 @@ namespace Collections::VB {
  */
 class EraserContext : public ScanContext {
 public:
-    explicit EraserContext(
-            const std::vector<Collections::KVStore::DroppedCollection>&
-                    droppedCollections);
+    /**
+     * @param droppedCollections the collections to erase
+     * @param maxEraseSeqno the greatest of the stored erase seqnos (0 if none)
+     *        when the snapshot to be compacted was read
+     */
+    EraserContext(const std::vector<Collections::KVStore::DroppedCollection>&
+                          droppedCollections,
+                  uint64_t maxEraseSeqno);
 
     /**
      * Called by kvstore for deleted keys, when the deleted key is a drop of a
@@ -54,6 +59,16 @@ public:
         onDiskDroppedDataExists = value;
     }
 
+    /**
+     * Compaction purges all dropped collection data at or below this seqno, so
+     * on success the stored erase seqnos at or below it are removed. Seqnos
+     * stored by a flush during the compaction are greater and remain.
+     * @return the greatest erase seqno read with the snapshot (0 if none)
+     */
+    uint64_t getMaxEraseSeqno() const {
+        return maxEraseSeqno;
+    }
+
 private:
     friend std::ostream& operator<<(std::ostream&, const EraserContext&);
 
@@ -62,6 +77,9 @@ private:
 
     /// set to true when 'erase' completes and dropped collection data exists
     bool onDiskDroppedDataExists = false;
+
+    /// The greatest erase seqno read with the snapshot to be compacted
+    const uint64_t maxEraseSeqno;
 };
 
 std::ostream& operator<<(std::ostream&, const EraserContext&);

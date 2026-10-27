@@ -90,6 +90,17 @@ public:
         return metadataPurgeAge;
     }
 
+    /**
+     * @return the maximum number of stored erase seqnos
+     */
+    size_t getMaxEraseSeqnos() const {
+        return maxEraseSeqnos;
+    }
+
+    void setMaxEraseSeqnos(size_t size) {
+        maxEraseSeqnos = size;
+    }
+
     /// @returns the size to use for the cached values in the KVStores
     size_t getCacheSize() const;
 
@@ -138,4 +149,11 @@ protected:
      * DCP clients to reconnect without rollback
      */
     std::atomic<std::chrono::seconds> metadataPurgeAge;
+
+    /**
+     * The maximum number of stored erase seqnos. Set from
+     * collections_max_erase_seqnos (configuration.json), the default here is
+     * only used by the test-only constructor.
+     */
+    std::atomic<size_t> maxEraseSeqnos{64};
 };

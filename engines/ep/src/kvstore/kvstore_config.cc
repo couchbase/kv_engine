@@ -34,6 +34,8 @@ public:
             config.setPeriodicSyncBytes(value);
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(std::chrono::seconds{value});
+        } else if (key == "collections_max_erase_seqnos") {
+            config.setMaxEraseSeqnos(value);
         }
     }
 
@@ -60,6 +62,11 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "persistent_metadata_purge_age",
             std::make_unique<ConfigChangeListener>(*this));
+
+    setMaxEraseSeqnos(config.getCollectionsMaxEraseSeqnos());
+    config.addValueChangedListener(
+            "collections_max_erase_seqnos",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
@@ -81,7 +88,8 @@ KVStoreConfig::KVStoreConfig(const KVStoreConfig& other)
       dbname(other.dbname),
       backend(other.backend),
       shardId(other.shardId),
-      logger(other.logger) {
+      logger(other.logger),
+      maxEraseSeqnos(other.maxEraseSeqnos.load()) {
 }
 
 KVStoreConfig::~KVStoreConfig() = default;

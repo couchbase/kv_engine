@@ -402,6 +402,12 @@ public:
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) const override;
 
+    /**
+     * CouchKVStore implements this method as a read of 1 _local document
+     */
+    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
+            Vbid vbid) const override;
+
     ReadVBStateResult getPersistedVBucketState(Vbid vbid) const override;
 
     ReadVBStateResult getPersistedVBucketState(KVFileHandle& handle,
@@ -749,6 +755,13 @@ protected:
     std::pair<couchstore_error_t,
               std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Db& db) const;
+
+    /**
+     * Read the collections erase seqnos from an already open db handle
+     * @return a pair of status and the erase seqnos (empty if not stored)
+     */
+    std::pair<couchstore_error_t, Collections::KVStore::EraseSeqnos>
+    getCollectionsEraseSeqnos(Db& db) const;
 
     /**
      * Unlink selected couch file, which will be removed by the OS,

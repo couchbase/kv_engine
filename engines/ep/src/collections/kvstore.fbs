@@ -83,10 +83,12 @@ table CommittedManifest {
     uid:ulong;
 }
 
-// The greatest seqno of a non-empty collection drop (or collection flush)
-// whose data may remain in storage. Removed once compaction erases that data.
+// A bounded set of the seqnos of non-empty collection drops (and collection
+// flushes) whose data may remain in storage, ascending. A seqno may stand for
+// earlier merged ones. The greatest is the erase seqno. Removed once
+// compaction erases all of that data.
 table EraseSeqno {
-    seqno:ulong;
+    seqnos:[ulong];
 }
 
 root_type OpenCollections;

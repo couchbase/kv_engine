@@ -14,6 +14,7 @@
 #include "collections/collections_types.h"
 #include "collections/events_generated.h"
 #include "collections/flush.h"
+#include "collections/kvstore_generated.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "ep_vb.h"
@@ -33,6 +34,8 @@
 #include <nlohmann/json.hpp>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
+
+#include <random>
 
 struct WriteCallback {
     void operator()(TransactionContext&, FlushStateMutation) {
@@ -1204,34 +1207,186 @@ TEST_P(CollectionRessurectionKVStoreTest, resurectionScopes) {
     resurectionScopesTest();
 }
 
-TEST(CollectionsEraseSeqnoTest, encodeDecode) {
-    using Collections::KVStore::decodeEraseSeqno;
-    // No document means nothing to erase
-    EXPECT_EQ(0u, decodeEraseSeqno({}));
-
-    for (uint64_t seqno : {uint64_t{1}, uint64_t{1000}, ~uint64_t{0}}) {
-        auto buffer = Collections::VB::Flush::encodeEraseSeqno(seqno);
-        EXPECT_EQ(seqno, decodeEraseSeqno({buffer.data(), buffer.size()}));
-    }
-
-    // 0 is never stored, it would be the same as no document
-    EXPECT_THROW(Collections::VB::Flush::encodeEraseSeqno(0), gsl::fail_fast);
+TEST(CollectionsEraseSeqnoTest, decodeInvalid) {
+    std::array<uint8_t, 3> junk{1, 2, 3};
+    EXPECT_THROW((void)Collections::KVStore::decodeEraseSeqnos(
+                         {junk.data(), junk.size()}),
+                 std::runtime_error);
 }
 
-// The dump tools decode the stored document as JSON
-TEST(CollectionsEraseSeqnoTest, decodeLocalDoc) {
-    auto buffer = Collections::VB::Flush::encodeEraseSeqno(10);
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosAdd) {
+    Collections::KVStore::EraseSeqnos eraseSeqnos;
+    EXPECT_TRUE(eraseSeqnos.empty());
+    EXPECT_EQ(0, eraseSeqnos.getEraseSeqno());
+    EXPECT_EQ(0, eraseSeqnos.getOldestSeqno());
+
+    // Added in any order, kept ascending without duplicates and 0 is ignored
+    eraseSeqnos.add({20, 0, 10, 20}, 4);
+    EXPECT_EQ((std::vector<uint64_t>{10, 20}), eraseSeqnos.getSeqnos());
+    EXPECT_EQ(20, eraseSeqnos.getEraseSeqno());
+    EXPECT_EQ(10, eraseSeqnos.getOldestSeqno());
+
+    eraseSeqnos.add({22, 50}, 4);
+    EXPECT_EQ((std::vector<uint64_t>{10, 20, 22, 50}), eraseSeqnos.getSeqnos());
+
+    // Beyond the limit the closest pair (20, 22) merges into the greater
+    eraseSeqnos.add({60}, 4);
+    EXPECT_EQ((std::vector<uint64_t>{10, 22, 50, 60}), eraseSeqnos.getSeqnos());
+
+    // On a tie the lesser pair merges, the most recent seqnos stay precise
+    Collections::KVStore::EraseSeqnos tie;
+    tie.add({10, 20, 30}, 2);
+    EXPECT_EQ((std::vector<uint64_t>{20, 30}), tie.getSeqnos());
+
+    // A limit of 1 (or 0) keeps only the erase seqno
+    eraseSeqnos.add({}, 1);
+    EXPECT_EQ((std::vector<uint64_t>{60}), eraseSeqnos.getSeqnos());
+    eraseSeqnos.add({70}, 0);
+    EXPECT_EQ((std::vector<uint64_t>{70}), eraseSeqnos.getSeqnos());
+}
+
+// The merge removes the lesser seqno of the closest pair (the lesser pair on a
+// tie) until within the limit, compare with a direct implementation of that
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosMerge) {
+    auto expectedMerge = [](std::vector<uint64_t> seqnos, size_t maxSize) {
+        while (seqnos.size() > maxSize) {
+            size_t lesser = 0;
+            for (size_t index = 1; index + 1 < seqnos.size(); ++index) {
+                if (seqnos[index + 1] - seqnos[index] <
+                    seqnos[lesser + 1] - seqnos[lesser]) {
+                    lesser = index;
+                }
+            }
+            seqnos.erase(seqnos.begin() + lesser);
+        }
+        return seqnos;
+    };
+
+    std::mt19937_64 random(55691);
+    for (int iteration = 0; iteration < 200; ++iteration) {
+        std::vector<uint64_t> added;
+        const auto count = 1 + (random() % 64);
+        for (size_t index = 0; index < count; ++index) {
+            // A small range gives repeated gaps (ties)
+            added.push_back(1 + (random() % 200));
+        }
+        const auto maxSize = 1 + (random() % 16);
+        Collections::KVStore::EraseSeqnos eraseSeqnos;
+        eraseSeqnos.add(added, maxSize);
+
+        std::ranges::sort(added);
+        const auto duplicates = std::ranges::unique(added);
+        added.erase(duplicates.begin(), duplicates.end());
+        EXPECT_EQ(expectedMerge(added, maxSize), eraseSeqnos.getSeqnos())
+                << "iteration:" << iteration << " maxSize:" << maxSize;
+    }
+}
+
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosRemoveUpTo) {
+    Collections::KVStore::EraseSeqnos eraseSeqnos{{10, 20, 30}};
+    EXPECT_FALSE(eraseSeqnos.removeUpTo(9));
+    EXPECT_TRUE(eraseSeqnos.removeUpTo(20));
+    EXPECT_EQ((std::vector<uint64_t>{30}), eraseSeqnos.getSeqnos());
+    EXPECT_TRUE(eraseSeqnos.removeUpTo(30));
+    EXPECT_TRUE(eraseSeqnos.empty());
+
+    // Must be ascending and unique
+    EXPECT_THROW((Collections::KVStore::EraseSeqnos{{2, 1}}), gsl::fail_fast);
+    EXPECT_THROW((Collections::KVStore::EraseSeqnos{{1, 1}}), gsl::fail_fast);
+}
+
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosEncodeDecode) {
+    using Collections::KVStore::decodeEraseSeqnos;
+    using Collections::KVStore::EraseSeqnos;
+    using Collections::VB::Flush;
+    // No document means nothing to erase
+    EXPECT_TRUE(decodeEraseSeqnos({}).empty());
+
+    for (const auto& eraseSeqnos : {EraseSeqnos{{1}},
+                                    EraseSeqnos{{~uint64_t{0}}},
+                                    EraseSeqnos{{5, 10, 15}}}) {
+        auto buffer = Flush::encodeEraseSeqnos(eraseSeqnos);
+        EXPECT_EQ(eraseSeqnos,
+                  decodeEraseSeqnos({buffer.data(), buffer.size()}));
+    }
+
+    // Nothing to erase is never stored
+    EXPECT_THROW(Flush::encodeEraseSeqnos(EraseSeqnos{}), gsl::fail_fast);
+}
+
+// The flusher and history monitor read the stored seqnos, an invalid set is
+// corrected (0 dropped, sorted, unique) rather than rejected
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosDecodeCorrects) {
+    auto decode = [](const std::vector<uint64_t>& seqnos) {
+        flatbuffers::FlatBufferBuilder builder;
+        // CreateVector of an empty std::vector passes a null pointer to
+        // memcpy (UBSan), so an empty set is stored without the vector
+        flatbuffers::Offset<flatbuffers::Vector<uint64_t>> vector;
+        if (!seqnos.empty()) {
+            vector = builder.CreateVector(seqnos);
+        }
+        builder.Finish(Collections::KVStore::CreateEraseSeqno(builder, vector));
+        return Collections::KVStore::decodeEraseSeqnos(
+                       {builder.GetBufferPointer(), builder.GetSize()})
+                .getSeqnos();
+    };
+    EXPECT_EQ((std::vector<uint64_t>{5, 10, 15}), decode({10, 5, 15}));
+    EXPECT_EQ((std::vector<uint64_t>{5, 15}), decode({5, 5, 15}));
+    EXPECT_EQ((std::vector<uint64_t>{15}), decode({0, 15}));
+    EXPECT_TRUE(decode({}).empty());
+    EXPECT_TRUE(decode({0}).empty());
+}
+
+// The dump tools decode the stored seqnos as JSON
+TEST(CollectionsEraseSeqnoTest, eraseSeqnosDecodeLocalDoc) {
+    auto buffer = Collections::VB::Flush::encodeEraseSeqnos(
+            Collections::KVStore::EraseSeqnos{{5, 10}});
     auto [success, json] = maybe_decode_local_doc(
             LocalDocKey::collectionsEraseSeqno,
             {reinterpret_cast<const char*>(buffer.data()), buffer.size()});
     EXPECT_TRUE(success);
-    EXPECT_EQ(10, nlohmann::json::parse(json)["seqno"]) << json;
+    EXPECT_EQ(nlohmann::json::parse(R"({"seqnos":[5,10]})"),
+              nlohmann::json::parse(json))
+            << json;
 }
 
-TEST(CollectionsEraseSeqnoTest, decodeInvalid) {
+// An erase seqno or a dropped collections list marks dropped data as existing
+TEST(CollectionsEraseSeqnoTest, decodeManifestDroppedCollectionsExist) {
+    using Collections::KVStore::decodeManifest;
+    auto none = decodeManifest({}, {}, {}, {}, {});
+    EXPECT_FALSE(none.droppedCollectionsExist);
+
+    auto erase = Collections::VB::Flush::encodeEraseSeqnos(
+            Collections::KVStore::EraseSeqnos{{10}});
+    auto eraseOnly =
+            decodeManifest({}, {}, {}, {}, {erase.data(), erase.size()});
+    EXPECT_TRUE(eraseOnly.droppedCollectionsExist);
+
+    // A list written before the erase seqno existed
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> entries{
+            Collections::KVStore::CreateDropped(builder,
+                                                /*startSeqno*/ 1,
+                                                /*endSeqno*/ 10,
+                                                /*cid*/ 8)};
+    builder.Finish(Collections::KVStore::CreateDroppedCollections(
+            builder, builder.CreateVector(entries)));
+    const cb::const_byte_buffer list{builder.GetBufferPointer(),
+                                     builder.GetSize()};
+    auto listOnly = decodeManifest({}, {}, {}, list, {});
+    EXPECT_TRUE(listOnly.droppedCollectionsExist);
+
+    // Both, as written by this version
+    auto both = decodeManifest({}, {}, {}, list, {erase.data(), erase.size()});
+    EXPECT_TRUE(both.droppedCollectionsExist);
+
+    // A corrupt list is detected even when an erase seqno is stored
     std::array<uint8_t, 3> junk{1, 2, 3};
-    EXPECT_THROW((void)Collections::KVStore::decodeEraseSeqno(
-                         {junk.data(), junk.size()}),
+    EXPECT_THROW(decodeManifest({},
+                                {},
+                                {},
+                                {junk.data(), junk.size()},
+                                {erase.data(), erase.size()}),
                  std::runtime_error);
 }
 

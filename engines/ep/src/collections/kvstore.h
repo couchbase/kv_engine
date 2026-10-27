@@ -74,6 +74,7 @@ std::ostream& operator<<(std::ostream& os, const Collections::KVStore::OpenScope
  * - Default Scope exists
  * - manifest UID of 0
  * - no dropped collections
+ * - erase seqno of 0 (no data awaits erasing)
  */
 struct Manifest {
     struct Default {};
@@ -85,6 +86,7 @@ struct Manifest {
      * - Default Scope exists (since the beginning of time)
      * - manifest UID of 0
      * - no dropped collections
+     * - erase seqno of 0 (no data awaits erasing)
      */
     explicit Manifest(Default)
         : collections{{0 /*seqno*/, CollectionMetaData{}}},
@@ -97,6 +99,7 @@ struct Manifest {
      * - no scopes
      * - manifest UID of 0
      * - no dropped collections
+     * - erase seqno of 0 (no data awaits erasing)
      */
     explicit Manifest(Empty) {
     }
@@ -130,7 +133,10 @@ struct Manifest {
     /**
      * true if KVStore has collection data belonging to dropped collections.
      * i.e. a collection was dropped but has not yet been 100% erased from
-     * storage. KVBucket can decide to schedule purging based on this bool
+     * storage. Seeds VB::Manifest::dropInProgress; warmup and rollback
+     * schedule a purge from it. Set from stored erase seqnos or a non-empty
+     * dropped collections list (a list written before the upgrade has no
+     * erase seqnos).
      */
     bool droppedCollectionsExist{false};
 };
@@ -170,11 +176,13 @@ ManifestUid decodeManifestUid(cb::const_byte_buffer manifest);
  * @param collections buffer containing open collections
  * @param scopes buffer containing open scopes
  * @param dropped buffer containing dropped collections
+ * @param erase buffer containing the erase seqno
  */
 Manifest decodeManifest(cb::const_byte_buffer manifest,
                         cb::const_byte_buffer collections,
                         cb::const_byte_buffer scopes,
-                        cb::const_byte_buffer dropped);
+                        cb::const_byte_buffer dropped,
+                        cb::const_byte_buffer erase);
 
 /**
  * Decode the local doc buffer into an open collections data structure.
@@ -191,11 +199,92 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
         cb::const_byte_buffer dc);
 
 /**
- * Decode the local doc buffer into the collections erase seqno.
- * @param data buffer containing EraseSeqno (FlatBuffers)
- * @return the erase seqno, 0 when data is empty (nothing to erase)
+ * The bounded set of erase seqnos: the seqnos of non-empty collection drops
+ * (and collection flushes) whose data may remain in storage. All of a dropped
+ * generation's data is below its drop (or flush) seqno.
+ *
+ * The set holds at most a configured number of seqnos. Adding beyond that
+ * merges the two closest seqnos into the greater, so a seqno may stand for
+ * earlier ones. A merged seqno is still the seqno of a drop/flush with data to
+ * erase, merging only delays when a purge may be scheduled. The greatest seqno
+ * is the erase seqno.
  */
-[[nodiscard]] uint64_t decodeEraseSeqno(cb::const_byte_buffer data);
+class EraseSeqnos {
+public:
+    EraseSeqnos() = default;
+
+    /**
+     * @param seqnos must be ascending and unique
+     */
+    explicit EraseSeqnos(std::vector<uint64_t> seqnos);
+
+    bool operator==(const EraseSeqnos&) const = default;
+
+    /**
+     * @return true if no data awaits erasing
+     */
+    bool empty() const {
+        return seqnos.empty();
+    }
+
+    /**
+     * @return the greatest seqno (the erase seqno), 0 if empty
+     */
+    uint64_t getEraseSeqno() const {
+        return seqnos.empty() ? 0 : seqnos.back();
+    }
+
+    /**
+     * @return the smallest seqno, 0 if empty
+     */
+    uint64_t getOldestSeqno() const {
+        return seqnos.empty() ? 0 : seqnos.front();
+    }
+
+    /**
+     * @return the seqnos, ascending
+     */
+    const std::vector<uint64_t>& getSeqnos() const {
+        return seqnos;
+    }
+
+    /**
+     * Add seqnos, then merge until at most maxSize remain.
+     * @param newSeqnos seqnos to add (any order, 0 is ignored)
+     * @param maxSize the maximum number of seqnos, at least 1
+     */
+    void add(const std::vector<uint64_t>& newSeqnos, size_t maxSize);
+
+    /**
+     * Remove the seqnos at or below seqno, their data has been erased.
+     * @return true if any seqno was removed
+     */
+    bool removeUpTo(uint64_t seqno);
+
+private:
+    /**
+     * Merge the two closest seqnos (into the greater) until within maxSize. A
+     * tie merges the lesser pair, keeping the most recent seqnos precise.
+     */
+    void merge(size_t maxSize);
+
+    /**
+     * Ascending and unique
+     */
+    std::vector<uint64_t> seqnos;
+};
+
+std::ostream& operator<<(std::ostream& os, const EraseSeqnos& eraseSeqnos);
+
+/**
+ * Decode the local doc buffer into the erase seqnos.
+ * @param data buffer containing EraseSeqno (FlatBuffers)
+ * @return the erase seqnos, empty when data is empty (nothing to erase).
+ *         Seqnos which are 0, repeated or out of order are corrected rather
+ *         than rejected, the flusher and the history monitor read this
+ *         document and must not fail on it.
+ */
+[[nodiscard]] EraseSeqnos decodeEraseSeqnos(cb::const_byte_buffer data);
 
 template <class T>
 void verifyFlatbuffersData(cb::const_byte_buffer buf,

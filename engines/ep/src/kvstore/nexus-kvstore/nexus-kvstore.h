@@ -132,6 +132,8 @@ public:
             Vbid vbid) const override;
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) const override;
+    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
+            Vbid vbid) const override;
     const KVStoreConfig& getConfig() const override;
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,

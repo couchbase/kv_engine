@@ -16,7 +16,13 @@
 #include <flatbuffers/flatbuffers.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
+#include <gsl/gsl-lite.hpp>
+#include <algorithm>
+#include <functional>
+#include <limits>
 #include <ostream>
+#include <queue>
 #include <string>
 #include <unordered_set>
 
@@ -47,7 +53,8 @@ ManifestUid decodeManifestUid(cb::const_byte_buffer manifest) {
 Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                                               cb::const_byte_buffer collections,
                                               cb::const_byte_buffer scopes,
-                                              cb::const_byte_buffer dropped) {
+                                              cb::const_byte_buffer dropped,
+                                              cb::const_byte_buffer erase) {
     Collections::KVStore::Manifest rv{Collections::KVStore::Manifest::Empty{}};
 
     // As we build the vector of scopes we want to validate that they are unique
@@ -84,9 +91,12 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         rv.scopes.push_back(OpenScope{0, Collections::ScopeMetaData{}});
     }
 
-    // Do dropped collections exist?
-    auto dc = decodeDroppedCollections(dropped);
-    rv.droppedCollectionsExist = !dc.empty();
+    // Dropped data exists if erase seqnos are stored, or a dropped list (as
+    // written by an older version) is non-empty. Both are always decoded so
+    // that corrupt data is detected here (e.g. at warmup).
+    const bool eraseSeqnosExist = !decodeEraseSeqnos(erase).empty();
+    const bool droppedListExists = !decodeDroppedCollections(dropped).empty();
+    rv.droppedCollectionsExist = eraseSeqnosExist || droppedListExists;
     return rv;
 }
 
@@ -154,12 +164,107 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
     return rv;
 }
 
-uint64_t decodeEraseSeqno(cb::const_byte_buffer data) {
-    if (data.empty()) {
-        return 0;
+EraseSeqnos::EraseSeqnos(std::vector<uint64_t> seqnos)
+    : seqnos(std::move(seqnos)) {
+    Expects(std::ranges::adjacent_find(this->seqnos, std::greater_equal<>()) ==
+            this->seqnos.end());
+}
+
+void EraseSeqnos::add(const std::vector<uint64_t>& newSeqnos, size_t maxSize) {
+    for (const auto seqno : newSeqnos) {
+        if (seqno == 0) {
+            continue;
+        }
+        auto itr = std::ranges::lower_bound(seqnos, seqno);
+        if (itr == seqnos.end() || *itr != seqno) {
+            seqnos.insert(itr, seqno);
+        }
     }
-    verifyFlatbuffersData<EraseSeqno>(data, "decodeEraseSeqno()");
-    return flatbuffers::GetRoot<EraseSeqno>(data.data())->seqno();
+    merge(maxSize);
+}
+
+void EraseSeqnos::merge(size_t maxSize) {
+    // At least the erase seqno is kept
+    maxSize = std::max(maxSize, size_t{1});
+    if (seqnos.size() <= maxSize) {
+        return;
+    }
+
+    // Repeatedly remove the lesser seqno of the closest adjacent pair, the
+    // greater seqno stands for both. The pairs are kept in a min-heap of
+    // (gap, lesser index), the index breaking a tie in favour of the lesser
+    // pair. Removing seqnos[i] joins its neighbours into a new pair, a heap
+    // entry is stale once either of its seqnos has been removed.
+    const auto size = seqnos.size();
+    constexpr auto none = std::numeric_limits<size_t>::max();
+    std::vector<size_t> previous(size);
+    std::vector<size_t> next(size);
+    std::vector<bool> removed(size, false);
+    using Pair = std::pair<uint64_t, size_t>;
+    std::priority_queue<Pair, std::vector<Pair>, std::greater<>> pairs;
+    for (size_t index = 0; index < size; ++index) {
+        previous[index] = index == 0 ? none : index - 1;
+        next[index] = index + 1;
+        if (index + 1 < size) {
+            pairs.emplace(seqnos[index + 1] - seqnos[index], index);
+        }
+    }
+
+    for (auto remaining = size; remaining > maxSize;) {
+        const auto [gap, lesser] = pairs.top();
+        pairs.pop();
+        if (removed[lesser] || removed[next[lesser]] ||
+            seqnos[next[lesser]] - seqnos[lesser] != gap) {
+            continue; // stale
+        }
+        removed[lesser] = true;
+        --remaining;
+        const auto greater = next[lesser];
+        const auto before = previous[lesser];
+        previous[greater] = before;
+        if (before != none) {
+            next[before] = greater;
+            pairs.emplace(seqnos[greater] - seqnos[before], before);
+        }
+    }
+
+    std::vector<uint64_t> kept;
+    kept.reserve(maxSize);
+    for (size_t index = 0; index < size; ++index) {
+        if (!removed[index]) {
+            kept.push_back(seqnos[index]);
+        }
+    }
+    seqnos = std::move(kept);
+}
+
+bool EraseSeqnos::removeUpTo(uint64_t seqno) {
+    return std::erase_if(seqnos, [seqno](uint64_t erased) {
+               return erased <= seqno;
+           }) != 0;
+}
+
+std::ostream& operator<<(std::ostream& os, const EraseSeqnos& eraseSeqnos) {
+    return os << fmt::format("[{}]", fmt::join(eraseSeqnos.getSeqnos(), ","));
+}
+
+EraseSeqnos decodeEraseSeqnos(cb::const_byte_buffer data) {
+    if (data.empty()) {
+        return {};
+    }
+    verifyFlatbuffersData<EraseSeqno>(data, "decodeEraseSeqnos()");
+    const auto* root = flatbuffers::GetRoot<EraseSeqno>(data.data());
+    std::vector<uint64_t> seqnos;
+    if (root->seqnos()) {
+        seqnos.assign(root->seqnos()->begin(), root->seqnos()->end());
+    }
+    // Correct (rather than reject) an invalid set: drop 0, sort and remove
+    // duplicates
+    std::erase(seqnos, 0);
+    std::ranges::sort(seqnos);
+    const auto duplicates = std::ranges::unique(seqnos);
+    seqnos.erase(duplicates.begin(), duplicates.end());
+    return EraseSeqnos{std::move(seqnos)};
 }
 
 bool OpenCollection::operator==(const OpenCollection& other) const {
@@ -240,8 +345,8 @@ std::ostream& operator<<(std::ostream& os,
     }
 
     return os << fmt::format(
-                   "manifestUid:{:#x} droppedCollectionsExist:{} scopes:{{{}}} "
-                   "collections:{{{}}}",
+                   "manifestUid:{:#x} droppedCollectionsExist:{} "
+                   "scopes:{{{}}} collections:{{{}}}",
                    manifest.manifestUid,
                    manifest.droppedCollectionsExist,
                    scopesBuff,

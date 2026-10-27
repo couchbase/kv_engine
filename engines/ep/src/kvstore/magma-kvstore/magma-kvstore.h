@@ -363,6 +363,9 @@ public:
     std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) const override;
 
+    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
+            Vbid vbid) const override;
+
     /**
      * Read local doc to get the vector of dropped collections from the given
      * snapshot
@@ -758,6 +761,13 @@ public:
     std::shared_ptr<BucketLogger> logger;
 
 protected:
+    /**
+     * Read the collections erase seqnos from the latest state
+     * @return a pair of Status and the erase seqnos (empty if not stored)
+     */
+    std::pair<magma::Status, Collections::KVStore::EraseSeqnos>
+    getCollectionsEraseSeqnos(Vbid vbid) const;
+
     // Opens the Magma instance and finishes initialisation.
     void initialize(EncryptionKeyProvider* encryptionKeyProvider,
                     std::string_view chronicleAuthToken);

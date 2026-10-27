@@ -93,6 +93,14 @@ public:
         EXPECT_EQ(!expected.empty(), vb->getManifest().isDropInProgress());
     }
 
+    /// @return the persisted erase seqnos
+    std::vector<uint64_t> getEraseSeqnosOnDisk() {
+        auto [status, eraseSeqnos] =
+                store->getRWUnderlying(vbid)->getEraseSeqnos(vbid);
+        EXPECT_TRUE(status);
+        return eraseSeqnos.getSeqnos();
+    }
+
     /**
      * Test that we track the collection purged items stat correctly when we
      * purge a collection
@@ -127,6 +135,53 @@ public:
 
     VBucketPtr vb;
 };
+
+// The flusher persists the seqno of a non-empty collection drop or a
+// collection flush. An empty drop has nothing to erase and does not change it.
+TEST_P(CollectionsEraserTest, eraseSeqnoPersisted) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm(CollectionEntry::dairy);
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    EXPECT_TRUE(getEraseSeqnosOnDisk().empty());
+
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto dropSeqno = static_cast<uint64_t>(vb->getHighSeqno());
+    EXPECT_THAT(getEraseSeqnosOnDisk(), ::testing::ElementsAre(dropSeqno));
+
+    // fruit is empty, the erase seqno is unchanged
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_THAT(getEraseSeqnosOnDisk(), ::testing::ElementsAre(dropSeqno));
+
+    // Compaction purges dairy and removes the erase seqno
+    runCollectionsEraser(vbid);
+    EXPECT_TRUE(getEraseSeqnosOnDisk().empty());
+
+    // A collection flush
+    if (isNexus()) {
+        // @todo MB-41351: nexus detects a collection stats mismatch between the
+        // persisted and in-memory stats of the flushed collection.
+        GTEST_SKIP() << "Collection flush step skipped for nexus";
+    }
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    store_item(vbid, StoredDocKey{"carrot", CollectionEntry::vegetable}, "1");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    setCollections(cookie, cm.flush(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_THAT(
+            getEraseSeqnosOnDisk(),
+            ::testing::ElementsAre(static_cast<uint64_t>(vb->getHighSeqno())));
+
+    // The flushed collection is still open, compaction erases its old items
+    runCollectionsEraser(vbid);
+    EXPECT_TRUE(getEraseSeqnosOnDisk().empty());
+}
 
 // Small numbers of items for easier debug
 TEST_P(CollectionsEraserTest, basic) {

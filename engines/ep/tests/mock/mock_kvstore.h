@@ -204,6 +204,10 @@ public:
             getDroppedCollections,
             (Vbid vbid),
             (const, override));
+    MOCK_METHOD((std::pair<bool, Collections::KVStore::EraseSeqnos>),
+                getEraseSeqnos,
+                (Vbid vbid),
+                (const, override));
     MOCK_METHOD(const KVStoreConfig&, getConfig, (), (const, override));
     MOCK_METHOD(GetValue,
                 getBySeqno,

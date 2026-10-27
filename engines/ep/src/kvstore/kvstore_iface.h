@@ -790,6 +790,17 @@ public:
     getDroppedCollections(Vbid vbid) const = 0;
 
     /**
+     * Return the erase seqnos, the seqnos of collection drops (and flushes)
+     * whose data may remain in storage.
+     *
+     * @param vbid vbucket to get data from
+     * @return pair of bool status and the erase seqnos (empty if nothing
+     *         awaits erasing)
+     */
+    virtual std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
+            Vbid vbid) const = 0;
+
+    /**
      * Get the configuration class from the derived class. We have derived class
      * specific config so we want to store the derived class specific config in
      * the derived classes to save from having to dynamic cast all over the

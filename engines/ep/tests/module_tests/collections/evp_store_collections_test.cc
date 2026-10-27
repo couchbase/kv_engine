@@ -1979,6 +1979,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::vegetable.getId(), dropped.front().collectionId);
 
+    // The only erase seqno is that of the vegetable drop flushed by the replay
+    auto [eraseStatus, eraseSeqnos] = kvstore.getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseStatus);
+    EXPECT_THAT(eraseSeqnos.getSeqnos(),
+                ::testing::ElementsAre(dropped.front().endSeqno));
+
     kvstore.setConcurrentCompactionPreLockHook([](auto& compactionKey) {});
 
     // With MB-44590, this would trigger the exception seen in MB-44694
@@ -1996,6 +2002,41 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     EXPECT_EQ(0,
               getCollectionStats(vbid, {CollectionEntry::vegetable.getId()})
                       .size());
+}
+
+// The catch-up replay copies every local document of the file being compacted,
+// including the erase seqno which the compaction purged. Any flush during
+// compaction (here a mutation) triggers the replay, but the erase seqno must
+// still be removed.
+TEST_P(CollectionsCouchstoreParameterizedTest,
+       EraseSeqnoClearedWhenMutationFlushedDuringCompaction) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    const auto dropSeqno =
+            static_cast<uint64_t>(store->getVBucket(vbid)->getHighSeqno());
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+    auto eraseSeqnos = [&kvstore, this]() {
+        auto [status, stored] = kvstore.getEraseSeqnos(vbid);
+        EXPECT_TRUE(status);
+        return stored.getSeqnos();
+    };
+    ASSERT_THAT(eraseSeqnos(), ::testing::ElementsAre(dropSeqno));
+
+    kvstore.setConcurrentCompactionPreLockHook([this](auto&) {
+        store_item(vbid, makeStoredDocKey("key"), "v1");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+    runCompaction(vbid, 0, false);
+    kvstore.setConcurrentCompactionPreLockHook([](auto&) {});
+
+    EXPECT_TRUE(eraseSeqnos().empty());
 }
 
 // Issue was found with MB-49472

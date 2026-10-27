@@ -3220,18 +3220,6 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     };
     updateStats(ctx->stats.pre);
 
-    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
-    if (!getDroppedStatus) {
-        logger->warn(
-                "MagmaKVStore::compactDBInternal: {} Failed to get "
-                "dropped collections",
-                vbid);
-        return CompactDBStatus::Failed;
-    }
-
-    ctx->eraserContext =
-            std::make_unique<Collections::VB::EraserContext>(dropped);
-
     ReadVBStateResult diskState;
     // This is a workaround for MB-71272 which is caused by MB-64876
     // (we don't create the magma kvstore as part of set vbucket, but
@@ -3291,6 +3279,30 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         return CompactDBStatus::Failed;
     }
     ctx->highCompletedSeqno = diskState.state.persistedCompletedSeqno;
+
+    // The collections metadata is read once the kvstore exists (see above).
+    // Read the erase seqno before the collections metadata, then any drop
+    // at or below the erase seqno is also known to this compaction.
+    const auto [getEraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
+    if (!getEraseStatus) {
+        logger->warn(
+                "MagmaKVStore::compactDBInternal: {} Failed to get "
+                "erase seqnos",
+                vbid);
+        return CompactDBStatus::Failed;
+    }
+
+    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
+    if (!getDroppedStatus) {
+        logger->warn(
+                "MagmaKVStore::compactDBInternal: {} Failed to get "
+                "dropped collections",
+                vbid);
+        return CompactDBStatus::Failed;
+    }
+
+    ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
+            dropped, eraseSeqnos.getEraseSeqno());
 
     ErasedCollectionEvents erasedCollectionEvents;
     auto compactionCB = [this, vbid, ctx, &erasedCollectionEvents](
@@ -3487,7 +3499,14 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         }
     }
 
-    if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
+    // The erase seqnos at or below the erase seqno read with the data can be
+    // removed if this compaction purged everything at or below it. Seqnos of
+    // drops flushed since it was read remain.
+    const bool maybeClearEraseSeqno =
+            ctx->eraserContext->getMaxEraseSeqno() != 0 &&
+            compactionStatus == CompactDBStatus::Success;
+    if (ctx->eraserContext->needToUpdateCollectionsMetadata() ||
+        maybeClearEraseSeqno) {
         // Need to write back some collections metadata, in particular we need
         // to remove from the dropped collections doc all of the collections
         // that we have just purged. This is also where we update the item
@@ -3497,75 +3516,107 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         // collection while we do this we need to hold the vBucket write lock.
         vbLock.lock();
 
-        // 1) Get the current state from disk
-        auto [collDroppedStatus, droppedCollections] =
-                getDroppedCollections(vbid);
-        if (!collDroppedStatus) {
-            logger->critical(
-                    "MagmaKVStore::compactDbInternal {} failed "
-                    "getDroppedCollections",
-                    vbid);
-            return CompactDBStatus::Failed;
-        }
-
-        // 2) Generate a new flatbuffer document to write back
-        auto fbData = Collections::VB::Flush::
-                encodeRelativeComplementOfDroppedCollections(droppedCollections,
-                                                             purgedCollections);
-
-        // 3) If the function returned data, write it, else the document is
-        // delete.
-        WriteOps writeOps;
-        if (fbData.data()) {
-            localDbReqs.emplace_back(
-                    MagmaLocalReq(LocalDocKey::droppedCollections, fbData));
-        } else {
-            // Need to ensure the 'dropped' list on disk is now gone
-            localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
-                    LocalDocKey::droppedCollections));
-        }
-
-        // Update the dbStats together with clearing droppedCollections, to
-        // ensure that we will not persist an inconsistent state.
+        // writeOps may reference dbStatsDelta, both must outlive WriteDocs
         MagmaDbStats dbStatsDelta;
-        for (auto& [dc, itemCount] : dcInfo) {
-            processCollectionPurgeDelta(dbStatsDelta,
-                                        dc.collectionId,
-                                        -static_cast<int64_t>(itemCount));
+        WriteOps writeOps; // may reference dbStatsDelta
+        if (ctx->eraserContext->needToUpdateCollectionsMetadata()) {
+            // 1) Get the current state from disk
+            auto [collDroppedStatus, droppedCollections] =
+                    getDroppedCollections(vbid);
+            if (!collDroppedStatus) {
+                logger->critical(
+                        "MagmaKVStore::compactDBInternal {} failed "
+                        "getDroppedCollections",
+                        vbid);
+                return CompactDBStatus::Failed;
+            }
+
+            // 2) Generate a new flatbuffer document to write back
+            auto fbData = Collections::VB::Flush::
+                    encodeRelativeComplementOfDroppedCollections(
+                            droppedCollections, purgedCollections);
+
+            // 3) If the function returned data, write it, else the document
+            // is delete.
+            if (fbData.data()) {
+                localDbReqs.emplace_back(LocalDocKey::droppedCollections,
+                                         fbData);
+            } else {
+                // Need to ensure the 'dropped' list on disk is now gone
+                localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
+                        LocalDocKey::droppedCollections));
+            }
+
+            // Update the dbStats together with clearing droppedCollections,
+            // to ensure that we will not persist an inconsistent state.
+            for (auto& [dc, itemCount] : dcInfo) {
+                processCollectionPurgeDelta(dbStatsDelta,
+                                            dc.collectionId,
+                                            -static_cast<int64_t>(itemCount));
+            }
+            // The dropped item counts exclude system events. The document of
+            // each erased collection event counted until erased is subtracted
+            // once.
+            dbStatsDelta.docCount -= static_cast<int64_t>(
+                    erasedCollectionEvents.rlock()->size());
+            addStatUpdateToWriteOps(dbStatsDelta, writeOps);
         }
-        // The dropped item counts exclude system events. The document of each
-        // erased collection event counted until erased is subtracted once.
-        dbStatsDelta.docCount -=
-                static_cast<int64_t>(erasedCollectionEvents.rlock()->size());
-        addStatUpdateToWriteOps(dbStatsDelta, writeOps);
+
+        if (maybeClearEraseSeqno) {
+            auto [eraseStatus, currentEraseSeqnos] =
+                    getCollectionsEraseSeqnos(vbid);
+            if (!eraseStatus) {
+                logger->critical(
+                        "MagmaKVStore::compactDBInternal {} failed "
+                        "getCollectionsEraseSeqnos",
+                        vbid);
+                return CompactDBStatus::Failed;
+            }
+            if (currentEraseSeqnos.removeUpTo(
+                        ctx->eraserContext->getMaxEraseSeqno())) {
+                if (currentEraseSeqnos.empty()) {
+                    localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(
+                            LocalDocKey::collectionsEraseSeqno));
+                } else {
+                    localDbReqs.emplace_back(
+                            LocalDocKey::collectionsEraseSeqno,
+                            Collections::VB::Flush::encodeEraseSeqnos(
+                                    currentEraseSeqnos));
+                }
+            }
+        }
         addLocalDbReqs(localDbReqs, writeOps);
 
-        const auto historyMode = ctx->getVBucket()->isHistoryRetentionEnabled()
-                                         ? Magma::HistoryMode::Enabled
-                                         : Magma::HistoryMode::Disabled;
-        status = magma->WriteDocs(vbid.get(),
-                                  writeOps,
-                                  kvstoreRevList[getCacheSlot(vbid)],
-                                  historyMode);
-        if (!status) {
-            logger->critical(
-                    "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
-                    "Status:{}",
-                    vbid,
-                    status.String());
-            return CompactDBStatus::Failed;
-        }
-
-        if (doSyncEveryBatch) {
-            status = magma->Sync(true);
+        // Nothing is written if only a newer erase seqno was found
+        if (!writeOps.empty()) {
+            const auto historyMode =
+                    ctx->getVBucket()->isHistoryRetentionEnabled()
+                            ? Magma::HistoryMode::Enabled
+                            : Magma::HistoryMode::Disabled;
+            status = magma->WriteDocs(vbid.get(),
+                                      writeOps,
+                                      kvstoreRevList[getCacheSlot(vbid)],
+                                      historyMode);
             if (!status) {
                 logger->critical(
-                        "MagmaKVStore::compactDBInternal {} Sync "
-                        "failed. "
+                        "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
                         "Status:{}",
                         vbid,
                         status.String());
                 return CompactDBStatus::Failed;
+            }
+
+            if (doSyncEveryBatch) {
+                status = magma->Sync(true);
+                if (!status) {
+                    logger->critical(
+                            "MagmaKVStore::compactDBInternal {} Sync "
+                            "failed. "
+                            "Status:{}",
+                            vbid,
+                            status.String());
+                    return CompactDBStatus::Failed;
+                }
             }
         }
 
@@ -3815,6 +3866,15 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
                         Collections::KVStore::Manifest::Default{}}};
     }
 
+    std::string eraseSeqno;
+    std::tie(status, eraseSeqno) =
+            readLocalDoc(vbid, snapshot, LocalDocKey::collectionsEraseSeqno);
+    if (!status) {
+        return {status,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
+
     return {status,
             Collections::KVStore::decodeManifest(
                     {reinterpret_cast<const uint8_t*>(manifest.data()),
@@ -3825,7 +3885,9 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
                      openScopes.length()},
                     {reinterpret_cast<const uint8_t*>(
                              droppedCollections.data()),
-                     droppedCollections.length()})};
+                     droppedCollections.length()},
+                    {reinterpret_cast<const uint8_t*>(eraseSeqno.data()),
+                     eraseSeqno.length()})};
 }
 
 std::pair<bool, Collections::KVStore::Manifest>
@@ -3882,6 +3944,32 @@ MagmaKVStore::getDroppedCollections(Vbid vbid,
             Collections::KVStore::decodeDroppedCollections(
                     {reinterpret_cast<const uint8_t*>(dropped.data()),
                      dropped.length()})};
+}
+
+std::pair<magma::Status, Collections::KVStore::EraseSeqnos>
+MagmaKVStore::getCollectionsEraseSeqnos(Vbid vbid) const {
+    auto [status, erase] =
+            readLocalDoc(vbid, LocalDocKey::collectionsEraseSeqno);
+    if (!status) {
+        return {status, {}};
+    }
+    return {status,
+            Collections::KVStore::decodeEraseSeqnos(
+                    {reinterpret_cast<const uint8_t*>(erase.data()),
+                     erase.length()})};
+}
+
+std::pair<bool, Collections::KVStore::EraseSeqnos> MagmaKVStore::getEraseSeqnos(
+        Vbid vbid) const {
+    auto [status, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
+    if (!status) {
+        logger->warnWithContext(
+                "MagmaKVStore::getEraseSeqnos: failed to read the erase "
+                "seqnos",
+                {{"vb", vbid}, {"status", status.String()}});
+        return {false, {}};
+    }
+    return {true, std::move(eraseSeqnos)};
 }
 
 magma::Status MagmaKVStore::updateCollectionsMeta(
@@ -4021,6 +4109,20 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
     if (buf.data()) {
         localDbReqs.emplace_back(LocalDocKey::droppedCollections, buf);
+    }
+
+    // Add the erase seqnos of this batch to those stored
+    if (const auto seqnos = collectionsFlush.getEraseSeqnos();
+        !seqnos.empty()) {
+        auto [getEraseStatus, storedEraseSeqnos] =
+                getCollectionsEraseSeqnos(vbid);
+        if (!getEraseStatus) {
+            return getEraseStatus;
+        }
+        storedEraseSeqnos.add(seqnos, configuration.getMaxEraseSeqnos());
+        localDbReqs.emplace_back(
+                LocalDocKey::collectionsEraseSeqno,
+                Collections::VB::Flush::encodeEraseSeqnos(storedEraseSeqnos));
     }
 
     return Status::OK();

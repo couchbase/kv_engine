@@ -17,6 +17,7 @@
 #include "ep_types.h"
 
 #include <flatbuffers/flatbuffers.h>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -307,14 +308,14 @@ public:
             const std::unordered_map<CollectionID, uint64_t>& erased);
 
     /**
-     * Encode the collections erase seqno (EraseSeqno in kvstore.fbs). Named
+     * Encode the collections erase seqnos (EraseSeqno in kvstore.fbs). Named
      * "erase" to be distinct from the vbucket purge seqno.
-     * @param seqno the greatest seqno of a drop/flush with data to erase,
-     *        must be non-zero (no document is stored when nothing is to be
-     *        erased)
+     * @param eraseSeqnos must not be empty (no document is stored when nothing
+     *        is to be erased)
      * @return the EraseSeqno (as a flatbuffer type)
      */
-    static flatbuffers::DetachedBuffer encodeEraseSeqno(uint64_t seqno);
+    static flatbuffers::DetachedBuffer encodeEraseSeqnos(
+            const Collections::KVStore::EraseSeqnos& eraseSeqnos);
 
     /**
      * Encode open scopes list into flat buffer format.
@@ -327,10 +328,36 @@ public:
      */
     bool droppedCollectionsExists() const;
 
+    /**
+     * Must only be called once all items of the batch are accounted (see
+     * emptyDroppedCollections).
+     * @return the greatest seqno of a non-empty collection drop or of a
+     *         collection flush in this batch, 0 if there is none. Storage at
+     *         or below this seqno may hold data which compaction must erase.
+     *         An empty drop is ignored, so a stored dropped list entry (whose
+     *         end an empty re-drop moved) may end above the stored value.
+     */
+    uint64_t getEraseSeqno() const;
+
+    /**
+     * Must only be called once all items of the batch are accounted (see
+     * emptyDroppedCollections).
+     * @return the seqnos of the non-empty collection drops and of the
+     *         collection flushes in this batch (unordered), the greatest is
+     *         getEraseSeqno.
+     */
+    std::vector<uint64_t> getEraseSeqnos() const;
+
     // @return was the collection opened in this batch?
     bool isOpen(CollectionID cid) const;
 
 private:
+    /**
+     * Call the function with each erase seqno of this batch (see
+     * getEraseSeqnos)
+     */
+    void forEachEraseSeqno(const std::function<void(uint64_t)>& func) const;
+
     /**
      * After all flushed items and system events have been processed this
      * function determines which of the dropped collections are empty.
@@ -343,6 +370,9 @@ private:
      * @return the set of dropped collections which are empty.
      */
     std::unordered_set<CollectionID> findEmptyDroppedCollections() const;
+
+    /// @return findEmptyDroppedCollections, evaluated once per batch
+    const std::unordered_set<CollectionID>& getEmptyDroppedCollections() const;
 
     /**
      * Iterate through the 'droppedCollections' container and call a function
@@ -433,17 +463,16 @@ private:
     std::reference_wrapper<Manifest> manifest;
 
     /**
-     * Flushing counts how many non-empty collections were committed and uses
-     * this for triggering (or not) a purge.
-     */
-    uint32_t nonEmptyDroppedCollections{0};
-
-    /**
      * The dropped collections which were found to be empty (see
      * findEmptyDroppedCollections). These are not written to the dropped
      * collections list as there is nothing for compaction to erase.
+     * Evaluated once by getEmptyDroppedCollections (nullopt until first use).
+     * The first use follows all of the batch's accounting (when the
+     * collections metadata is updated) and precedes notifying the manifest of
+     * the persisted drops (which forgets their generations).
      */
-    std::unordered_set<CollectionID> emptyDroppedCollections;
+    mutable std::optional<std::unordered_set<CollectionID>>
+            emptyDroppedCollections;
 
     /**
      * Set to true when any of the fields in this structure have data which

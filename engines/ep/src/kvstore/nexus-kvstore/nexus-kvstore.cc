@@ -3116,6 +3116,13 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
     return {primaryResult, primaryDropped};
 }
 
+std::pair<bool, Collections::KVStore::EraseSeqnos> NexusKVStore::getEraseSeqnos(
+        Vbid vbid) const {
+    // Not compared, primary and secondary compactions (which remove erase
+    // seqnos) are independent.
+    return primary->getEraseSeqnos(vbid);
+}
+
 const KVStoreConfig& NexusKVStore::getConfig() const {
     return primary->getConfig();
 }

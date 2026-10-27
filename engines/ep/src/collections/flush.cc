@@ -126,6 +126,43 @@ std::unordered_set<CollectionID> Flush::findEmptyDroppedCollections() const {
     return empty;
 }
 
+const std::unordered_set<CollectionID>& Flush::getEmptyDroppedCollections()
+        const {
+    if (!emptyDroppedCollections) {
+        emptyDroppedCollections = findEmptyDroppedCollections();
+    }
+    return *emptyDroppedCollections;
+}
+
+uint64_t Flush::getEraseSeqno() const {
+    uint64_t eraseSeqno = 0;
+    forEachEraseSeqno([&eraseSeqno](uint64_t seqno) {
+        eraseSeqno = std::max(eraseSeqno, seqno);
+    });
+    return eraseSeqno;
+}
+
+std::vector<uint64_t> Flush::getEraseSeqnos() const {
+    std::vector<uint64_t> seqnos;
+    forEachEraseSeqno([&seqnos](uint64_t seqno) { seqnos.push_back(seqno); });
+    return seqnos;
+}
+
+void Flush::forEachEraseSeqno(const std::function<void(uint64_t)>& func) const {
+    const auto& empty = getEmptyDroppedCollections();
+    for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
+        if (!empty.contains(cid)) {
+            func(dropped.endSeqno);
+        }
+    }
+    // @todo MB-41351: empty collection flush should be avoided, maybe highSeqno
+    // of collection can be checked.
+    for (const auto& [cid, flushSeqno] :
+         flushAccounting.getFlushedCollections()) {
+        func(flushSeqno);
+    }
+}
+
 void Flush::forEachDroppedCollection(
         std::function<void(CollectionID)> cb) const {
     flushAccounting.forEachDroppedCollection(cb);
@@ -159,14 +196,14 @@ void Flush::flushSuccess(Vbid vbid, EPBucket& bucket) {
 }
 
 void Flush::notifyManifestOfAnyDroppedCollections() {
+    // Evaluate before the manifest forgets the dropped collections
+    const auto& empty = getEmptyDroppedCollections();
     for (const auto& [cid, droppedData] :
          flushAccounting.getDroppedCollections()) {
         // An empty collection is not recorded in the on-disk dropped
         // collections list, so does not leave a drop "in progress".
         manifest.get().collectionDropPersisted(
-                cid,
-                droppedData.endSeqno,
-                !emptyDroppedCollections.contains(cid));
+                cid, droppedData.endSeqno, !empty.contains(cid));
     }
 
     // A flushed collection is recorded in the on-disk dropped collections
@@ -178,10 +215,7 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
 }
 
 void Flush::checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const {
-    if (nonEmptyDroppedCollections != 0 ||
-        !flushAccounting.getFlushedCollections().empty()) {
-        // @todo: empty collection flush should be avoided, maybe highSeqno of
-        // collection can be checked.
+    if (getEraseSeqno() != 0) {
         triggerPurge(vbid, bucket);
     }
 }
@@ -557,10 +591,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // nothing on disk for compaction to erase and (as compaction is not
     // scheduled for an empty collection) an entry would otherwise remain in
     // the dropped list until some unrelated compaction ran.
-    emptyDroppedCollections = findEmptyDroppedCollections();
-    nonEmptyDroppedCollections = gsl::narrow_cast<uint32_t>(
-            flushAccounting.getDroppedCollections().size() -
-            emptyDroppedCollections.size());
+    const auto& empty = getEmptyDroppedCollections();
 
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
@@ -608,8 +639,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
-        if (emptyDroppedCollections.contains(cid) ||
-            !skip.emplace(cid).second) {
+        if (empty.contains(cid) || !skip.emplace(cid).second) {
             // This collection is empty (so don't emit) or is already in output.
             // An empty collection is not added to skip, a flush of it in this
             // batch must still be emitted.
@@ -699,11 +729,13 @@ flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
     return builder.Release();
 }
 
-flatbuffers::DetachedBuffer Flush::encodeEraseSeqno(uint64_t seqno) {
-    // 0 is the default (omitted) value, the same as no document
-    Expects(seqno != 0);
+flatbuffers::DetachedBuffer Flush::encodeEraseSeqnos(
+        const Collections::KVStore::EraseSeqnos& eraseSeqnos) {
+    // An empty set is stored as no document
+    Expects(!eraseSeqnos.empty());
     flatbuffers::FlatBufferBuilder builder;
-    builder.Finish(Collections::KVStore::CreateEraseSeqno(builder, seqno));
+    builder.Finish(Collections::KVStore::CreateEraseSeqno(
+            builder, builder.CreateVector(eraseSeqnos.getSeqnos())));
     return builder.Release();
 }
 

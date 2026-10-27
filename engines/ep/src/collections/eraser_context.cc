@@ -17,8 +17,9 @@ namespace Collections::VB {
 
 EraserContext::EraserContext(
         const std::vector<Collections::KVStore::DroppedCollection>&
-                droppedCollections)
-    : ScanContext(nullptr, droppedCollections) {
+                droppedCollections,
+        uint64_t maxEraseSeqno)
+    : ScanContext(nullptr, droppedCollections), maxEraseSeqno(maxEraseSeqno) {
 }
 
 void EraserContext::processSystemEvent(const DocKeyView& key, SystemEvent se) {
@@ -42,7 +43,8 @@ bool EraserContext::needToUpdateCollectionsMetadata() const {
 
 std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {
     os << "EraserContext: seenEndOfCollection:"
-       << (eraserContext.seenEndOfCollection ? "true, " : "false, ");
+       << (eraserContext.seenEndOfCollection ? "true, " : "false, ")
+       << "maxEraseSeqno:" << eraserContext.maxEraseSeqno << ", ";
     os << static_cast<const ScanContext&>(eraserContext);
     return os;
 }

@@ -355,6 +355,22 @@
             "dynamic": false,
             "type": "bool"
         },
+        "collections_max_erase_seqnos" : {
+            "added": "ponyo",
+            "default": "64",
+            "descr": "The maximum number of erase seqnos (the seqnos of collection drops and flushes whose data awaits erasing) which are persisted. Beyond this the two closest seqnos are merged into the greater one. A value of 1 stores only the greatest erase seqno.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 1024,
+                    "min": 1
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
         "compaction_expiry_fetch_inline" : {
             "added": "7.1.4-MP2",
             "default": "true",
