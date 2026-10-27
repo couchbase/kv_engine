@@ -21,6 +21,7 @@
 #include "vbucket_state.h"
 
 #include <folly/Synchronized.h>
+#include <folly/hash/Hash.h>
 #include <platform/non_negative_counter.h>
 
 #include <expected>
@@ -29,6 +30,7 @@
 #include <queue>
 #include <shared_mutex>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -790,6 +792,27 @@ protected:
 
     bool keyMayExist(Vbid vbid, const DocKeyView& key) const override;
 
+    /** A collection and one of its system events */
+    using ErasedCollectionEvent = std::pair<CollectionID, SystemEvent>;
+
+    struct ErasedCollectionEventHash {
+        size_t operator()(const ErasedCollectionEvent& event) const {
+            return folly::hash::hash_combine(event.first, event.second);
+        }
+    };
+
+    /**
+     * The collection system events counted until erased (see
+     * isCollectionEventCountedUntilErased) which a compaction erased, any
+     * version of each, shared by the compaction's callbacks. Magma counts each
+     * event's document once in its document count, so compaction subtracts it
+     * once per collection and event.
+     */
+    using ErasedCollectionEvents =
+            folly::Synchronized<std::unordered_set<ErasedCollectionEvent,
+                                                   ErasedCollectionEventHash>,
+                                std::shared_mutex>;
+
     /**
      * MagmaCompactionCB is the class invoked by magma compactions,
      * both implicit and explicit. For explict compactions, which come
@@ -808,7 +831,8 @@ protected:
                 MagmaKVStore& magmaKVStore,
                 Vbid vbid,
                 std::shared_ptr<CompactionContext> compactionContext = nullptr,
-                std::optional<CollectionID> cid = std::nullopt);
+                std::optional<CollectionID> cid = std::nullopt,
+                ErasedCollectionEvents* erasedCollectionEvents = nullptr);
 
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
@@ -847,6 +871,13 @@ protected:
          * highSeqno of the oldest checkpoint to which magma can rollback
          */
         uint64_t oldestRollbackableHighSeqno{0};
+
+        /**
+         * Records the erased collection events which are counted until erased,
+         * set when the callback belongs to an explicit compaction (which erases
+         * collections)
+         */
+        ErasedCollectionEvents* const erasedCollectionEvents;
 
     private:
         MagmaKVStore& magmaKVStore;

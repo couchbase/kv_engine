@@ -214,6 +214,41 @@ TEST_P(CollectionsEraserTest, basic) {
     }
 }
 
+// MB-74863: A modified collection has a ModifyCollection system event
+// document, which magma counts in its document count. Erasing the dropped
+// collection erases that document (any version), the vbucket's item count must
+// not include it after warmup.
+TEST_P(CollectionsEraserTest, ModifiedCollectionItemCountAfterErase) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    store_item(vbid, StoredDocKey{"a", CollectionEntry::vegetable}, "v");
+    store_item(vbid, StoredDocKey{"b", CollectionEntry::vegetable}, "v");
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // Modify twice, so the erase can visit more than one version of the event
+    setCollections(
+            cookie,
+            cm.update(CollectionEntry::vegetable, std::chrono::seconds{8}));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    setCollections(
+            cookie,
+            cm.update(CollectionEntry::vegetable, std::chrono::seconds{9}));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumTotalItems());
+
+    vb.reset();
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+    EXPECT_EQ(0, vb->getNumTotalItems());
+}
+
 TEST_P(CollectionsEraserTest, basic_2_collections) {
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);

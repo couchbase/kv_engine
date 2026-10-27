@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <folly/lang/Assume.h>
 #include <cinttypes>
 #include <stdexcept>
 #include <string>
@@ -58,6 +59,26 @@ enum class SystemEvent : uint32_t {
      */
     ModifyCollection = 2
 };
+
+/**
+ * For item counting: a collection's system events other than its Collection
+ * event (which is the collection's begin and, when deleted, its end) are
+ * documents with their own key. The drop of the collection deletes only the
+ * Collection event's key, so these remain counted until the dropped collection
+ * is erased.
+ *
+ * @return true if the event is counted until the dropped collection is erased
+ */
+constexpr bool isCollectionEventCountedUntilErased(SystemEvent event) {
+    switch (event) {
+    case SystemEvent::Collection:
+    case SystemEvent::Scope:
+        return false;
+    case SystemEvent::ModifyCollection:
+        return true;
+    }
+    folly::assume_unreachable();
+}
 
 static inline std::string to_string(const SystemEvent se) {
     switch (se) {

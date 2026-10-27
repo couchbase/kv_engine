@@ -310,9 +310,11 @@ MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
         MagmaKVStore& magmaKVStore,
         Vbid vbid,
         std::shared_ptr<CompactionContext> compactionContext,
-        std::optional<CollectionID> cid)
+        std::optional<CollectionID> cid,
+        ErasedCollectionEvents* erasedCollectionEvents)
     : vbid(vbid),
       ctx(std::move(compactionContext)),
+      erasedCollectionEvents(erasedCollectionEvents),
       magmaKVStore(magmaKVStore),
       onlyThisCollection(cid) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
@@ -537,6 +539,22 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
             } else {
                 if (docMeta.isDeleted()) {
                     cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
+                }
+            }
+
+            // Some collection events (e.g. ModifyCollection) remain in the
+            // document count after the drop of the collection. Record those
+            // erased, any version of the event erased means the counted
+            // document is erased.
+            const auto docKey = diskKey.getDocKey();
+            if (cbCtx.erasedCollectionEvents &&
+                docKey.isInSystemEventCollection() && !docMeta.isDeleted()) {
+                const auto event =
+                        SystemEventFactory::getSystemEventType(docKey).first;
+                if (isCollectionEventCountedUntilErased(event)) {
+                    cbCtx.erasedCollectionEvents->wlock()->emplace(
+                            SystemEventFactory::getCollectionIDFromKey(docKey),
+                            event);
                 }
             }
 
@@ -3274,9 +3292,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     }
     ctx->highCompletedSeqno = diskState.state.persistedCompletedSeqno;
 
-    auto compactionCB = [this, vbid, ctx](const Magma::KVStoreID kvID) {
+    ErasedCollectionEvents erasedCollectionEvents;
+    auto compactionCB = [this, vbid, ctx, &erasedCollectionEvents](
+                                const Magma::KVStoreID kvID) {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(
-                *this, vbid, ctx);
+                *this, vbid, ctx, std::nullopt, &erasedCollectionEvents);
     };
 
     LocalDbReqs localDbReqs;
@@ -3338,10 +3358,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             auto compactionCBAndHook = [this,
                                         vbid,
                                         &ctx,
+                                        &erasedCollectionEvents,
                                         cid = dc.collectionId](
                                                const Magma::KVStoreID kvID) {
                 auto ret = std::make_unique<MagmaKVStore::MagmaCompactionCB>(
-                        *this, vbid, ctx, cid);
+                        *this, vbid, ctx, cid, &erasedCollectionEvents);
                 preCompactKVStoreHook();
                 return ret;
             };
@@ -3517,6 +3538,10 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                                         dc.collectionId,
                                         -static_cast<int64_t>(itemCount));
         }
+        // The dropped item counts exclude system events. The document of each
+        // erased collection event counted until erased is subtracted once.
+        dbStatsDelta.docCount -=
+                static_cast<int64_t>(erasedCollectionEvents.rlock()->size());
         addStatUpdateToWriteOps(dbStatsDelta, writeOps);
         addLocalDbReqs(localDbReqs, writeOps);
 
