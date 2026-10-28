@@ -10,6 +10,7 @@
  */
 #include "kvstore_test.h"
 
+#include "../mock/mock_kvstore.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "ep_vb.h"
@@ -1510,6 +1511,81 @@ TEST_P(KVStoreParamTest, GetPersistedVBucketState) {
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
     EXPECT_NO_THROW(kvstore->getPersistedVBucketState(*kvHandle, vbid));
+}
+
+/**
+ * Write a single committed item at the given seqno and commit it.
+ */
+static void writeAndCommitAt(KVStoreIface& kvstore,
+                             VB::Commit& flush,
+                             Vbid vbid,
+                             int64_t seqno) {
+    auto ctx = kvstore.begin(vbid, std::make_unique<PersistenceCallback>());
+    auto item = makeCommittedItem(
+            makeStoredDocKey("key" + std::to_string(seqno)), "value");
+    item->setBySeqno(seqno);
+    kvstore.set(*ctx, item);
+    ASSERT_TRUE(kvstore.commit(std::move(ctx), flush));
+}
+
+/**
+ * @return true if the item at seqno is visible through the given handle
+ */
+static bool isVisible(const KVStoreIface& kvstore,
+                      KVFileHandle& handle,
+                      Vbid vbid,
+                      uint64_t seqno) {
+    return kvstore.getBySeqno(handle, vbid, seqno, ValueFilter::KEYS_ONLY)
+                   .getStatus() == cb::engine_errc::success;
+}
+
+/**
+ * makeFileHandles must return exactly the requested number of usable handles.
+ */
+TEST_P(KVStoreParamTest, MakeFileHandlesReturnsCount) {
+    writeAndCommitAt(*kvstore, flush, vbid, 1);
+
+    auto handles = kvstore->makeFileHandles(vbid, 3);
+    ASSERT_EQ(3, handles.size());
+    for (const auto& handle : handles) {
+        EXPECT_TRUE(handle);
+    }
+}
+
+/**
+ * Handles created straight after a commit must keep reading that commit, even
+ * once a later commit has been written - this is what lets several waiting
+ * backfills all read the same snapshot.
+ */
+TEST_P(KVStoreParamTest, MakeFileHandlesStayOnTheirCommit) {
+    writeAndCommitAt(*kvstore, flush, vbid, 1);
+    auto handles = kvstore->makeFileHandles(vbid, 3);
+    ASSERT_EQ(3, handles.size());
+
+    // A later commit must not be visible through the existing handles.
+    writeAndCommitAt(*kvstore, flush, vbid, 2);
+
+    for (auto& handle : handles) {
+        ASSERT_TRUE(handle);
+        EXPECT_TRUE(isVisible(*kvstore, *handle, vbid, 1));
+        EXPECT_FALSE(isVisible(*kvstore, *handle, vbid, 2))
+                << "Handle should not see a commit made after it was created";
+    }
+}
+
+/**
+ * If any handle cannot be created, makeFileHandles must return no handles at
+ * all rather than a partial set. The first open succeeds and the second
+ * fails, so this checks the handle already opened is discarded.
+ */
+TEST(KVStoreMakeFileHandlesTest, FailsAllOrNothing) {
+    MockKVStore kvstore(nullptr);
+    const Vbid vbid(0);
+    EXPECT_CALL(kvstore, makeFileHandle(vbid))
+            .WillOnce(Return(ByMove(std::make_unique<KVFileHandle>())))
+            .WillOnce(Return(ByMove(std::unique_ptr<KVFileHandle>())));
+
+    EXPECT_TRUE(kvstore.makeFileHandles(vbid, 3).empty());
 }
 
 void KVStoreParamTest::corruptCouchKVStoreDataFile() {

@@ -16,6 +16,7 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "libmagma/magma.h"
+#include "magma-memory-tracking-proxy.h"
 #include "rollback_result.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
@@ -264,6 +265,8 @@ public:
     ScanStatus scan(ByIdScanContext& ctx) const override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
+    std::vector<std::unique_ptr<KVFileHandle>> makeFileHandles(
+            Vbid vbid, size_t count) const override;
 
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
     getCollectionStats(const KVFileHandle& kvFileHandle,
@@ -1158,6 +1161,18 @@ protected:
     TestingHook<const MagmaRequest&, size_t> updateStatsHook;
 
 private:
+    /**
+     * Take a point-in-time snapshot of the vbucket for reading.
+     *
+     * Syncs the vbucket's write cache and takes a disk snapshot. If magma is
+     * read-only or the disk is full, falls back to an in-memory snapshot.
+     *
+     * @param vbid The vbucket to snapshot
+     * @return The snapshot, or null if one could not be taken
+     */
+    DomainAwareUniquePtr<magma::Magma::Snapshot> getReadSnapshot(
+            Vbid vbid) const;
+
     EventuallyPersistentEngine* currEngine;
 
     FusionUploaderManager fusionUploaderManager;

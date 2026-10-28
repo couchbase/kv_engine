@@ -35,3 +35,18 @@ KVStoreIface::CreateItemCB KVStoreIface::getDefaultCreateItemCallback() {
         return std::make_pair(cb::engine_errc::success, std::move(item));
     };
 }
+
+std::vector<std::unique_ptr<KVFileHandle>> KVStoreIface::makeFileHandles(
+        Vbid vbid, size_t count) const {
+    Expects(count > 0);
+    std::vector<std::unique_ptr<KVFileHandle>> handles;
+    handles.reserve(count);
+    for (size_t idx = 0; idx < count; ++idx) {
+        auto handle = makeFileHandle(vbid);
+        if (!handle) {
+            return {};
+        }
+        handles.push_back(std::move(handle));
+    }
+    return handles;
+}

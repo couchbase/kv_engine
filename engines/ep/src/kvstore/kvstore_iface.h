@@ -27,6 +27,7 @@
 #include <snapshot/manifest.h>
 #include <expected>
 #include <variant>
+#include <vector>
 
 class ByIdScanContext;
 class BySeqnoScanContext;
@@ -720,6 +721,32 @@ public:
      * @return a unique_ptr to a new KVFileHandle object
      */
     virtual std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const = 0;
+
+    /**
+     * Obtain several KVFileHandles for the same vbucket, all reading the same
+     * point in time.
+     *
+     * Used by the flusher when several DCP backfills (e.g. one per replica
+     * stream on the vbucket) are waiting for the same snapshot to be
+     * persisted: each needs its own handle, all on the commit which completed
+     * that snapshot.
+     *
+     * The default opens each handle independently via makeFileHandle().
+     * Implementations may override this to share state between the handles.
+     *
+     * Requires external locking: call this while still holding the vbucket
+     * lock that was held across the commit, so no other commit can land
+     * between the flush and the handles being opened. Everything else that
+     * changes the vbucket's file (couchstore compaction's file switch,
+     * rollback, vbucket deletion) also takes that lock, so the latest state
+     * read here is exactly that commit.
+     *
+     * @param vbid the vbucket to open
+     * @param count the number of handles required
+     * @return count handles, or an empty vector if any could not be created
+     */
+    virtual std::vector<std::unique_ptr<KVFileHandle>> makeFileHandles(
+            Vbid vbid, size_t count) const;
 
     /**
      * Retrieve the stored stats for the given collection, does not error

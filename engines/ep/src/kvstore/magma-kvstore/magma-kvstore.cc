@@ -291,7 +291,7 @@ cb::engine_errc magmaErr2EngineErr(Status::Code result) {
 class MagmaKVFileHandle : public KVFileHandle {
 public:
     MagmaKVFileHandle(Vbid vbid,
-                      DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot,
+                      std::shared_ptr<magma::Magma::Snapshot> snapshot,
                       MagmaMemoryTrackingProxy& magma)
         : vbid(vbid), snapshot(std::move(snapshot)), magma(magma) {
         Expects(this->snapshot);
@@ -302,7 +302,12 @@ public:
     }
 
     Vbid vbid;
-    DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
+    /**
+     * Shared so that several handles can read the same point-in-time view.
+     * Constructed from a DomainAwareUniquePtr, whose deleter it keeps, so the
+     * snapshot is still freed in magma's memory domain by the last owner.
+     */
+    std::shared_ptr<magma::Magma::Snapshot> snapshot;
     MagmaMemoryTrackingProxy& magma;
 };
 
@@ -3624,6 +3629,16 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 }
 
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
+    auto snapshot = getReadSnapshot(vbid);
+    if (!snapshot) {
+        return nullptr;
+    }
+    return std::make_unique<MagmaKVFileHandle>(
+            vbid, std::move(snapshot), *magma);
+}
+
+DomainAwareUniquePtr<magma::Magma::Snapshot> MagmaKVStore::getReadSnapshot(
+        Vbid vbid) const {
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
     // Flush write cache for creating an on-disk snapshot
     auto status = magma->SyncKVStore(vbid.get(), false);
@@ -3678,9 +3693,25 @@ std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
                 vbid);
         return nullptr;
     }
+    return snapshot;
+}
 
-    return std::make_unique<MagmaKVFileHandle>(
-            vbid, std::move(snapshot), *magma);
+std::vector<std::unique_ptr<KVFileHandle>> MagmaKVStore::makeFileHandles(
+        Vbid vbid, size_t count) const {
+    Expects(count > 0);
+    // One snapshot of the latest state, shared by all the handles.
+    auto snapshot = getReadSnapshot(vbid);
+    if (!snapshot) {
+        return {};
+    }
+    std::shared_ptr<magma::Magma::Snapshot> sharedSnap = std::move(snapshot);
+    std::vector<std::unique_ptr<KVFileHandle>> handles;
+    handles.reserve(count);
+    for (size_t idx = 0; idx < count; ++idx) {
+        handles.push_back(
+                std::make_unique<MagmaKVFileHandle>(vbid, sharedSnap, *magma));
+    }
+    return handles;
 }
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,
