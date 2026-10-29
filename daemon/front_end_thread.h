@@ -30,6 +30,7 @@ namespace cb::json {
 class SyntaxValidator;
 }
 
+class Bucket;
 class Cookie;
 class Connection;
 class ListeningPort;
@@ -160,30 +161,41 @@ struct FrontEndThread {
                         bool wait = false);
 
     /**
-     * Register the DCP connection bound to this front end thread to
-     * the list of DCP connections to notify as part of each tick (note
-     * only connections subjected to throttling will be recorded)
+     * Add the connection to the back of this thread's queue of throttled
+     * connections (unless it is already queued).
      *
      * @param connection The connection (must be bound to this thread)
      */
-    void maybeRegisterThrottleableDcpConnection(Connection& connection);
+    void addThrottledConnection(Connection& connection);
 
     /**
-     * Remove the DCP connection from the list of DCP connections to notify
-     * as part of throttling ticks.
+     * Remove the connection from the queue of throttled connections (if it
+     * is queued)
      *
      * @param connection The connection to remove
      */
-    void removeThrottleableDcpConnection(Connection& connection);
+    void removeThrottledConnection(Connection& connection);
 
     /**
-     * Iterate over all registered DCP connections and call the provided
-     * callback
+     * Remove all of the connections using the provided bucket from the
+     * queue of throttled connections
      *
-     * @param callback The callback to call for each connection
+     * @param bucket The bucket
      */
-    void iterateThrottleableDcpConnections(
-            const std::function<void(Connection&)>& callback) const;
+    void removeThrottledConnections(const Bucket& bucket);
+
+    /**
+     * Remove all of the throttled connections from the queue and wake them
+     * (in the order they were throttled) after the throttle budget was
+     * refilled (as part of the tick): resume their DCP streams and schedule
+     * their callbacks to re-evaluate their throttled commands
+     */
+    void wakeThrottledConnections();
+
+    /// Get the queue of throttled connections
+    const std::vector<Connection*>& getThrottledConnections() const {
+        return throttledConnections;
+    }
 
     /// Get the thread local audit event filter to use by this thread
     /// (or nullptr if there was an error creating an event filter)
@@ -220,8 +232,11 @@ protected:
     /// when they need to validate a JSON document
     std::unique_ptr<cb::json::SyntaxValidator> validator;
 
-    /// A list of all DCP connections bound this thread
-    std::deque<std::reference_wrapper<Connection>> dcp_connections;
+    /// The queue of connections bound to this thread which are throttled
+    /// (both connections with throttled commands and throttled DCP
+    /// connections) in the order they were throttled. A connection is
+    /// present at most once (see Connection::isThrottled())
+    std::vector<Connection*> throttledConnections;
 
     /// The audit event filter used by this thread
     std::unique_ptr<AuditEventFilter> auditEventFilter;

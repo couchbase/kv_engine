@@ -732,15 +732,8 @@ void BucketManager::tick() {
     // to continue to pay on the overuse for the next sec ;)
     unassigned_resources_gauge.reset();
 
-    FrontEndThread::forEach([](auto& thr) {
-        // Iterate over all of the DCP connections bound to this thread
-        // which is subject for throttling so that they may send more
-        // data (in the case they stopped producing data due to throttling
-        thr.iterateThrottleableDcpConnections([](Connection& c) {
-            c.resumeThrottledDcpStream();
-            c.triggerCallback();
-        });
-    });
+    // Wake up all throttled connections for both commands and DCP
+    FrontEndThread::forEach([](auto& thr) { thr.wakeThrottledConnections(); });
 }
 
 void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {

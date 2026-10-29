@@ -92,27 +92,45 @@ static void create_worker(void (*func)(void*),
     thread = create_thread([arg, func]() { func(arg); }, std::move(name));
 }
 
-void FrontEndThread::maybeRegisterThrottleableDcpConnection(
-        Connection& connection) {
-    if (!connection.isUnthrottled()) {
-        dcp_connections.emplace_back(connection);
+void FrontEndThread::addThrottledConnection(Connection& connection) {
+    if (!connection.isThrottled()) {
+        throttledConnections.push_back(&connection);
+        connection.setThrottled(true);
     }
 }
 
-void FrontEndThread::removeThrottleableDcpConnection(Connection& connection) {
-    for (auto iter = dcp_connections.begin(); iter != dcp_connections.end();
-         ++iter) {
-        if (&iter->get() == &connection) {
-            dcp_connections.erase(iter);
-            return;
+void FrontEndThread::removeThrottledConnection(Connection& connection) {
+    if (connection.isThrottled()) {
+        std::erase(throttledConnections, &connection);
+        connection.setThrottled(false);
+    }
+}
+
+void FrontEndThread::removeThrottledConnections(const Bucket& bucket) {
+    std::erase_if(throttledConnections, [&bucket](Connection* c) {
+        if (&c->getBucket() == &bucket) {
+            c->setThrottled(false);
+            return true;
         }
-    }
+        return false;
+    });
 }
 
-void FrontEndThread::iterateThrottleableDcpConnections(
-        const std::function<void(Connection&)>& callback) const {
-    for (auto& c : dcp_connections) {
-        callback(c);
+void FrontEndThread::wakeThrottledConnections() {
+    // Take all of the throttled connections and wake them in the order they
+    // were throttled.
+    std::vector<Connection*> connections;
+    throttledConnections.swap(connections);
+    for (auto* c : connections) {
+        c->setThrottled(false);
+        if (c->isDCP()) {
+            c->resumeThrottledDcpStream();
+        }
+        // The throttled commands are re-evaluated in the connection's
+        // callback as they're about to run, so they see the units used by
+        // the connections (and commands) before them
+        c->setRecheckThrottledCookies(true);
+        c->triggerCallback();
     }
 }
 
@@ -338,6 +356,8 @@ void FrontEndThread::destroy_connection(Connection& connection) {
     if (node.empty() || node.key() != &connection) {
         throw std::logic_error("destroy_connection: Connection not found");
     }
+    // Remove the connection from throttle list
+    removeThrottledConnection(connection);
 }
 
 void FrontEndThread::tryDisconnectUnauthenticatedConnections() {

@@ -62,7 +62,6 @@ void Bucket::reset() {
         s.reset();
     }
     type = BucketType::Unknown;
-    throttledConnections.resize(Settings::instance().getNumWorkerThreads());
     management_operation_in_progress = false;
     pause_cancellation_source = folly::CancellationSource::invalid();
 }
@@ -383,38 +382,28 @@ void Bucket::tick() {
     } else {
         throttle_gauge.tick(throttle_hard_limit);
     }
-    // iterate over connections
-    FrontEndThread::forEach([this](auto& thr) {
-        std::deque<Connection*> connections;
-        throttledConnections[thr.index].swap(connections);
+}
 
-        for (auto& c : connections) {
-            if (c->reEvaluateThrottledCookies()) {
-                throttledConnections[thr.index].push_back(c);
-            }
+void Bucket::resetThrottledCommands(FrontEndThread& thread) {
+    thread.removeThrottledConnections(*this);
+    // Reset all throttled connections even those that are not throttled
+    thread.iterate_connections([this](Connection& c) {
+        if (&c.getBucket() == this) {
+            c.resetThrottledCookies();
+            c.resumeThrottledDcpStream();
         }
     });
 }
 
 void Bucket::deleteThrottledCommands() {
-    FrontEndThread::forEach([this](auto& thr) {
-        // Now nuke the throttledConnections belonging to this Bucket
-        std::deque<Connection*> connections;
-        throttledConnections[thr.index].swap(connections);
-
-        for (auto& c : connections) {
-            c->resetThrottledCookies();
-            // Not re-adding this to throttledConnections as we've just
-            // un-throttled everything
-        }
-    });
+    FrontEndThread::forEach([this](auto& thr) { resetThrottledCommands(thr); });
 }
 
 std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottle(
         const Connection& connection, std::size_t units) {
     if (!Settings::instance().isThrottleEnabled() ||
         throttle_reserved == std::numeric_limits<std::size_t>::max() ||
-        connection.isUnthrottled()) {
+        !connection.isSubjectToThrottling()) {
         return {false, ResourceAllocationDomain::None};
     }
 
@@ -469,8 +458,8 @@ bool Bucket::shouldThrottle(Cookie& cookie,
         } else {
             num_throttled++;
             if (addConnectionToThrottleList) {
-                auto* c = &cookie.getConnection();
-                throttledConnections[c->getThread().index].push_back(c);
+                auto& connection = cookie.getConnection();
+                connection.getThread().addThrottledConnection(connection);
             }
         }
         return true;

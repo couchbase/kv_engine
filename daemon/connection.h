@@ -315,9 +315,15 @@ public:
     /// we should shut down the connection or not).
     void reEvaluateParentPort();
 
-    /// Iterate over all cookies and try to reevaluate the throttled
-    /// commands
-    bool reEvaluateThrottledCookies();
+    /**
+     * If a connection woke up from being throttled (tick), re-evaluate the
+     * throttled command before it is executed again. If it is throttled again
+     * the connection is added back to throttled list and any remaining
+     * throttled commands are evaluated in the next tick.
+     *
+     * @param cookie The command (nothing is done unless it is throttled)
+     */
+    void reEvaluateThrottledCookie(Cookie& cookie);
 
     /**
      * Add the specified number of ns to the amount of CPU time this
@@ -859,11 +865,6 @@ public:
         return subject_to_metering.load(std::memory_order_acquire);
     }
 
-    /// Is this connection not to be throttled?
-    bool isUnthrottled() const {
-        return !isSubjectToThrottling();
-    }
-
     bool isSubjectToThrottling() const {
         return subject_to_throttling.load(std::memory_order_acquire);
     }
@@ -874,6 +875,23 @@ public:
 
     /// Clear the DCP throttle for this connection to allow it to progress
     void resumeThrottledDcpStream();
+
+    /// Is the connection in its thread's queue of throttled connections
+    bool isThrottled() const {
+        return throttled;
+    }
+
+    /// Set by the front end thread when adding / removing the connection to
+    /// / from its queue of throttled connections
+    void setThrottled(bool value) {
+        throttled = value;
+    }
+
+    /// Set by the front end thread when the tick wakes the throttled
+    /// connection, so its throttled commands are re-evaluated
+    void setRecheckThrottledCookies(bool value) {
+        recheckThrottledCookies = value;
+    }
 
     bool isNonBlockingThrottlingMode() const {
         return non_blocking_throttling_mode.load(std::memory_order_acquire);
@@ -1288,6 +1306,13 @@ protected:
 
     bool report_unit_usage{false};
 
+    /// Is the connection in its thread's queue of throttled connections
+    bool throttled{false};
+
+    /// Set when the tick woke the throttled connection and its throttled
+    /// commands should be re-evaluated
+    bool recheckThrottledCookies{false};
+
     std::atomic_bool subject_to_throttling{true};
     std::atomic_bool subject_to_metering{true};
     std::atomic_bool node_supervisor{false};
@@ -1389,6 +1414,10 @@ protected:
      * @return true if there is any blocked commands, false otherwise
      */
     bool processAllReadyCookies();
+
+    /// Called after running the ready commands: Check if there is any
+    /// remaining throttled command to process
+    void checkRemainingThrottledCookies();
 
     /**
      * Execute commands in the pipeline.
