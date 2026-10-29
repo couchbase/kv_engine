@@ -873,9 +873,9 @@ cb::engine_errc DcpProducer::step(bool throttled,
         }
 
         auto details = getPausedDetails();
+#ifdef CB_DEVELOPMENT_ASSERTS
         const auto& duration = details.reasonDurations[static_cast<uint8_t>(
                 PausedReason::BufferLogFull)];
-#ifdef CB_DEVELOPMENT_ASSERTS
         if (nextLogBufferAggregatedFull < duration) {
             OBJ_LOG_INFO_CTX(
                     *logger,
