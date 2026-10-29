@@ -14,6 +14,7 @@
 #include "bucket_logger.h"
 #include <platform/cb_time.h>
 #include <chrono>
+#include <source_location>
 
 /**
  * Lock holder wrapper to assist to debugging locking issues - Logs when the
@@ -42,56 +43,106 @@
 template <typename T, size_t ACQUIRE_MS = 100, size_t HELD_MS = 100>
 class LockTimer {
 public:
-    /** Create a new LockTimer, acquiring the underlying lock.
-     *  If it takes longer than ACQUIRE_MS to acquire the lock then report to
-     *  the log file.
-     *  @param m underlying mutex to acquire
-     *  @param name_ A name for this mutex, used in log messages.
+    /**
+     * Create a new LockTimer, acquiring the underlying lock
+     *
+     * @param m underlying mutex to acquire
+     * @param name_ A name for this mutex, used in log messages.
+     * @param loc_ caller used in log messages
      */
-    LockTimer(typename T::mutex_type& m, const char* name_)
-        : name(name_), start(cb::time::steady_clock::now()), lock_holder(m) {
-        acquired = cb::time::steady_clock::now();
-        const uint64_t msec =
-                std::chrono::duration_cast<std::chrono::milliseconds>(acquired -
-                                                                      start)
-                        .count();
-        if (msec > ACQUIRE_MS) {
-            EP_LOG_WARN("LockHolder<{}> Took too long to acquire lock: {} ms",
-                        name,
-                        msec);
+    template <typename U = T>
+    LockTimer(typename U::mutex_type& m,
+              const char* name_,
+              std::source_location loc_ = std::source_location::current())
+        : name(name_),
+          loc(loc_),
+          start(cb::time::steady_clock::now()),
+          lock_holder(m) {
+        check_acquire_duration();
+    }
+
+    /**
+     * Create a new LockTimer around a folly::Synchronized LockedPtr, acquiring
+     * the lock of sync
+     *
+     * @param sync the folly::Synchronized to lock
+     * @param name_ name for this lock, used in log messages
+     * @param loc_ caller used in log messages.
+     */
+    template <typename SynchronizedT>
+    LockTimer(SynchronizedT* sync,
+              const char* name_,
+              std::source_location loc_ = std::source_location::current())
+        : name(name_),
+          loc(loc_),
+          start(cb::time::steady_clock::now()),
+          lock_holder(sync) {
+        check_acquire_duration();
+    }
+
+    /**
+     * Destroy the LockTimer releasing the underlying lock.
+     * If the lock was held for longer than HELD_MS then report to the log
+     * file. If T can be unlocked, the report is written after the release.
+     */
+    ~LockTimer() {
+        if constexpr (requires(T& t) { t.unlock(); }) {
+            unlock();
+        } else {
+            // lock_holder is destroyed (and unlocked) after this body
+            check_held_duration(cb::time::steady_clock::now());
         }
     }
 
-    /** Destroy the DebugLockHolder releasing the underlying lock.
-     *  If the lock was held for longer than HELS_MS to then report to the
-     *  log file.
-     */
-    ~LockTimer() {
-        check_held_duration();
-        // upon destruction the lock_holder will also be destroyed and hence
-        // unlocked...
+    auto operator->() const {
+        return lock_holder.operator->();
+    }
+
+    auto& operator*() const {
+        return *lock_holder;
     }
 
     /* explicitly unlock the lock */
     void unlock() {
-        check_held_duration();
+        if (unlocked) {
+            return;
+        }
+        const auto released = cb::time::steady_clock::now();
         lock_holder.unlock();
+        unlocked = true;
+        check_held_duration(released);
     }
 
 private:
-    void check_held_duration() {
-        const auto released = cb::time::steady_clock::now();
-        const uint64_t msec =
-                std::chrono::duration_cast<std::chrono::milliseconds>(released -
-                                                                      acquired)
-                        .count();
-        if (msec > HELD_MS) {
+    void check_acquire_duration() {
+        acquired = cb::time::steady_clock::now();
+        const auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(
+                acquired - start);
+        if (msec > std::chrono::milliseconds(ACQUIRE_MS)) {
             EP_LOG_WARN(
-                    "LockHolder<{}> Held lock for too long: {} ms", name, msec);
+                    "LockHolder<{}> Took too long to acquire lock: {} ms in {}",
+                    name,
+                    msec.count(),
+                    loc.function_name());
+        }
+    }
+
+    void check_held_duration(cb::time::steady_clock::time_point released) {
+        const auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(
+                released - acquired);
+        if (msec > std::chrono::milliseconds(HELD_MS)) {
+            EP_LOG_WARN("LockHolder<{}> Held lock for too long: {} ms in {}",
+                        name,
+                        msec.count(),
+                        loc.function_name());
         }
     }
 
     const char* name;
+
+    bool unlocked = false;
+
+    std::source_location loc;
 
     // Time when lock acquisition started.
     cb::time::steady_clock::time_point start;

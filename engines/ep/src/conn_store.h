@@ -14,12 +14,14 @@
 #include "conn_store_fwd.h"
 
 #include "dcp/dcp-types.h"
+#include "lock_timer.h"
 
 #include <folly/Synchronized.h>
 
 #include <list>
 #include <memory>
 #include <mutex>
+#include <source_location>
 #include <unordered_map>
 #include <vector>
 
@@ -185,20 +187,30 @@ public:
 
     /**
      * Get a locked handle on the CookieToConnectionMap
-     * @return folly::LockedPtr to the CookieToConnMapHandle (result of
-     *         folly::Synchronized<>.wlock()). Auto because the type is too long
+     * @param loc caller name to be logged when the lock is slow
+     * @return LockTimer wrapping the folly::LockedPtr to the
+     *         CookieToConnMapHandle (result of folly::Synchronized<>.wlock());
+     *         it logs a slow acquisition or hold
      */
-    auto getCookieToConnectionMapHandle() {
-        return cookieToConnHandle.wlock();
+    auto getCookieToConnectionMapHandle(
+            std::source_location loc = std::source_location::current()) {
+        return LockTimer<
+                folly::Synchronized<CookieToConnMapHandle>::WLockedPtr>(
+                &cookieToConnHandle, "ConnStore::cookieToConnHandle", loc);
     }
 
     /**
      * Get a read-locked (shared) handle on the CookieToConnectionMap
-     * @return folly::RLockedPtr to the CookieToConnMapHandle (result of
-     *         folly::Synchronized<>.rlock()). Auto because the type is too long
+     * @param loc caller name to be logged when the lock is slow
+     * @return LockTimer wrapping the folly::RLockedPtr to the
+     *         CookieToConnMapHandle (result of folly::Synchronized<>.rlock());
+     *         it logs a slow acquisition or hold
      */
-    auto getCookieToConnectionMapHandle() const {
-        return cookieToConnHandle.rlock();
+    auto getCookieToConnectionMapHandle(
+            std::source_location loc = std::source_location::current()) const {
+        return LockTimer<
+                folly::Synchronized<CookieToConnMapHandle>::ConstRLockedPtr>(
+                &cookieToConnHandle, "ConnStore::cookieToConnHandle", loc);
     }
 
     /**
