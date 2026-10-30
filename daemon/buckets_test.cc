@@ -15,8 +15,11 @@
 #include "resource_allocation_domain.h"
 #include "settings.h"
 #include "tests/mcbp/mcbp_mock_connection.h"
+#include <daemon/cookie.h>
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
+#include <mcbp/protocol/framebuilder.h>
+#include <memcached/rbac/privilege_database.h>
 #include <future>
 #include <limits>
 
@@ -27,9 +30,9 @@ TEST(BucketTest, Reset) {
     // check the main ones we run against.
     static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-            5816;
+            5792;
 #elif defined(__APPLE__)
-            5912;
+            5888;
 #else
             0;
 #endif
@@ -87,11 +90,53 @@ public:
     void setSubjectToThrottling(bool value) {
         subject_to_throttling.store(value, std::memory_order_release);
     }
+
+    /// Associate with the "no bucket" (needed to reset cookies, which look
+    /// up the connection's privilege context)
+    void associateNoBucket() {
+        BucketManager::instance().associateInitialBucket(*this);
+    }
+
+    void disassociateNoBucket() {
+        BucketManager::instance().disassociateBucket(*this);
+    }
+
+    /// Get the cookie at the given position (creating cookies as needed)
+    Cookie& getCookie(std::size_t idx) {
+        while (cookies.size() <= idx) {
+            cookies.emplace_back(std::make_unique<Cookie>(*this));
+        }
+        using namespace cb::mcbp;
+        RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+        builder.setMagic(Magic::ClientRequest);
+        builder.setOpcode(ClientOpcode::Get);
+        builder.setKey("key");
+        auto& cookie = *cookies[idx];
+        const auto now = std::chrono::steady_clock::now();
+        cookie.initialize(
+                now, now, *reinterpret_cast<const Header*>(builder.getFrame()));
+        return cookie;
+    }
+
+    /// Reset all of the cookies so they may be destroyed
+    void resetCookies() {
+        for (auto& c : cookies) {
+            c->clearEwouldblock();
+            c->reset();
+        }
+    }
+
+    std::array<uint8_t, 256> requestBuffer{};
 };
 
 class BucketThrottleTest : public ::testing::Test, public Bucket {
 public:
     BucketThrottleTest() : Bucket(1) {
+    }
+
+    static void SetUpTestSuite() {
+        // Cookies look up the connection's privilege context when reset
+        cb::rbac::initialize();
     }
 
 protected:
@@ -309,9 +354,39 @@ TEST_F(BucketThrottleTest, UnthrottledConnection) {
     setFreePool(1000, 1000);
     setLimits(100, 500, 500);
     connection.setSubjectToThrottling(false);
-    ASSERT_TRUE(connection.isUnthrottled());
+    ASSERT_FALSE(connection.isSubjectToThrottling());
 
     const auto [throttle, domain] = shouldThrottle(connection, 1);
     EXPECT_FALSE(throttle);
     EXPECT_EQ(ResourceAllocationDomain::None, domain);
+}
+
+/// A throttled command adds its connection to the back of its front end
+/// thread's queue of throttled connections, and a connection must only be
+/// queued once regardless of the number of throttled commands
+TEST_F(BucketThrottleTest, ThrottledConnectionQueuedOnce) {
+    connection.associateNoBucket();
+    setFreePool(0, 0);
+    setLimits(0, 0, 1);
+
+    auto& first = connection.getCookie(0);
+    auto& second = connection.getCookie(1);
+    const auto throttledBefore = num_throttled.load();
+    EXPECT_TRUE(shouldThrottle(first, true, 0));
+    EXPECT_TRUE(shouldThrottle(second, true, 0));
+    EXPECT_EQ(throttledBefore + 2, num_throttled.load());
+
+    ASSERT_EQ(1, thread.getThrottledConnections().size());
+    EXPECT_EQ(&connection, thread.getThrottledConnections().front());
+    EXPECT_TRUE(connection.isThrottled());
+
+    // Re-evaluating the throttled commands without adding the connection to
+    // the queue (addConnectionToThrottleList=false) doesn't queue it
+    thread.removeThrottledConnection(connection);
+    EXPECT_TRUE(shouldThrottle(first, false, 0));
+    EXPECT_TRUE(thread.getThrottledConnections().empty());
+    EXPECT_FALSE(connection.isThrottled());
+
+    connection.resetCookies();
+    connection.disassociateNoBucket();
 }

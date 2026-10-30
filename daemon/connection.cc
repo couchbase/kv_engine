@@ -572,22 +572,21 @@ void Connection::shutdownIfSendQueueStuck(
     }
 }
 
-bool Connection::reEvaluateThrottledCookies() {
-    bool throttled = false;
-    for (auto& c : cookies) {
-        if (c->isThrottled()) {
-            if (getBucket().shouldThrottle(*c, false, 0)) {
-                throttled = true;
-            } else {
-                c->setThrottled(false);
-                processNotifiedCookie(*c,
-                                      cb::engine_errc::success,
-                                      std::chrono::steady_clock::now());
-            }
-        }
+void Connection::reEvaluateThrottledCookie(Cookie& cookie) {
+    if (!recheckThrottledCookies || !cookie.isThrottled()) {
+        return;
     }
-
-    return throttled;
+    if (getBucket().shouldThrottle(cookie, true, 0)) {
+        // Budget is used up and connection is added back to the throttled
+        // queue; this and the following throttled commands wait for the
+        // next tick
+        recheckThrottledCookies = false;
+        return;
+    }
+    // Cookie can be executed
+    cookie.setThrottled(false);
+    cookie.setAiostat(cb::engine_errc::success);
+    cookie.clearEwouldblock();
 }
 
 bool Connection::processAllReadyCookies() {
@@ -604,6 +603,10 @@ bool Connection::processAllReadyCookies() {
         if (cookie->empty()) {
             ++iter;
             continue;
+        }
+
+        if (!active || cookie->mayReorder()) {
+            reEvaluateThrottledCookie(*cookie);
         }
 
         if (cookie->isEwouldblock() ||
@@ -641,7 +644,20 @@ bool Connection::processAllReadyCookies() {
         }
     }
 
+    checkRemainingThrottledCookies();
     return active;
+}
+
+void Connection::checkRemainingThrottledCookies() {
+    if (recheckThrottledCookies) {
+        recheckThrottledCookies = false;
+        if (std::ranges::any_of(
+                    cookies, [](const auto& c) { return c->isThrottled(); })) {
+            // We didn't get to re-evaluate all of the throttled commands;
+            // wait for the next tick
+            thread.addThrottledConnection(*this);
+        }
+    }
 }
 
 static bool isReAuthenticate(const cb::mcbp::Header& header) {
@@ -872,6 +888,8 @@ void Connection::setDcpStreamThrottled(bool val) {
     if (val && !wasThrottled) {
         // Start timing on a genuine transition into throttled,
         dcpThrottleStart = now;
+        // and wait in the thread's queue to be woken up
+        getThread().addThrottledConnection(*this);
     } else if (!val && wasThrottled) {
         // Collect total throttled time
         getBucket().low_resolution_stats[getThread().index].throttle_times.add(
@@ -1259,9 +1277,7 @@ bool Connection::executeCommandsCallback() {
                 }
             }
 
-            if (isDCP()) {
-                thread.removeThrottleableDcpConnection(*this);
-            }
+            thread.removeThrottledConnection(*this);
 
             BucketManager::instance().disassociateBucket(*this);
 

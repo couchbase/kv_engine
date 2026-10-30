@@ -129,8 +129,6 @@ void dcp_open_executor(Cookie& cookie) {
                      {"flags", std::move(json_flags)},
                      {"description", connection.getDescription()});
 
-        connection.getThread().maybeRegisterThrottleableDcpConnection(
-                connection);
         audit_dcp_open(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {

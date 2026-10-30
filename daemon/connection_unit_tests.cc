@@ -15,6 +15,7 @@
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
+#include "settings.h"
 
 #include <daemon/cookie.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -57,6 +58,14 @@ public:
         return *cookies.back();
     }
 
+    using Connection::checkRemainingThrottledCookies;
+
+    /// Observe the order connections are woken up in in the provided vector
+    void recordCallbacks(std::vector<Connection*>& order) {
+        callbackOrder = &order;
+        bufferevent_setcb(bev.get(), recordCallback, nullptr, nullptr, this);
+    }
+
     Cookie& getFirstCookie() {
         Expects(!cookies.empty());
         return *cookies.front();
@@ -90,6 +99,21 @@ public:
     void rewindDcpThrottleStart(std::chrono::milliseconds duration) {
         dcpThrottleStart -= duration;
     }
+
+protected:
+    /// A callback which records the connection and (like the real callback
+    /// in processAllReadyCookies(), without executing the commands)
+    /// re-evaluates its throttled commands after it was woken by the tick
+    static void recordCallback(bufferevent*, void* arg) {
+        auto* self = static_cast<MockConnection*>(arg);
+        self->callbackOrder->push_back(self);
+        for (auto& c : self->cookies) {
+            self->reEvaluateThrottledCookie(*c);
+        }
+        self->checkRemainingThrottledCookies();
+    }
+
+    std::vector<Connection*>* callbackOrder = nullptr;
 };
 
 class MockFrontEndThread : public FrontEndThread {
@@ -104,6 +128,24 @@ public:
 
     void removeMockConnection(MockConnection& connection) {
         destroy_connection(connection);
+    }
+
+    /// Get the queue of throttled connections (as a vector to compare with)
+    std::vector<Connection*> getThrottledQueue() const {
+        return getThrottledConnections();
+    }
+
+    /// Run wakeThrottledConnections() and return the order the connections'
+    /// callbacks ran in
+    std::vector<Connection*> getThrottledWakeOrder() {
+        std::vector<Connection*> order;
+        iterate_connections([&order](Connection& c) {
+            static_cast<MockConnection&>(c).recordCallbacks(order);
+        });
+        wakeThrottledConnections();
+        // Run the deferred callbacks triggered by the wake up
+        eventBase.loopOnce(EVLOOP_NONBLOCK);
+        return order;
     }
 };
 
@@ -164,6 +206,8 @@ public:
     }
 
     void TearDown() override {
+        // Tests which need throttling enable it explicitly
+        Settings::instance().setThrottleEnabled(false);
         try {
             frontEndThread->removeMockConnection(*connection);
         } catch (const std::logic_error&) {
@@ -178,6 +222,34 @@ public:
     }
 
     void resetConnectionTest(bool emptySendQueue);
+
+    /// Throttle a command on the connection (like Bucket::shouldThrottle()
+    /// does when the bucket is over its limit)
+    void throttleCommand(MockConnection& c) {
+        using namespace cb::mcbp;
+        // processNotifiedCookie() records into this histogram (normally
+        // sized during front-end thread startup)
+        cookie_notification_histogram.resize(1);
+        RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+        builder.setMagic(Magic::ClientRequest);
+        builder.setOpcode(ClientOpcode::Get);
+        builder.setKey("key");
+        auto& cookie = c.getFirstCookie();
+        const auto now = std::chrono::steady_clock::now();
+        cookie.initialize(
+                now, now, *reinterpret_cast<const Header*>(builder.getFrame()));
+        cookie.setEwouldblock();
+        cookie.setThrottled(true);
+        frontEndThread->addThrottledConnection(c);
+    }
+
+    /// Make the connection a DCP connection and throttle its stream
+    static void throttleDcp(MockConnection& c) {
+        c.setDcpConnHandler({}, {});
+        c.throttleDcpStream();
+    }
+
+    std::array<uint8_t, 256> requestBuffer{};
 
 protected:
     std::unique_ptr<MockFrontEndThread> frontEndThread;
@@ -359,18 +431,18 @@ TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
 }
 
 /**
- * Connection::reEvaluateThrottledCookies() must un-throttle a cookie
+ * Connection::reEvaluateThrottledCookie() must un-throttle a cookie
  * synchronously (rather than via a deferred event base callback) so that
  * the cookie's state cannot be invalidated by a connection reset or bucket
  * teardown before the unthrottle completes.
  *
  * If this regresses back to going via Cookie::notifyIoComplete(), the
  * cookie would still be in the ewouldblock state immediately after
- * reEvaluateThrottledCookies() returns; ~Cookie() calls std::terminate() if
+ * reEvaluateThrottledCookie() returns; ~Cookie() calls std::terminate() if
  * a cookie is destroyed while still marked ewouldblock, so TearDown() would
  * abort the test process in that case.
  */
-TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
+TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookieIsSynchronous) {
     using namespace cb::mcbp;
 
     // processNotifiedCookie() records into this histogram, indexed by
@@ -393,10 +465,11 @@ TEST_F(ConnectionUnitTests, MB73414_ReEvaluateThrottledCookiesIsSynchronous) {
     ASSERT_TRUE(cookie.isThrottled());
     ASSERT_TRUE(cookie.isEwouldblock());
 
-    // Throttling is disabled by default, so Bucket::shouldThrottle() will
-    // return false and the cookie should be un-throttled immediately -
-    // no connections left needing a re-check.
-    EXPECT_FALSE(connection->reEvaluateThrottledCookies());
+    // Throttling is disabled by default, so once the tick woke the
+    // connection Bucket::shouldThrottle() will return false and the cookie
+    // should be un-throttled immediately (and may run)
+    connection->setRecheckThrottledCookies(true);
+    connection->reEvaluateThrottledCookie(cookie);
 
     EXPECT_FALSE(cookie.isThrottled());
     EXPECT_FALSE(cookie.isEwouldblock());
@@ -596,4 +669,236 @@ TEST_F(ConnectionUnitTests, MB74514_ResponseDeliveredWhenRequestCapReached) {
 
     manager.shutdown();
     manager.waitForState(Couchbase::ThreadState::Zombie);
+}
+
+/**
+ * Throttled connections (both connections with throttled commands and
+ * throttled DCP connections) share one queue per front end thread. The tick
+ * removes all of them from the queue and wakes them in the order they were
+ * throttled: DCP streams are resumed and throttled commands re-evaluated.
+ */
+TEST_F(ConnectionUnitTests, ThrottledConnectionsWokenInQueueOrder) {
+    auto& second = frontEndThread->addMockConnection();
+    auto& third = frontEndThread->addMockConnection();
+
+    // A throttled DCP stream followed by connections with throttled commands
+    throttleDcp(second);
+    throttleCommand(third);
+    throttleCommand(*connection);
+
+    using Order = std::vector<Connection*>;
+    EXPECT_EQ((Order{&second, &third, connection}),
+              frontEndThread->getThrottledQueue());
+    EXPECT_EQ((Order{&second, &third, connection}),
+              frontEndThread->getThrottledWakeOrder());
+
+    // The woken connections are no longer queued and may progress
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+    EXPECT_FALSE(second.isThrottled());
+    EXPECT_FALSE(second.isDcpStreamThrottled());
+    EXPECT_FALSE(third.isThrottled());
+    EXPECT_FALSE(third.getFirstCookie().isThrottled());
+    EXPECT_FALSE(connection->isThrottled());
+    EXPECT_FALSE(connection->getFirstCookie().isThrottled());
+
+    // Nothing is woken if nothing is throttled
+    EXPECT_TRUE(frontEndThread->getThrottledWakeOrder().empty());
+
+    third.getFirstCookie().reset();
+    connection->getFirstCookie().reset();
+    frontEndThread->removeMockConnection(second);
+    frontEndThread->removeMockConnection(third);
+}
+
+/**
+ * A woken connection which gets throttled again is added to the back of the
+ * queue (behind the connections throttled again before it).
+ */
+TEST_F(ConnectionUnitTests, ThrottledAgainAddedToBack) {
+    auto& second = frontEndThread->addMockConnection();
+    auto& third = frontEndThread->addMockConnection();
+    throttleCommand(*connection);
+    throttleCommand(second);
+    throttleDcp(third);
+
+    using Order = std::vector<Connection*>;
+    EXPECT_EQ((Order{connection, &second, &third}),
+              frontEndThread->getThrottledWakeOrder());
+
+    // They're added to the back of the queue in the order they get
+    // throttled again
+    third.throttleDcpStream();
+    frontEndThread->addThrottledConnection(second);
+    frontEndThread->addThrottledConnection(*connection);
+    EXPECT_EQ((Order{&third, &second, connection}),
+              frontEndThread->getThrottledQueue());
+
+    connection->getFirstCookie().reset();
+    second.getFirstCookie().reset();
+    frontEndThread->removeMockConnection(second);
+    frontEndThread->removeMockConnection(third);
+}
+
+/**
+ * A connection is only queued once, even if it has both throttled commands
+ * and a throttled DCP stream.
+ */
+TEST_F(ConnectionUnitTests, ThrottledConnectionQueuedOnce) {
+    throttleDcp(*connection);
+    throttleCommand(*connection);
+    frontEndThread->addThrottledConnection(*connection);
+    EXPECT_EQ(1, frontEndThread->getThrottledConnections().size());
+    EXPECT_TRUE(connection->isThrottled());
+
+    // Throttling the already throttled stream doesn't queue it again
+    connection->throttleDcpStream();
+    EXPECT_EQ(1, frontEndThread->getThrottledConnections().size());
+
+    // Both the stream and the command are woken
+    frontEndThread->getThrottledWakeOrder();
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+    EXPECT_FALSE(connection->isDcpStreamThrottled());
+    EXPECT_FALSE(connection->getFirstCookie().isThrottled());
+
+    connection->getFirstCookie().reset();
+}
+
+/**
+ * The tick removes all of the throttled connections from the queue A
+ * connection whose commands are still throttled when they're re-evaluated
+ * adds itself to the back of the queue again, while a resumed DCP connection
+ * is only added again when its stream gets throttled again.
+ */
+TEST_F(ConnectionUnitTests, ThrottledAgainWhileBucketThrottled) {
+    auto& bucket = BucketManager::instance().getNoBucket();
+    const auto reserved = bucket.getThrottleReservedLimit();
+    const auto hardLimit = bucket.getThrottleHardLimit();
+    Settings::instance().setThrottleEnabled(true);
+    ASSERT_EQ(cb::engine_errc::success, bucket.setThrottleLimits(0, 0));
+
+    auto& dcp = frontEndThread->addMockConnection();
+    auto& third = frontEndThread->addMockConnection();
+    throttleCommand(*connection);
+    throttleDcp(dcp);
+    throttleCommand(third);
+
+    using Order = std::vector<Connection*>;
+    EXPECT_EQ((Order{connection, &dcp, &third}),
+              frontEndThread->getThrottledQueue());
+
+    // All are removed from the queue and woken. The bucket is still over its
+    // limit so the commands are throttled again when re-evaluated in their
+    // callbacks (and their connections added back in the order they were
+    // woken), while the DCP stream is resumed
+    EXPECT_EQ((Order{connection, &dcp, &third}),
+              frontEndThread->getThrottledWakeOrder());
+    EXPECT_EQ((Order{connection, &third}), frontEndThread->getThrottledQueue());
+    EXPECT_TRUE(connection->getFirstCookie().isThrottled());
+    EXPECT_TRUE(third.getFirstCookie().isThrottled());
+    EXPECT_FALSE(dcp.isThrottled());
+    EXPECT_FALSE(dcp.isDcpStreamThrottled());
+
+    // The DCP stream gets throttled again and is queued behind them
+    dcp.throttleDcpStream();
+    EXPECT_EQ((Order{connection, &third, &dcp}),
+              frontEndThread->getThrottledQueue());
+
+    ASSERT_EQ(cb::engine_errc::success,
+              bucket.setThrottleLimits(reserved, hardLimit));
+    bucket.resetThrottledCommands(*frontEndThread);
+    frontEndThread->removeMockConnection(dcp);
+    frontEndThread->removeMockConnection(third);
+}
+
+/**
+ * The throttled commands are only re-evaluated in a callback after the tick
+ * woke the connection (so a connection getting a callback for some other
+ * reason can't jump the queue).
+ */
+TEST_F(ConnectionUnitTests, ThrottledOnlyReEvaluatedAfterTick) {
+    throttleCommand(*connection);
+    auto& cookie = connection->getFirstCookie();
+
+    // A callback which isn't from the tick leaves the command throttled
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    connection->triggerCallback(false);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    using Order = std::vector<Connection*>;
+    ASSERT_EQ((Order{connection}), order);
+    EXPECT_TRUE(cookie.isThrottled());
+    EXPECT_TRUE(cookie.isEwouldblock());
+    EXPECT_TRUE(connection->isThrottled());
+
+    // Once woken by the tick it is re-evaluated and may run
+    EXPECT_EQ((Order{connection}), frontEndThread->getThrottledWakeOrder());
+    EXPECT_FALSE(cookie.isThrottled());
+    EXPECT_FALSE(cookie.isEwouldblock());
+    EXPECT_FALSE(connection->isThrottled());
+
+    cookie.reset();
+}
+
+/**
+ * A woken connection which didn't get to re-evaluate all of its throttled
+ * commands (e.g. it used up its time slice) adds itself back to throttled
+ * list and waits for next tick to process them.
+ */
+TEST_F(ConnectionUnitTests, ThrottledNotReEvaluatedWaitsForNextTick) {
+    throttleCommand(*connection);
+    auto& cookie = connection->getFirstCookie();
+    frontEndThread->wakeThrottledConnections();
+    EXPECT_FALSE(connection->isThrottled());
+
+    // The callback ran out of time before getting to the throttled command
+    connection->checkRemainingThrottledCookies();
+    EXPECT_TRUE(cookie.isThrottled());
+    using Order = std::vector<Connection*>;
+    EXPECT_EQ((Order{connection}), frontEndThread->getThrottledQueue());
+
+    // and it's re-evaluated after the next tick
+    EXPECT_EQ((Order{connection}), frontEndThread->getThrottledWakeOrder());
+    EXPECT_FALSE(cookie.isThrottled());
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+
+    cookie.reset();
+}
+
+/**
+ * A connection is removed from the queue when it is destroyed (a throttled
+ * DCP connection may be closed by the client while queued).
+ */
+TEST_F(ConnectionUnitTests, ThrottledRemovedWhenDestroyed) {
+    auto& second = frontEndThread->addMockConnection();
+    second.throttleDcpStream();
+    frontEndThread->addThrottledConnection(*connection);
+    ASSERT_EQ(2, frontEndThread->getThrottledConnections().size());
+
+    frontEndThread->removeMockConnection(second);
+
+    using Order = std::vector<Connection*>;
+    EXPECT_EQ((Order{connection}), frontEndThread->getThrottledQueue());
+}
+
+/**
+ * When the bucket is deleted its throttled connections are removed from the
+ * queue, their throttled commands are reset and their DCP streams resumed.
+ */
+TEST_F(ConnectionUnitTests, ThrottledResetWhenBucketDeleted) {
+    auto& dcp = frontEndThread->addMockConnection();
+    throttleCommand(*connection);
+    throttleDcp(dcp);
+    auto& cookie = connection->getFirstCookie();
+    ASSERT_EQ(2, frontEndThread->getThrottledConnections().size());
+
+    BucketManager::instance().getNoBucket().resetThrottledCommands(
+            *frontEndThread);
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+    EXPECT_FALSE(connection->isThrottled());
+    EXPECT_FALSE(cookie.isThrottled());
+    EXPECT_FALSE(cookie.isEwouldblock());
+    EXPECT_FALSE(dcp.isThrottled());
+    EXPECT_FALSE(dcp.isDcpStreamThrottled());
+
+    frontEndThread->removeMockConnection(dcp);
 }

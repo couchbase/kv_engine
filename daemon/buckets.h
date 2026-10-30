@@ -295,6 +295,15 @@ public:
     void deleteThrottledCommands();
 
     /**
+     * Remove the thread's connections using this bucket from the thread's
+     * queue of throttled connections, reset their throttled commands and
+     * resume their throttled DCP streams
+     *
+     * @param thread The front end thread
+     */
+    void resetThrottledCommands(FrontEndThread& thread);
+
+    /**
      * Set the throttle limits for the bucket. See Throttling.md for a
      * description on how the various limits work.
      *
@@ -396,13 +405,6 @@ protected:
 
     /// The total number of bytes read from the bucket
     cb::RelaxedAtomic<uint64_t> file_chunk_read_bytes{0};
-
-    /// A deque per front end thread containing all of the connections
-    /// which have one or more cookies throttled. It should _only_ be
-    /// accessed in the context of the front end worker threads, and each
-    /// front end thread should _ONLY_ operate at its own deque stored
-    /// at its thread-index. Doing so allows a lock free datastructure.
-    std::vector<std::deque<Connection*>> throttledConnections;
 };
 
 void to_json(nlohmann::json& json, const Bucket& bucket);
