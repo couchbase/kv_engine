@@ -633,11 +633,6 @@ public:
                     std::string_view threadName,
                     cb::time::steady_clock::duration runTime) override;
 
-    void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) override {
-        cachedResidentRatio.activeRatio.store(activePerc);
-        cachedResidentRatio.replicaRatio.store(replicaPerc);
-    }
-
     bool isMemUsageAboveBackfillThreshold() override;
 
     /**
@@ -786,10 +781,6 @@ public:
      *         not.
      */
     bool maybeWaitForVBucketWarmup(CookieIface* cookie) override;
-
-    size_t getActiveResidentRatio() const override;
-
-    size_t getReplicaResidentRatio() const override;
 
     cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) override;
 
@@ -1718,11 +1709,6 @@ protected:
         bool enabled = true;
     };
     folly::Synchronized<ALogTask> accessScanner;
-
-    struct ResidentRatio {
-        std::atomic<size_t> activeRatio;
-        std::atomic<size_t> replicaRatio;
-    } cachedResidentRatio;
 
     std::atomic<size_t> lastTransTimePerItem;
     EvictionPolicy eviction_policy;

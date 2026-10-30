@@ -41,8 +41,6 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/semaphore.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <statistics/labelled_collector.h>
-#include <statistics/tests/mock/mock_stat_collector.h>
 #include <utilities/string_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
@@ -2036,22 +2034,8 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     // that we manage to store may vary considerably.
     EXPECT_GT(itemCount, 0);
 
-    // Note: prior to the fix for this MB, eviction relied upon cached
-    // residency ratios _which were only updated when gathering stats_.
-    // This is no longer the case post-fix, but to ensure the test _would_
-    // fail prior to the fix, this is done here.
-    auto refreshCachedResidentRatios = [& store = store]() {
-        // call getAggregatedVBucketStats to updated cached resident ratios (as
-        // returned by `store->get*ResidentRatio()`)
-        testing::NiceMock<MockStatCollector> collector;
-        store->getAggregatedVBucketStats(collector.forBucket("foobar"));
-    };
-    refreshCachedResidentRatios();
-
     // there are no replica buckets
     ASSERT_EQ(0, store->getNumOfVBucketsInState(vbucket_state_replica));
-    // the replica resident ratio defaults to 100 as there are no replica items
-    ASSERT_EQ(100, store->getReplicaResidentRatio());
 
     // age is not relevant to this test, increase the mfu threshold under which
     // age is ignored
@@ -2082,11 +2066,6 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     // call the run method repeatedly until it returns false, indicating the
     // visitor is definitely done, rather than paused
     while (task.run()) {
-        // need to refresh the resident ratio so it reflects active RR < 100
-        // after some items have been evicted. This wouldn't need to happen
-        // _during_ eviction in a full repro, just _once_ ever after active RR
-        // drops.
-        refreshCachedResidentRatios();
     }
 
     // confirm that memory usage is now below the low watermark

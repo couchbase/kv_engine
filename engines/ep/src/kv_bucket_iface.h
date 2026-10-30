@@ -729,9 +729,6 @@ public:
                             std::string_view threadName,
                             cb::time::steady_clock::duration runTime) = 0;
 
-    virtual void updateCachedResidentRatio(size_t activePerc,
-                                           size_t replicaPerc) = 0;
-
     /**
      * Is there any warmup process still loading data?
      */
@@ -864,10 +861,6 @@ public:
     virtual bool hasWarmupSetVbucketStateFailed() const = 0;
 
     virtual bool maybeWaitForVBucketWarmup(CookieIface* cookie) = 0;
-
-    virtual size_t getActiveResidentRatio() const = 0;
-
-    virtual size_t getReplicaResidentRatio() const = 0;
 
     /*
      * Change the max_cas of the specified vbucket to cas without any

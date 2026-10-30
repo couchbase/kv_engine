@@ -330,9 +330,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       checkpointMemoryRecoveryLowerMark(
               engine.getConfiguration()
                       .getCheckpointMemoryRecoveryLowerMark()) {
-    cachedResidentRatio.activeRatio.store(0);
-    cachedResidentRatio.replicaRatio.store(0);
-
     Configuration &config = engine.getConfiguration();
 
     const size_t size = GlobalTask::allTaskIds.size();
@@ -1368,11 +1365,6 @@ void KVBucket::getAggregatedVBucketStats(
     visit(aggregator);
 
     if (doLow) {
-        updateCachedResidentRatio(active->getMemResidentPer(),
-                                  replica->getMemResidentPer());
-        updateCachedResidentRatio(active->getMemResidentPer(),
-                                  replica->getMemResidentPer());
-
         // And finally actually return the stats using the AddStatFn callback.
         appendAggregatedVBucketStats(
                 *active, *replica, *pending, *dead, collector);
@@ -2872,14 +2864,6 @@ bool KVBucket::runAccessScannerTask() {
 
 void KVBucket::runVbStatePersistTask(Vbid vbid) {
     persistVBState(vbid);
-}
-
-size_t KVBucket::getActiveResidentRatio() const {
-    return cachedResidentRatio.activeRatio.load();
-}
-
-size_t KVBucket::getReplicaResidentRatio() const {
-    return cachedResidentRatio.replicaRatio.load();
 }
 
 cb::engine_errc KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
