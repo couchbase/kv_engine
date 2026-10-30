@@ -1619,6 +1619,72 @@ void CheckpointManager::createNewCheckpoint() {
     addNewCheckpoint(lh);
 }
 
+void CheckpointManager::createNewCheckpointForFailover(
+        std::optional<uint64_t> lowestInFlightPrepareSeqno) {
+    std::lock_guard<std::mutex> lh(queueLock);
+    auto& ckpt = getOpenCheckpoint(lh);
+
+    // The open checkpoint may be a partial snapshot from the old active, i.e.
+    // the snapshot end was never received. Its visibleSnapEnd and HCS then
+    // describe seqnos this vBucket doesn't have, so cap each of them to what
+    // this vBucket has received.
+    //
+    // Note: snapEnd is deliberately not changed. A partial snapshot is not a
+    // consistent point (items were deduplicated against ones never received)
+    // and the flusher treats reaching snapEnd as one: the failover table
+    // entry may be placed there and PCS/HPS persisted.
+    const uint64_t lastSeqno = lastBySeqno;
+    if (lastSeqno >= ckpt.getSnapshotEndSeqno()) {
+        // Complete snapshot
+        addNewCheckpoint(lh);
+        return;
+    }
+
+    // visibleSnapEnd: cap to maxVisibleSeqno
+    const auto visibleSnapEnd = std::min(ckpt.getVisibleSnapshotEndSeqno(),
+                                         uint64_t(maxVisibleSeqno));
+
+    // HCS (Disk snapshots only): the old active's HCS, which DCP sends to
+    // peers for this checkpoint (persisted there as PCS at the snapshot end,
+    // which is the last item this vBucket has). A Disk snapshot never contains
+    // a prepare <= its HCS (the backfill skips them), so the HCS is valid for
+    // the prepares of this checkpoint. As the snapshot is partial it is capped
+    // so that it doesn't:
+    // a) exceed lastBySeqno; seqnos above are reused by this vBucket for new
+    //    prepares once active.
+    // b) cover a prepare of an earlier snapshot which is still in-flight here;
+    //    its completion was in the part of the snapshot never received.
+    auto hcs = ckpt.getHighCompletedSeqno();
+    if (hcs) {
+        hcs = std::min(*hcs, lastSeqno);
+        if (lowestInFlightPrepareSeqno) {
+            Expects(*lowestInFlightPrepareSeqno > 0);
+            hcs = std::min(*hcs, *lowestInFlightPrepareSeqno - 1);
+        }
+    }
+
+    if (visibleSnapEnd != ckpt.getVisibleSnapshotEndSeqno() ||
+        hcs != ckpt.getHighCompletedSeqno()) {
+        EP_LOG_INFO(
+                "CheckpointManager::createNewCheckpointForFailover: {} open "
+                "checkpoint id:{} snapStart:{} snapEnd:{} lastBySeqno:{} "
+                "visibleSnapEnd:{}->{} HCS:{}->{} "
+                "lowestInFlightPrepareSeqno:{}",
+                vb.getId(),
+                ckpt.getId(),
+                ckpt.getSnapshotStartSeqno(),
+                ckpt.getSnapshotEndSeqno(),
+                lastSeqno,
+                ckpt.getVisibleSnapshotEndSeqno(),
+                visibleSnapEnd,
+                to_string_or_none(ckpt.getHighCompletedSeqno()),
+                to_string_or_none(hcs),
+                to_string_or_none(lowestInFlightPrepareSeqno));
+        ckpt.capSnapshotForFailover(visibleSnapEnd, hcs);
+    }
+    addNewCheckpoint(lh);
+}
+
 size_t CheckpointManager::getMemUsage() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getMemUsage(lh);

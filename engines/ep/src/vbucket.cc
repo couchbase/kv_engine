@@ -347,6 +347,19 @@ int64_t VBucket::getHighCompletedSeqno() const {
     return durabilityMonitor->getHighCompletedSeqno();
 }
 
+std::optional<uint64_t> VBucket::getLowestInFlightPrepareSeqno() const {
+    if (!durabilityMonitor) {
+        return {};
+    }
+    // trackedWrites are ordered by seqno
+    for (const auto& write : durabilityMonitor->getTrackedWrites()) {
+        if (!write.isCompleted()) {
+            return write.getBySeqno();
+        }
+    }
+    return {};
+}
+
 std::optional<uint64_t> VBucket::getHighSeqnoOfCollections(
         const Collections::VB::Filter& filter) const {
     if (filter.isPassThroughFilter()) {

@@ -20,6 +20,7 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
+#include "durability/durability_monitor.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "failover-table.h"
@@ -7069,6 +7070,580 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                      2 /*HCS*/,
                      0 /*maxDelRevSeqno*/);
     }
+}
+
+// MB-74970: A replica is promoted to active while in a partial Memory snapshot
+// whose (missing) snapshot end is the only visible item. The ActiveStream
+// must not send a SnapshotMarker with maxVisibleSeqno > snapEnd.
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialSnapshotMarkerMaxVisibleSeqno) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+
+    // Complete snapshot [1, 1] with M:1
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       1 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       1 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/, vbid, value, opaque)));
+
+    // Partial snapshot [2, 3] with MVS:3. Only PRE:2 is received, the commit
+    // at seqno:3 never arrives (the active fails over).
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       2 /*start*/,
+                                       3 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       3 /*maxVisibleSeqno*/));
+    using namespace cb::durability;
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      {},
+                      Requirements(Level::Majority, Timeout::Infinity()))));
+    ASSERT_EQ(2, vb.getHighSeqno());
+    ASSERT_EQ(1, vb.getMaxVisibleSeqno());
+
+    // Failover: replica promoted to active
+    setVBucketState(vbid, vbucket_state_active);
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    // The (now closed) checkpoint from the partial snapshot has its
+    // visibleSnapEnd capped to what this vBucket has received.
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+        EXPECT_EQ(2, closed.getSnapshotStartSeqno());
+        EXPECT_EQ(3, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(1, closed.getVisibleSnapshotEndSeqno());
+    }
+
+    // Peer has received [1, 1] already, so the stream cursor is registered in
+    // the checkpoint created from the partial [2, 3] snapshot.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    auto activeStream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0 /*flags*/,
+                                               0 /*opaque*/,
+                                               vb,
+                                               1 /*st_seqno*/,
+                                               ~0ULL /*en_seqno*/,
+                                               vb.failovers->getLatestUUID(),
+                                               1 /*snap_start_seqno*/,
+                                               1 /*snap_end_seqno*/);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+    ASSERT_GE(manager.getNumCheckpoints(), 2);
+
+    auto& readyQ = activeStream->public_readyQ();
+    activeStream->nextCheckpointItemTask();
+    ASSERT_GE(readyQ.size(), 2);
+
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(2, marker.getEndSeqno());
+    ASSERT_TRUE(marker.getMaxVisibleSeqno());
+    // The consumer (PassiveStream::processMarker) rejects a marker with
+    // snapEnd < visibleSnapEnd. The only visible seqno this vBucket has is 1.
+    EXPECT_LE(*marker.getMaxVisibleSeqno(), marker.getEndSeqno());
+    EXPECT_EQ(1, *marker.getMaxVisibleSeqno());
+
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(2, resp->getBySeqno());
+}
+
+// MB-74970: As above, but the replica is promoted after receiving only the
+// marker of the partial snapshot (no items).
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialSnapshotMarkerOnlyMaxVisibleSeqno) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+
+    // Complete snapshot [1, 1] with M:1
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       1 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       1 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/, vbid, value, opaque)));
+
+    // Partial snapshot [2, 3] with MVS:3, no items received
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       2 /*start*/,
+                                       3 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       3 /*maxVisibleSeqno*/));
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    // Failover: replica promoted to active
+    setVBucketState(vbid, vbucket_state_active);
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+        EXPECT_EQ(2, closed.getSnapshotStartSeqno());
+        EXPECT_EQ(3, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(1, closed.getVisibleSnapshotEndSeqno());
+    }
+
+    // New writes on the new active stream correctly
+    store_item(vbid, makeStoredDocKey("key"), value);
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    auto activeStream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0 /*flags*/,
+                                               0 /*opaque*/,
+                                               vb,
+                                               1 /*st_seqno*/,
+                                               ~0ULL /*en_seqno*/,
+                                               vb.failovers->getLatestUUID(),
+                                               1 /*snap_start_seqno*/,
+                                               1 /*snap_end_seqno*/);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+
+    auto& readyQ = activeStream->public_readyQ();
+    activeStream->nextCheckpointItemTask();
+    ASSERT_GE(readyQ.size(), 2);
+
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(2, marker.getEndSeqno());
+    ASSERT_TRUE(marker.getMaxVisibleSeqno());
+    EXPECT_LE(*marker.getMaxVisibleSeqno(), marker.getEndSeqno());
+    EXPECT_EQ(2, *marker.getMaxVisibleSeqno());
+
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, resp->getBySeqno());
+}
+
+// MB-74970: A replica is promoted to active while in a partial Disk snapshot
+// whose HCS (from the old active) is above the last seqno received. The HCS
+// must be capped to the high-seqno: once active this vBucket assigns the
+// seqnos above to new prepares, which the HCS (persisted as PCS, sent to
+// peers) must not cover.
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialDiskSnapshotHCSCappedToHighSeqno) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+
+    // Partial Disk snapshot [1, 8] HCS:6 MVS:8, only M:1 and M:2 received
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       8 /*end*/,
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       6 /*HCS*/,
+                                       8 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/, vbid, value, opaque, "k1")));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/, vbid, value, opaque, "k2")));
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    // Failover: replica promoted to active
+    setVBucketState(vbid, vbucket_state_active);
+
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+        EXPECT_TRUE(isDiskCheckpointType(closed.getCheckpointType()));
+        EXPECT_EQ(1, closed.getSnapshotStartSeqno());
+        EXPECT_EQ(8, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(2, closed.getVisibleSnapshotEndSeqno());
+        EXPECT_EQ(2, closed.getHighCompletedSeqno());
+    }
+
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    auto activeStream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0 /*flags*/,
+                                               0 /*opaque*/,
+                                               vb,
+                                               0 /*st_seqno*/,
+                                               ~0ULL /*en_seqno*/,
+                                               vb.failovers->getLatestUUID(),
+                                               0 /*snap_start_seqno*/,
+                                               0 /*snap_end_seqno*/);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+    activeStream->nextCheckpointItemTask();
+
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_EQ(2, marker.getEndSeqno());
+    ASSERT_TRUE(marker.getMaxVisibleSeqno());
+    EXPECT_EQ(2, *marker.getMaxVisibleSeqno());
+    ASSERT_TRUE(marker.getHighCompletedSeqno());
+    EXPECT_EQ(2, *marker.getHighCompletedSeqno());
+
+    // The snapEnd is not changed: the flusher doesn't reach the end of the
+    // partial snapshot, so it doesn't persist the HCS as PCS and doesn't treat
+    // the high-seqno as a consistent point (the persisted snapshot range is
+    // used for the failover table entry).
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    const auto& vbs =
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(0, vbs.highPreparedSeqno);
+    EXPECT_EQ(0, vbs.lastSnapStart);
+    EXPECT_EQ(8, vbs.lastSnapEnd);
+    EXPECT_EQ(0, vb.failovers->getLatestEntry().by_seqno);
+}
+
+// MB-74970: A replica is promoted to active while in a partial Disk snapshot
+// whose HCS covers a prepare received in an earlier (Memory) snapshot. The
+// old active completed that prepare but its completion was in the part of
+// the Disk snapshot never received, so it is still in-flight here (and the
+// new active will complete it again). The HCS must be capped below it, else
+// the prepare is dropped on warmup (here and on peers that persist the HCS).
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialDiskSnapshotHCSCappedToInFlightPrepare) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+    using namespace cb::durability;
+
+    // Memory snapshot [1, 1] with PRE:1
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       1 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       0 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      "k1",
+                      Requirements(Level::Majority, Timeout::Infinity()))));
+
+    // Partial Disk snapshot [2, 5] HCS:1 MVS:5 (the old active committed
+    // PRE:1 at seqno:4), only M:2 and M:3 received.
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       2 /*start*/,
+                                       5 /*end*/,
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       1 /*HCS*/,
+                                       5 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/, vbid, value, opaque, "k2")));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque, "k3")));
+    ASSERT_EQ(3, vb.getHighSeqno());
+    ASSERT_EQ(1, vb.getLowestInFlightPrepareSeqno());
+
+    // Failover: replica promoted to active. PRE:1 is in-flight.
+    setVBucketState(vbid, vbucket_state_active);
+    ASSERT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
+    ASSERT_EQ(1, vb.getLowestInFlightPrepareSeqno());
+
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+        EXPECT_TRUE(isDiskCheckpointType(closed.getCheckpointType()));
+        EXPECT_EQ(2, closed.getSnapshotStartSeqno());
+        EXPECT_EQ(5, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(3, closed.getVisibleSnapshotEndSeqno());
+        EXPECT_EQ(0, closed.getHighCompletedSeqno());
+    }
+
+    // A peer streaming from 0 receives the Memory snapshot (with PRE:1) then
+    // the Disk snapshot, whose HCS must not cover PRE:1.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    auto activeStream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0 /*flags*/,
+                                               0 /*opaque*/,
+                                               vb,
+                                               0 /*st_seqno*/,
+                                               ~0ULL /*en_seqno*/,
+                                               vb.failovers->getLatestUUID(),
+                                               0 /*snap_start_seqno*/,
+                                               0 /*snap_end_seqno*/);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+
+    std::optional<SnapshotMarker> diskMarker;
+    std::vector<DcpResponse::Event> events;
+    for (int i = 0; i < 2 && !diskMarker; ++i) {
+        activeStream->nextCheckpointItemTask();
+        while (auto resp = activeStream->next(*producer)) {
+            events.push_back(resp->getEvent());
+            if (resp->getEvent() == DcpResponse::Event::SnapshotMarker) {
+                const auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
+                if (marker.getFlags() & MARKER_FLAG_DISK) {
+                    diskMarker = marker;
+                    break;
+                }
+            }
+        }
+    }
+    ASSERT_TRUE(diskMarker) << "no Disk SnapshotMarker sent";
+    EXPECT_EQ((std::vector<DcpResponse::Event>{
+                      DcpResponse::Event::SnapshotMarker,
+                      DcpResponse::Event::Prepare,
+                      DcpResponse::Event::SnapshotMarker}),
+              events);
+    EXPECT_EQ(2, diskMarker->getStartSeqno());
+    EXPECT_EQ(3, diskMarker->getEndSeqno());
+    ASSERT_TRUE(diskMarker->getHighCompletedSeqno());
+    EXPECT_EQ(0, *diskMarker->getHighCompletedSeqno());
+
+    // Locally the flusher doesn't reach the end of the partial snapshot, so
+    // the PCS is unchanged and PRE:1 is loaded at warmup.
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    const auto& vbs =
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(1, vbs.persistedPreparedSeqno);
+    EXPECT_EQ(1, vbs.lastSnapStart);
+    EXPECT_EQ(5, vbs.lastSnapEnd);
+}
+
+// MB-74970: As above, but the promotion sets a topology which the new active
+// alone satisfies, so the conversion of the DurabilityMonitor to Active
+// immediately resolves PRE:1 for commit (it leaves trackedWrites). PRE:1 is
+// still not completed until the commit is queued, so the lowest in-flight
+// prepare must be read before the conversion and the HCS capped below it.
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialDiskSnapshotInFlightPrepareResolvedOnPromotion) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+    using namespace cb::durability;
+
+    // Memory snapshot [1, 1] with PRE:1
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       1 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       0 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      1 /*seqno*/,
+                      vbid,
+                      value,
+                      opaque,
+                      "k1",
+                      Requirements(Level::Majority, Timeout::Infinity()))));
+
+    // Partial Disk snapshot [2, 5] HCS:1 MVS:5, only M:2 and M:3 received
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       2 /*start*/,
+                                       5 /*end*/,
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       1 /*HCS*/,
+                                       5 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      2 /*seqno*/, vbid, value, opaque, "k2")));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque, "k3")));
+    ASSERT_EQ(1, vb.getLowestInFlightPrepareSeqno());
+
+    // Failover: replica promoted to active with a topology of only itself,
+    // PRE:1 is resolved (satisfied) by the conversion and is no longer
+    // tracked, but not yet committed.
+    setVBucketState(vbid,
+                    vbucket_state_active,
+                    {{"topology", nlohmann::json::array({{"active"}})}});
+    ASSERT_EQ(0, vb.getDurabilityMonitor().getNumTracked());
+    ASSERT_EQ(3, vb.getHighSeqno());
+
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_TRUE(isDiskCheckpointType(closed.getCheckpointType()));
+        EXPECT_EQ(5, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(0, closed.getHighCompletedSeqno());
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    const auto& vbs =
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(1, vbs.persistedPreparedSeqno);
+
+    // The new active commits PRE:1 (seqno:4)
+    vb.processResolvedSyncWrites();
+    ASSERT_EQ(4, vb.getHighSeqno());
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(1, vb.getHighCompletedSeqno());
+}
+
+// MB-74970: As above, but with two prepares from the earlier snapshot of
+// which the second (PRE:2) is completed out of order by the partial Disk
+// snapshot (M:3 is its commit). The vBucket HCS is then 2 and is NOT a valid
+// cap, PRE:1 is still in-flight so the HCS must be capped to 0.
+TEST_P(STPassiveStreamPersistentTest,
+       PromotedPartialDiskSnapshotOutOfOrderCompletion) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint32_t opaque = 1;
+    const std::string value("value");
+    using namespace cb::durability;
+
+    // Memory snapshot [1, 2] with PRE:1(k1), PRE:2(k2)
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1 /*start*/,
+                                       2 /*end*/,
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       0 /*maxVisibleSeqno*/));
+    for (uint64_t seqno : {1, 2}) {
+        ASSERT_EQ(cb::engine_errc::success,
+                  stream->messageReceived(makeMutationConsumerMessage(
+                          seqno,
+                          vbid,
+                          value,
+                          opaque,
+                          "k" + std::to_string(seqno),
+                          Requirements(Level::Majority, Timeout::Infinity()))));
+    }
+
+    // Partial Disk snapshot [3, 6] HCS:4 MVS:6, only M:3(k2) received, which
+    // is the (deduped) commit of PRE:2. The commit of PRE:1 (seqno:4+) is not
+    // received.
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       3 /*start*/,
+                                       6 /*end*/,
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       4 /*HCS*/,
+                                       6 /*maxVisibleSeqno*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      3 /*seqno*/, vbid, value, opaque, "k2")));
+    ASSERT_EQ(3, vb.getHighSeqno());
+    ASSERT_EQ(2, vb.getHighCompletedSeqno());
+    ASSERT_EQ(1, vb.getLowestInFlightPrepareSeqno());
+
+    // Failover: replica promoted to active
+    setVBucketState(vbid, vbucket_state_active);
+    ASSERT_EQ(1, vb.getLowestInFlightPrepareSeqno());
+
+    {
+        const auto& list = manager.getCheckpointList();
+        ASSERT_GE(list.size(), 2);
+        const auto& closed = **std::prev(list.end(), 2);
+        EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+        EXPECT_TRUE(isDiskCheckpointType(closed.getCheckpointType()));
+        EXPECT_EQ(3, closed.getSnapshotStartSeqno());
+        EXPECT_EQ(6, closed.getSnapshotEndSeqno());
+        EXPECT_EQ(0, closed.getHighCompletedSeqno());
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    const auto& vbs =
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, vbs.persistedCompletedSeqno);
+    EXPECT_EQ(2, vbs.persistedPreparedSeqno);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

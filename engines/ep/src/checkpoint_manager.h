@@ -451,6 +451,31 @@ public:
     void createNewCheckpoint();
 
     /**
+     * Create a new open checkpoint for a vBucket that is being promoted to
+     * active by failover.
+     *
+     * The current open checkpoint may have been created from a partial
+     * snapshot received from the old active, so its visibleSnapEnd and HCS can
+     * reference seqnos that this vBucket never received. Before closing it,
+     * visibleSnapEnd is capped to the maxVisibleSeqno this vBucket really has,
+     * so that DCP streams don't send a snapshot with MVS > snapEnd (MB-74970).
+     *
+     * Likewise, the HCS of a partial Disk snapshot is the old active's and is
+     * sent to DCP peers, which persist it as PCS at the snapshot end (the last
+     * item this vBucket has). It is capped so it doesn't cover seqnos this
+     * vBucket hasn't received, or a prepare which is still in-flight here.
+     *
+     * The snapEnd is not changed: a partial snapshot is not a consistent point
+     * and the flusher treats reaching snapEnd as one (failover table entry,
+     * PCS/HPS).
+     *
+     * @param lowestInFlightPrepareSeqno seqno of the lowest prepare tracked by
+     *        the vBucket's DurabilityMonitor which is not completed, if any.
+     */
+    void createNewCheckpointForFailover(
+            std::optional<uint64_t> lowestInFlightPrepareSeqno);
+
+    /**
      * @return the memory usage of all the checkpoints managed
      */
     size_t getMemUsage() const;

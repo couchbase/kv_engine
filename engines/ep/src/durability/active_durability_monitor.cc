@@ -231,11 +231,17 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
 
     // If true it means that we've received a full snapshot before changing
     // state to ADM from a PDM. Which means all prepare seqnos should come after
-    // any committed ones
+    // any committed ones.
+    // MB-74970: Not while receiving a Disk snapshot. Commits in a Disk
+    // snapshot may be deduplicated, so the PDM completes prepares out of order
+    // while receiving one (PassiveDurabilityMonitor::completeSyncWrite) and a
+    // partially received Disk snapshot can leave a completed prepare after a
+    // pending one.
+    const auto openSnapStart = static_cast<int64_t>(
+            vb.checkpointManager->getOpenSnapshotStartSeqno());
     const bool snapshotCompleted =
-            dm.getHighestTrackedSeqno() <
-            static_cast<int64_t>(
-                    vb.checkpointManager->getOpenSnapshotStartSeqno());
+            dm.getHighestTrackedSeqno() < openSnapStart &&
+            !vb.isReceivingDiskSnapshot();
 #endif
 
     auto s = state.wlock();

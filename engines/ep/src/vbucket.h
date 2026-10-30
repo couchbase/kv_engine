@@ -232,6 +232,13 @@ public:
     int64_t getHighCompletedSeqno() const;
 
     /**
+     * @return the seqno of the lowest prepare tracked by the
+     *         DurabilityMonitor which has not been completed, nullopt if there
+     *         is no such prepare (or no DurabilityMonitor).
+     */
+    std::optional<uint64_t> getLowestInFlightPrepareSeqno() const;
+
+    /**
      * Returns the maximum of all the high-seqnos of the collections in the
      * filter. std::nullopt is returned for passthrough streams or when any
      * collection cannot be found.

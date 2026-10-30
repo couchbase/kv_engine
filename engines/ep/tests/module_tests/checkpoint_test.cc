@@ -456,6 +456,244 @@ TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
+// MB-74970: Tests for CM::createNewCheckpointForFailover, which is used when a
+// replica is promoted to active and may be in a partial snapshot. The
+// visibleSnapEnd and HCS of that snapshot are capped to what the replica has
+// received; the snapEnd is not changed (a partial snapshot is not a consistent
+// point and the flusher treats reaching snapEnd as one).
+class FailoverCheckpointTest : public ReplicaCheckpointTest {
+protected:
+    // Queue a replicated prepare (not visible) at the given seqno
+    bool queueReplicatedPrepare(const std::string& key, int64_t seqno) {
+        auto qi = makePendingItem(makeStoredDocKey(key), "value");
+        qi->setBySeqno(seqno);
+        qi->setCas(1);
+        return manager->queueDirty(qi,
+                                   GenerateBySeqno::No,
+                                   GenerateCas::No,
+                                   /*preLinkDocCtx*/ nullptr);
+    }
+
+    // @return the checkpoint before the open checkpoint
+    const Checkpoint& getLastClosedCheckpoint() {
+        const auto& list = manager->getCheckpointList();
+        Expects(list.size() >= 2);
+        return **std::prev(list.end(), 2);
+    }
+};
+
+// Partial snapshot where the missing snapshot end is the only visible seqno
+// (the scenario hit in MB-74970). visibleSnapEnd is capped to what has been
+// received, snapEnd is unchanged.
+TEST_P(FailoverCheckpointTest, PartialSnapshotCapped) {
+    manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedPrepare("k2", 1002));
+    ASSERT_EQ(1002, manager->getHighSeqno());
+    ASSERT_EQ(1001, manager->getMaxVisibleSeqno());
+    ASSERT_EQ(1003, manager->getVisibleSnapshotEndSeqno());
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(CHECKPOINT_CLOSED, closed.getState());
+    EXPECT_EQ(1001, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1001, closed.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(CheckpointType::Memory, closed.getCheckpointType());
+
+    // New open checkpoint starts after what we have received
+    const auto snapInfo = manager->getSnapshotInfo();
+    EXPECT_EQ(1002, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1002, 1002), snapInfo.range);
+    EXPECT_EQ(1001, manager->getVisibleSnapshotEndSeqno());
+
+    // A cursor reading the closed checkpoint sees the capped MVS
+    std::vector<queued_item> items;
+    const auto result =
+            manager->getItemsForCursor(*cursor,
+                                       items,
+                                       std::numeric_limits<size_t>::max(),
+                                       std::numeric_limits<size_t>::max());
+    ASSERT_FALSE(result.ranges.empty());
+    EXPECT_EQ(1001, result.ranges[0].getStart());
+    EXPECT_EQ(1003, result.ranges[0].getEnd());
+    EXPECT_EQ(1001, result.visibleSeqno);
+}
+
+// Partial snapshot where only visible items were received
+TEST_P(FailoverCheckpointTest, PartialSnapshotCappedAllVisible) {
+    manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1001, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1001, closed.getVisibleSnapshotEndSeqno());
+}
+
+// Only the marker of the partial snapshot was received, visibleSnapEnd is
+// capped.
+TEST_P(FailoverCheckpointTest, PartialSnapshotMarkerOnly) {
+    manager->createSnapshot(1001, 1001, {}, CheckpointType::Memory, 1001);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    manager->createSnapshot(1002, 1003, {}, CheckpointType::Memory, 1003);
+    ASSERT_EQ(1001, manager->getHighSeqno());
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1002, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1001, closed.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(1001, manager->getVisibleSnapshotEndSeqno());
+}
+
+// A complete snapshot is not modified
+TEST_P(FailoverCheckpointTest, CompleteSnapshotUnchanged) {
+    manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1002);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedItem("k2", 1002));
+    EXPECT_TRUE(queueReplicatedPrepare("k3", 1003));
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1001, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1002, closed.getVisibleSnapshotEndSeqno());
+}
+
+// A partial Disk snapshot keeps its type. Its HCS is already <= lastBySeqno
+// and below the in-flight prepare, so is unchanged.
+TEST_P(FailoverCheckpointTest, PartialDiskSnapshotCapped) {
+    manager->createSnapshot(1001, 1003, 1000, CheckpointType::Disk, 1003);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedPrepare("k2", 1002));
+
+    manager->createNewCheckpointForFailover(1002 /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(CheckpointType::Disk, closed.getCheckpointType());
+    EXPECT_EQ(1000, closed.getHighCompletedSeqno());
+    EXPECT_EQ(1001, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1001, closed.getVisibleSnapshotEndSeqno());
+
+    // The new open checkpoint is Memory
+    EXPECT_FALSE(manager->isOpenCheckpointDisk());
+
+    // A cursor reading the closed checkpoint sees the HCS (sent in the
+    // SnapshotMarker and persisted by the flusher at the snapshot end)
+    std::vector<queued_item> items;
+    const auto result =
+            manager->getItemsForCursor(*cursor,
+                                       items,
+                                       std::numeric_limits<size_t>::max(),
+                                       std::numeric_limits<size_t>::max());
+    ASSERT_FALSE(result.ranges.empty());
+    EXPECT_EQ(1003, result.ranges[0].getEnd());
+    EXPECT_EQ(1000, result.ranges[0].highCompletedSeqno);
+    EXPECT_EQ(1000, result.highCompletedSeqno);
+}
+
+// Partial Disk snapshot with a HCS above lastBySeqno. The HCS is capped to
+// lastBySeqno, else it would cover seqnos which this vBucket (now active)
+// assigns to new prepares.
+TEST_P(FailoverCheckpointTest, PartialDiskSnapshotHCSCappedToLastBySeqno) {
+    manager->createSnapshot(1001, 1008, 1006, CheckpointType::Disk, 1008);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedItem("k2", 1002));
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1008, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1002, closed.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(1002, closed.getHighCompletedSeqno());
+}
+
+// Partial Disk snapshot where a prepare from an earlier snapshot (seqno:1000)
+// is still in-flight: the old active completed it (HCS:1006) but the
+// completion was in the part of the snapshot never received. The HCS is
+// capped below that prepare.
+TEST_P(FailoverCheckpointTest, PartialDiskSnapshotHCSCappedToInFlightPrepare) {
+    manager->createSnapshot(1001, 1008, 1006, CheckpointType::Disk, 1008);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedItem("k2", 1002));
+
+    manager->createNewCheckpointForFailover(1000 /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1008, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(999, closed.getHighCompletedSeqno());
+}
+
+// A partial Disk snapshot where only the marker was received still has its
+// HCS capped (to lastBySeqno).
+TEST_P(FailoverCheckpointTest, PartialDiskSnapshotMarkerOnly) {
+    manager->createSnapshot(1001, 1003, 1002, CheckpointType::Disk, 1003);
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1001, closed.getSnapshotStartSeqno());
+    EXPECT_EQ(1003, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1000, closed.getHighCompletedSeqno());
+}
+
+// A complete Disk snapshot keeps its HCS
+TEST_P(FailoverCheckpointTest, CompleteDiskSnapshotUnchanged) {
+    manager->createSnapshot(1001, 1002, 1001, CheckpointType::Disk, 1002);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    EXPECT_TRUE(queueReplicatedItem("k2", 1002));
+
+    manager->createNewCheckpointForFailover({} /*lowestInFlightPrepare*/);
+
+    const auto& closed = getLastClosedCheckpoint();
+    EXPECT_EQ(1002, closed.getSnapshotEndSeqno());
+    EXPECT_EQ(1002, closed.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(1001, closed.getHighCompletedSeqno());
+}
+
+// capSnapshotForFailover can only lower visibleSnapEnd, never add a HCS
+TEST_P(FailoverCheckpointTest, CapSnapshotForFailoverInvalid) {
+    manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    auto& ckpt = *manager->getCheckpointList().back();
+
+    // visibleSnapEnd above current
+    EXPECT_THROW(ckpt.capSnapshotForFailover(1004, {}), std::logic_error);
+    // Can't add a HCS to a Memory checkpoint
+    EXPECT_THROW(ckpt.capSnapshotForFailover(1001, 1000), std::logic_error);
+    EXPECT_EQ(1003, ckpt.getVisibleSnapshotEndSeqno());
+
+    ckpt.capSnapshotForFailover(1001, {});
+    EXPECT_EQ(1003, ckpt.getSnapshotEndSeqno());
+    EXPECT_EQ(1001, ckpt.getVisibleSnapshotEndSeqno());
+    EXPECT_FALSE(ckpt.getHighCompletedSeqno());
+}
+
+// capSnapshotForFailover can only lower the HCS of a Disk checkpoint
+TEST_P(FailoverCheckpointTest, CapSnapshotForFailoverInvalidHCS) {
+    manager->createSnapshot(1001, 1003, 1002, CheckpointType::Disk, 1003);
+    EXPECT_TRUE(queueReplicatedItem("k1", 1001));
+    auto& ckpt = *manager->getCheckpointList().back();
+
+    // Can't remove the HCS
+    EXPECT_THROW(ckpt.capSnapshotForFailover(1001, {}), std::logic_error);
+    // Can't increase the HCS
+    EXPECT_THROW(ckpt.capSnapshotForFailover(1001, 1003), std::logic_error);
+    EXPECT_EQ(1003, ckpt.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(1002, ckpt.getHighCompletedSeqno());
+
+    ckpt.capSnapshotForFailover(1001, 1000);
+    EXPECT_EQ(1001, ckpt.getVisibleSnapshotEndSeqno());
+    EXPECT_EQ(1000, ckpt.getHighCompletedSeqno());
+}
+
 // Test checkpoint and cursor accounting - when checkpoints are closed the
 // offset of cursors is updated as appropriate.
 TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
@@ -4503,6 +4741,15 @@ INSTANTIATE_TEST_SUITE_P(
         EphemeralCheckpointTest,
         ::testing::Combine(
                 ::testing::Values(VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        AllVBTypesAllEvictionModes,
+        FailoverCheckpointTest,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
