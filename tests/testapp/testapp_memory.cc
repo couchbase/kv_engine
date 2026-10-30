@@ -12,6 +12,7 @@
 #include <folly/Portability.h>
 #include <folly/ScopeGuard.h>
 #include <folly/portability/GMock.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 
 #include <cstdlib>
@@ -26,12 +27,15 @@ class MemTrackingBucketTest : public TestappClientTest {
 public:
     static void SetUpTestCase() {
         // Note: Important to set the env BEFORE starting memcached,
-        // env vars wouldn't be passed to the memcached process otherwise
-        // (unless testapp is run in -e (embedded) mode)
+        // env vars wouldn't be passed to the memcached process otherwise.
+        // In -e (embedded) mode memcached runs in this process, which has
+        // already read the environment, so enable the checks directly too
+        // (before memcached registers any client).
         if (!getenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT")) {
             ASSERT_EQ(0,
                       setenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT", "1", 0));
         }
+        oldDebugChecksEnabled = cb::ArenaMalloc::setDebugChecksEnabled(true);
 
         auto config = generate_config();
         config["threads"] = 1;
@@ -39,10 +43,17 @@ public:
     }
 
     static void TearDownTestCase() {
-        EXPECT_EQ(0, unsetenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT"));
+        // Stop memcached (and free its buckets) with the checks still on
         TestappTest::TearDownTestCase();
+        cb::ArenaMalloc::setDebugChecksEnabled(oldDebugChecksEnabled);
+        EXPECT_EQ(0, unsetenv("CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT"));
     }
+
+private:
+    static bool oldDebugChecksEnabled;
 };
+
+bool MemTrackingBucketTest::oldDebugChecksEnabled = false;
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          MemTrackingBucketTest,
