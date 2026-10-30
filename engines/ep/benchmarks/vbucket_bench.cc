@@ -28,6 +28,7 @@
 
 #include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
+#include <memcached/dcp_stream_id.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <algorithm>
 #include <random>
@@ -478,6 +479,55 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetLowestCursor)
     }
 }
 
+/**
+ * Benchmark registering numCursors cursors one by one on one vBucket, as when a
+ * DCP client opens one stream per collection on that vBucket.
+ * Every registration first looks for an existing cursor with the same name
+ * (MB-69574).
+ */
+BENCHMARK_DEFINE_F(CheckpointBench, RegisterCursors)
+(benchmark::State& state) {
+    const size_t numCursors = state.range(0);
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    // Same cursor names that ActiveStream builds when the client uses
+    // stream-ids: producer name + stream-id, eg "eq_dcpq:bench_clientsid:1".
+    // The client name is arbitrary. What matters is that all names share the
+    // same prefix, as the streams of one DCP producer do.
+    const std::string producerName = "eq_dcpq:bench_client";
+    std::vector<std::string> names;
+    names.reserve(numCursors);
+    for (size_t streamId = 1; streamId <= numCursors; ++streamId) {
+        names.push_back(producerName +
+                        cb::mcbp::DcpStreamId(static_cast<uint16_t>(streamId))
+                                .to_string());
+    }
+
+    // Any start seqno works here: the cost under test is the name lookup, not
+    // where the cursor lands. 0 means "stream from the beginning".
+    const uint64_t lastProcessedSeqno = 0;
+
+    std::vector<CursorRegResult> results;
+    results.reserve(numCursors);
+    while (state.KeepRunning()) {
+        for (const auto& name : names) {
+            results.push_back(manager.registerCursorBySeqno(
+                    name,
+                    lastProcessedSeqno,
+                    CheckpointCursor::Droppable::Yes));
+        }
+
+        // Don't account cursor removal. CursorRegResult removes its cursor
+        // from CM at destruction.
+        state.PauseTiming();
+        results.clear();
+        state.ResumeTiming();
+    }
+
+    // Also report the rate of single registrations
+    state.SetItemsProcessed(state.iterations() * numCursors);
+}
+
 BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
 (benchmark::State& state) {
     const auto ckptType = CheckpointType(state.range(0));
@@ -652,3 +702,13 @@ BENCHMARK_REGISTER_F(CheckpointBench, GetLowestCursor)
         ->Args({1000})
         ->Args({10000})
         ->Args({100000});
+
+// Arguments: numCursors
+// Up to 10000 as Totoro allows up to 10200 collections per bucket, so a client
+// with one stream per collection can open ~10k streams on one vBucket.
+BENCHMARK_REGISTER_F(CheckpointBench, RegisterCursors)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000});

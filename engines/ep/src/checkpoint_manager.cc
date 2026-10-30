@@ -387,15 +387,16 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 name, ckptIt, pos, droppable, distance);
         // Remove the old cursor (if any) before adding the new one to the
         // ::cursors map
-        for (const auto& [currCName, oldCursor] : cursors) {
-            if (name == currCName) {
-                Expects(oldCursor);
-                const auto tempName = "temp" + name;
-                cursors[tempName] = newCursor;
-                removeCursorRes = removeCursor(lh, *oldCursor);
-                cursors.erase(tempName);
-                break;
-            }
+        const auto oldCursorIt = cursors.find(name);
+        if (oldCursorIt != cursors.end()) {
+            // The insert below may rehash the map. That invalidates
+            // oldCursorIt, but not references to the stored values.
+            const auto& oldCursor = oldCursorIt->second;
+            Expects(oldCursor);
+            const auto tempName = "temp" + name;
+            cursors[tempName] = newCursor;
+            removeCursorRes = removeCursor(lh, *oldCursor);
+            cursors.erase(tempName);
         }
         // Finally save the newCursor
         cursors[name] = newCursor;
