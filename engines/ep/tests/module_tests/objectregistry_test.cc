@@ -23,9 +23,15 @@
 #include <executor/fake_executorpool.h>
 #include <spdlog/async.h>
 
+#include <optional>
+
 class ObjectRegistryTest : virtual public ::testing::Test {
 protected:
     void SetUp() override {
+        // build() returns with this thread associated with the engine. The
+        // strings below are allocated outside the engine and must be
+        // released outside the engine.
+        std::optional<NonBucketAllocationGuard> releaseOutsideEngine;
         const auto dbname = getProcessUniqueDatabaseName();
         removePathIfExists(dbname);
 
@@ -36,6 +42,7 @@ protected:
 
         const auto extraConfig = "dbname=" + dbname;
         engine = SynchronousEPEngine::build(extraConfig);
+        releaseOutsideEngine.emplace();
     }
 
     void TearDown() override {
@@ -71,6 +78,79 @@ TEST_F(ObjectRegistryTest, MemOverhead) {
         EXPECT_NE(baseline, engine->getEpStats().getMemOverhead());
     }
     EXPECT_EQ(baseline, engine->getEpStats().getMemOverhead());
+}
+
+/**
+ * BucketAllocationGuard must restore the exact ArenaMalloc client (and
+ * domain) which was active on construction, even if it differs from what
+ * the ObjectRegistry's current engine implies (e.g. when running under a
+ * cb::NoArenaGuard). Previously it restored the previous engine's arena,
+ * causing memory allocated under cb::NoArenaGuard to be freed against the
+ * bucket (as seen in FollyExecutorPool::doTasksStat()).
+ */
+TEST_F(ObjectRegistryTest, BucketAllocationGuardRestoresArenaClient) {
+    const auto engineIndex = engine->getArenaMallocClient().index;
+    ASSERT_EQ(engine.get(), ObjectRegistry::getCurrentEngine());
+    ASSERT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+
+    {
+        cb::NoArenaGuard noArena;
+        ASSERT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        {
+            BucketAllocationGuard guard(engine.get());
+            EXPECT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        }
+        EXPECT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        EXPECT_EQ(engine.get(), ObjectRegistry::getCurrentEngine());
+    }
+    EXPECT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+
+    {
+        cb::ArenaDomainGuard<cb::MemoryDomain::Secondary> secondary;
+        {
+            BucketAllocationGuard guard(engine.get());
+        }
+        EXPECT_EQ(cb::MemoryDomain::Secondary,
+                  cb::ArenaMalloc::getCurrentClient().domain);
+    }
+}
+
+/**
+ * NonBucketAllocationGuard must restore the exact ArenaMalloc client (and
+ * domain) which was active on construction, even if it differs from what
+ * the ObjectRegistry's current engine implies (e.g. when running under a
+ * cb::NoArenaGuard).
+ */
+TEST_F(ObjectRegistryTest, NonBucketAllocationGuardRestoresArenaClient) {
+    const auto engineIndex = engine->getArenaMallocClient().index;
+    ASSERT_EQ(engine.get(), ObjectRegistry::getCurrentEngine());
+    ASSERT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+
+    {
+        cb::NoArenaGuard noArena;
+        ASSERT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        {
+            NonBucketAllocationGuard guard;
+            EXPECT_EQ(nullptr, ObjectRegistry::getCurrentEngine());
+            EXPECT_EQ(cb::NoClientIndex,
+                      cb::ArenaMalloc::getCurrentClientIndex());
+        }
+        EXPECT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        EXPECT_EQ(engine.get(), ObjectRegistry::getCurrentEngine());
+    }
+    EXPECT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+
+    {
+        cb::ArenaDomainGuard<cb::MemoryDomain::Secondary> secondary;
+        {
+            NonBucketAllocationGuard guard;
+            EXPECT_EQ(cb::NoClientIndex,
+                      cb::ArenaMalloc::getCurrentClientIndex());
+        }
+        EXPECT_EQ(engineIndex, cb::ArenaMalloc::getCurrentClientIndex());
+        EXPECT_EQ(cb::MemoryDomain::Secondary,
+                  cb::ArenaMalloc::getCurrentClient().domain);
+    }
 }
 
 TEST_F(ObjectRegistryTest, StoredValStats) {
