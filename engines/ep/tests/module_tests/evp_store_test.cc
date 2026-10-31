@@ -47,12 +47,14 @@
 
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
+#include <platform/cb_arena_malloc.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/math_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include <fstream>
 #include <thread>
 #include <utility>
 
@@ -3327,6 +3329,59 @@ TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshot) {
         }
         runBGFetcherTask();
     }
+}
+
+/**
+ * The error context is owned by the frontend's cookie (and released outside
+ * of any bucket). Verify that a failing VBucketLoadingTask doesn't account
+ * the memory for the error context to the bucket.
+ */
+TEST_P(EPBucketTestCouchstore, LoadVBucketFailureErrorContextNotInBucket) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucket(vbid);
+
+    nlohmann::json manifest;
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+    const auto uuid = manifest.at("uuid").get<std::string>();
+    const auto snap = std::filesystem::path(test_dbname) / "snapshots" / uuid;
+
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = engine->deleteVBucket(*cookie, vbid, true);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
+    }
+
+    // Replace the snapshot file with garbage so that mounting it fails
+    std::filesystem::remove(snap / "0.couch.1");
+    {
+        std::ofstream file(snap / "0.couch.1", std::ios::binary);
+        file << std::string(8192, 'x');
+    }
+
+    const nlohmann::json meta{{"use_snapshot", "fbr"}};
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->setVBucketState(
+                    vbid, vbucket_state_active, &meta, TransferVB::No, cookie));
+
+    const auto& client = engine->getArenaMallocClient();
+    const auto baseline = cb::ArenaMalloc::getPreciseAllocated(client);
+    runNextTask(taskQ, "Loading VBucket vb:0");
+    EXPECT_THAT(cookie->getErrorContext(),
+                ::testing::HasSubstr("VBucketLoadingTask::mountVBucket"));
+    EXPECT_EQ(baseline, cb::ArenaMalloc::getPreciseAllocated(client));
+
+    EXPECT_EQ(
+            cb::engine_errc::failed,
+            store->setVBucketState(
+                    vbid, vbucket_state_active, &meta, TransferVB::No, cookie));
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
