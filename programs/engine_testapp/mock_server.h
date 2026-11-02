@@ -68,3 +68,9 @@ void mock_set_dcp_snapshot_marker_hps_enabled(bool value);
 void mock_set_dcp_snapshot_marker_purge_seqno_enabled(bool value);
 
 void mock_set_magma_blind_write_optimisation_enabled(bool enabled);
+
+/**
+ * Set the value returned by ServerCoreIface::isProcessShuttingDown(), which
+ * defaults to false. Tests which set this must restore it.
+ */
+void mock_set_process_shutting_down(bool value);

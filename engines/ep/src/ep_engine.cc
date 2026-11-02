@@ -56,6 +56,7 @@
 #include <cblogger/logger.h>
 #include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
+#include <folly/Portability.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <mcbp/codec/with_meta_options.h>
 #include <memcached/audit_interface.h>
@@ -2259,6 +2260,18 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
         // etc.) have stopped.
         if (optimise) {
             stats.skipStoredValueAndBlobDeleteAccounting = true;
+        }
+
+        // If the process is exiting don't spend O(n) time freeing every
+        // StoredValue, the process exit will reclaim the memory. Not done for
+        // sanitizer builds, where the leak would be reported, or when the
+        // bucket destroy optimisations are disabled.
+        if (optimise && !folly::kIsSanitize &&
+            serverApi->core->isProcessShuttingDown()) {
+            EP_LOG_INFO_RAW(
+                    "EventuallyPersistentEngine::destroyInner(): Process is "
+                    "shutting down, releasing HashTables without freeing");
+            kvBucket->releaseHashTablesForProcessExit();
         }
 
         // Need to reset the kvBucket as we need our thread local engine ptr to

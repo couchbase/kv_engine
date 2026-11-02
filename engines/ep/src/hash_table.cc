@@ -24,6 +24,7 @@
 #include <utilities/logtags.h>
 #include <chrono>
 #include <cstring>
+#include <tuple>
 #include <utility>
 
 static const std::array<uint32_t, 30> prime_size_table{
@@ -197,6 +198,16 @@ void HashTable::clearForShutdown() {
     for (auto* table : {&values, &resizingTemporaryValues}) {
         for (auto& chain : *table) {
             chain.reset();
+        }
+    }
+}
+
+void HashTable::releaseForProcessExit() {
+    setActiveState(false);
+    for (auto* table : {&values, &resizingTemporaryValues}) {
+        for (auto& chain : *table) {
+            // Intentionally leaked, the process exit reclaims the memory.
+            std::ignore = chain.release();
         }
     }
 }

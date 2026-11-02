@@ -15,6 +15,7 @@
 #include "environment.h"
 #include "mc_time.h"
 #include "network_interface_manager.h"
+#include "server_lifecycle.h"
 #include "settings.h"
 #include <executor/executorpool.h>
 #include <memcached/document_expired.h>
@@ -101,6 +102,10 @@ struct ServerCoreApi : public ServerCoreIface {
 
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return Settings::instance().getSnapshotDownloadFadvise();
+    }
+
+    bool isProcessShuttingDown() const override {
+        return is_memcached_shutting_down();
     }
 };
 

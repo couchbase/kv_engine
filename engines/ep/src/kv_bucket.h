@@ -84,6 +84,13 @@ public:
 
     void deinitialize() override;
 
+    /**
+     * Release (intentionally leak) the contents of the HashTable of every
+     * vbucket, see HashTable::releaseForProcessExit. For use only when the
+     * process is exiting.
+     */
+    void releaseHashTablesForProcessExit();
+
     cb::engine_errc set(Item& item,
                         CookieIface* cookie,
                         const std::optional<uint64_t>& requiredVbucketUuid = {},

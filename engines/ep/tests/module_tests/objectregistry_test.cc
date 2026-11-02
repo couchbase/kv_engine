@@ -25,6 +25,8 @@
 #include "vbucket.h"
 
 #include <executor/fake_executorpool.h>
+#include <folly/Portability.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <spdlog/async.h>
 
 #include <optional>
@@ -343,6 +345,7 @@ protected:
     }
 
     void TearDown() override {
+        mock_set_process_shutting_down(false);
         vb.reset();
         ObjectRegistryTest::TearDown();
     }
@@ -386,6 +389,45 @@ TEST_F(DestroyPopulatedBucketTest, AccountsWithoutOptimisations) {
     vb.reset();
     engine->destroyInner(false);
     EXPECT_EQ(baselineNumSV, stats.getNumStoredVal());
+}
+
+// Check that destroying a bucket while the process is shutting down releases
+// the HashTables. The test keeps the VBucket alive so that the HashTable can
+// be inspected after destroyInner() has destroyed the KVBucket. The lookups
+// use TrackReference::No, as updating the frequency counter calls back into
+// the (destroyed) KVBucket.
+TEST_F(DestroyPopulatedBucketTest, ProcessShuttingDownReleasesHashTables) {
+    if (folly::kIsSanitize) {
+        GTEST_SKIP() << "Sanitizer builds don't release the HashTables";
+    }
+    const auto key = makeStoredDocKey("0");
+    mock_set_process_shutting_down(true);
+    engine->destroyInner(false);
+    // Released, which deactivates the HashTable
+    EXPECT_THROW(vb->ht.findForRead(key, TrackReference::No), std::logic_error);
+}
+
+// Check that a bucket deletion (the process keeps running) does not release
+// the HashTables.
+TEST_F(DestroyPopulatedBucketTest, ProcessRunningKeepsHashTables) {
+    const auto key = makeStoredDocKey("0");
+    engine->destroyInner(false);
+    EXPECT_TRUE(vb->ht.findForRead(key, TrackReference::No).storedValue);
+}
+
+// Check that the HashTables are not released at process shutdown when
+// bucket_destroy_optimisations is disabled.
+TEST_F(DestroyPopulatedBucketTest,
+       ProcessShuttingDownWithoutOptimisationsKeepsHashTables) {
+    const auto key = makeStoredDocKey("0");
+    std::string msg;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("bucket_destroy_optimisations", "false", msg))
+            << msg;
+    mock_set_process_shutting_down(true);
+    engine->destroyInner(false);
+    EXPECT_TRUE(vb->ht.findForRead(key, TrackReference::No).storedValue);
 }
 
 TEST_F(ObjectRegistryTest, CompressionValueStatsTest) {

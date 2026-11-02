@@ -145,4 +145,11 @@ struct ServerCoreIface {
 
     /// Get the IO hint to use for files written as part of snapshot downloads.
     virtual cb::io::IoHint getSnapshotDownloadFadvise() const = 0;
+
+    /**
+     * Is the process shutting down? When true the process is going to exit
+     * once the buckets have been destroyed, so a bucket can skip freeing
+     * memory which the process exit will reclaim.
+     */
+    virtual bool isProcessShuttingDown() const = 0;
 };

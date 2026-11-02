@@ -143,6 +143,7 @@ static bool dcp_snapshot_marker_hps_enabled;
 static bool dcp_snapshot_marker_purge_seqno_enabled;
 static bool sync_writes_return_committed_seqno;
 static std::atomic_bool magma_blind_write_optimisation_enabled;
+static std::atomic_bool process_shutting_down;
 
 void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
     dcp_disconnect_when_stuck_timeout = timeout;
@@ -170,6 +171,10 @@ void mock_set_dcp_snapshot_marker_purge_seqno_enabled(bool value) {
 
 void mock_set_magma_blind_write_optimisation_enabled(bool enabled) {
     magma_blind_write_optimisation_enabled = enabled;
+}
+
+void mock_set_process_shutting_down(bool value) {
+    process_shutting_down = value;
 }
 
 struct MockServerCoreApi : public ServerCoreIface {
@@ -250,6 +255,10 @@ struct MockServerCoreApi : public ServerCoreIface {
 
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
+    }
+
+    bool isProcessShuttingDown() const override {
+        return process_shutting_down;
     }
 };
 

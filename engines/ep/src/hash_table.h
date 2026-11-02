@@ -762,6 +762,14 @@ public:
     void clear(bool deactivate = false);
 
     /**
+     * Deactivate the hash table and release (intentionally leak) all of the
+     * StoredValues, without visiting them. For use only when the process is
+     * exiting, where the process exit reclaims the memory, avoiding the O(n)
+     * cost of destroying every StoredValue. Updates no stats.
+     */
+    void releaseForProcessExit();
+
+    /**
      * Get the number of times this hash table has been resized.
      */
     size_t getNumResizes() const {

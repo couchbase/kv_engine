@@ -566,6 +566,15 @@ void KVBucket::deinitialize() {
                                             stats.forceShutdown);
 }
 
+void KVBucket::releaseHashTablesForProcessExit() {
+    for (const auto vbid : vbMap.getBuckets()) {
+        auto vb = vbMap.getBucket(vbid);
+        if (vb) {
+            vb->ht.releaseForProcessExit();
+        }
+    }
+}
+
 KVBucket::~KVBucket() {
     EP_LOG_INFO_RAW("Deleting vb_mutexes");
     EP_LOG_INFO_RAW("Deleting defragmenterTasks");

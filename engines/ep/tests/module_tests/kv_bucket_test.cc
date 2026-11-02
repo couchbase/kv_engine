@@ -1769,6 +1769,34 @@ TEST_P(KVBucketParamTest, GetLockedExpiryNoOverflowSucceeds) {
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 
+// Test that releaseHashTablesForProcessExit deactivates every vbucket's
+// HashTable, and that the bucket can then be destroyed (vbucket, sequence list
+// and HashTable destructors run against the released HashTables).
+TEST_P(KVBucketParamTest, ReleaseHashTablesForProcessExit) {
+    if (folly::kIsSanitize) {
+        GTEST_SKIP() << "The release intentionally leaks, which a sanitizer "
+                        "would report";
+    }
+
+    std::vector<StoredDocKey> keys;
+    for (int index = 0; index < 10; ++index) {
+        keys.push_back(makeStoredDocKey("key" + std::to_string(index)));
+        store_item(vbid, keys.back(), "value");
+    }
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    for (const auto& key : keys) {
+        ASSERT_TRUE(vb->ht.findForRead(key).storedValue);
+    }
+
+    store->releaseHashTablesForProcessExit();
+
+    // Deactivated so any further use of the HashTable fails
+    EXPECT_THROW(vb->ht.findForRead(keys.front()), std::logic_error);
+    // TearDown destroys the bucket, which must cope with the released
+    // HashTables.
+}
+
 // Test that unlock correctly returns ESyncWriteInProgress if targetted at
 // a key which has a prepared SyncWrite in progress.
 TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {

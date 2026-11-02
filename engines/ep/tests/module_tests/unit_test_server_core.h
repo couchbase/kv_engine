@@ -116,4 +116,8 @@ public:
     cb::io::IoHint getSnapshotDownloadFadvise() const override {
         return cb::io::IoHint::Normal;
     }
+
+    bool isProcessShuttingDown() const override {
+        return false;
+    }
 };
