@@ -90,3 +90,28 @@ size_t EngineFixture::flushAllItems(Vbid vbid) {
     } while (moreAvailable == EPBucket::MoreAvailable::Yes);
     return itemsFlushed;
 }
+
+void EngineFixture::runVBucketDeletionTask(Vbid vbid) {
+    using namespace std::string_view_literals;
+    const auto taskName = fmt::format("Removing (dead) {} from memory and disk",
+                                      vbid.to_string());
+    const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::minutes(2);
+    while (true) {
+        try {
+            executorPool->runNextTask(TaskType::AuxIO, taskName);
+            return;
+        } catch (const std::logic_error& ex) {
+            if (ex.what() != "CheckedExecutor failed fetchNextTask"sv) {
+                throw;
+            }
+        }
+        if (std::chrono::steady_clock::now() > deadline) {
+            throw std::runtime_error(fmt::format(
+                    "EngineFixture::runVBucketDeletionTask(): Timed out "
+                    "waiting for \"{}\" to be scheduled",
+                    taskName));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}

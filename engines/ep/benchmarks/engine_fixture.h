@@ -34,6 +34,21 @@ protected:
     /// Flush all items in the vBucket to disk.
     size_t flushAllItems(Vbid vbid);
 
+    /**
+     * Run the deferred deletion task for the given (already deleted)
+     * vBucket.
+     *
+     * The deletion task is only scheduled once the last reference to the
+     * VBucket is released, which may happen on a background thread (e.g. a
+     * magma implicit compaction holding a CompactionContext). Wait for the
+     * task to be scheduled before running it.
+     *
+     * @param vbid The vBucket which was deleted
+     * @throws std::runtime_error if the task isn't scheduled within the
+     *         timeout
+     */
+    void runVBucketDeletionTask(Vbid vbid);
+
     SynchronousEPEngineUniquePtr engine;
     CookieIface* cookie = nullptr;
     const Vbid vbid = Vbid(0);
