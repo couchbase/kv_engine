@@ -4300,6 +4300,31 @@ TEST_P(EphemeralCheckpointTest, Expel_OpenCheckpointNoCursor_TwoItems) {
     EXPECT_EQ(0, manager->getNumOfCursors());
 }
 
+// MB-69574: Only cursors in closed checkpoints can be dropped. With only the
+// open checkpoint, getListOfCursorsToDrop() returns early without scanning the
+// cursors. Check the result both with and without a closed checkpoint.
+TEST_P(EphemeralCheckpointTest, CursorsToDrop_OnlyOpenCheckpoint) {
+    auto regRes = manager->registerCursorBySeqno(
+            DCP_CURSOR_PREFIX + std::to_string(1),
+            0 /*lastProcessedSeqno, stream from the beginning*/,
+            CheckpointCursor::Droppable::Yes);
+    const auto dcpCursor = regRes.getCursor().lock();
+    ASSERT_TRUE(dcpCursor);
+
+    // Only the open checkpoint: nothing can be dropped
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(0, manager->getListOfCursorsToDrop().size());
+
+    // Close the checkpoint. The cursor is not at the end of it, so it stays
+    // in the now closed checkpoint and can be dropped.
+    ASSERT_TRUE(queueNewItem("key1"));
+    manager->createNewCheckpoint();
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+    const auto toDrop = manager->getListOfCursorsToDrop();
+    ASSERT_EQ(1, toDrop.size());
+    EXPECT_EQ(dcpCursor, toDrop.front().lock());
+}
+
 TEST_P(CheckpointTest, MB_47134_vbstate_at_backup_cursor) {
     if (!persistent()) {
         GTEST_SKIP();

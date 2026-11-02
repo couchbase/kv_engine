@@ -528,6 +528,50 @@ BENCHMARK_DEFINE_F(CheckpointBench, RegisterCursors)
     state.SetItemsProcessed(state.iterations() * numCursors);
 }
 
+/**
+ * Benchmark CM::getListOfCursorsToDrop() when no cursor can be dropped: the
+ * persistence cursor is still in the oldest checkpoint and numCursors DCP
+ * cursors are in the open checkpoint. That is the case of a slow flusher under
+ * checkpoint memory pressure (MB-69574).
+ */
+BENCHMARK_DEFINE_F(CheckpointBench, GetCursorsToDropNoneEligible)
+(benchmark::State& state) {
+    const size_t numCursors = state.range(0);
+    auto& manager = *engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    // The cursor names don't matter here, the function doesn't look at them
+    std::vector<CursorRegResult> results;
+    results.reserve(numCursors);
+    for (size_t cursorId = 0; cursorId < numCursors; ++cursorId) {
+        results.push_back(manager.registerCursorBySeqno(
+                "dcp_cursor_" + std::to_string(cursorId),
+                0 /*lastProcessedSeqno, stream from the beginning*/,
+                CheckpointCursor::Droppable::Yes));
+    }
+
+    // checkpoint_max_size=1 in this fixture, so the second item goes into a
+    // new checkpoint. That gives a closed checkpoint before the open one.
+    queueItem("key1", "value");
+    queueItem("key2", "value");
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+
+    // Move the DCP cursors into the open checkpoint. Nothing is flushed, so
+    // the persistence cursor stays in the oldest (closed) checkpoint.
+    std::vector<queued_item> items;
+    for (auto& result : results) {
+        items.clear();
+        manager.getNextItemsForDcp(*result.getCursor().lock(), items);
+    }
+
+    // No DCP cursor is in a checkpoint before the persistence cursor's one
+    ASSERT_EQ(0, manager.getListOfCursorsToDrop().size());
+
+    while (state.KeepRunning()) {
+        auto toDrop = manager.getListOfCursorsToDrop();
+        benchmark::DoNotOptimize(toDrop);
+    }
+}
+
 BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
 (benchmark::State& state) {
     const auto ckptType = CheckpointType(state.range(0));
@@ -707,6 +751,14 @@ BENCHMARK_REGISTER_F(CheckpointBench, GetLowestCursor)
 // Up to 10000 as Totoro allows up to 10200 collections per bucket, so a client
 // with one stream per collection can open ~10k streams on one vBucket.
 BENCHMARK_REGISTER_F(CheckpointBench, RegisterCursors)
+        ->Args({1})
+        ->Args({10})
+        ->Args({100})
+        ->Args({1000})
+        ->Args({10000});
+
+// Arguments: numCursors. Same range as RegisterCursors.
+BENCHMARK_REGISTER_F(CheckpointBench, GetCursorsToDropNoneEligible)
         ->Args({1})
         ->Args({10})
         ->Args({100})

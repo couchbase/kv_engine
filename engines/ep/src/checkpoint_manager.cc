@@ -867,6 +867,13 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
 
         getListOfCursorsToDropHook();
 
+        // Only cursors in a checkpoint before the special-cursor's one can be
+        // dropped. If the special-cursor is in the oldest checkpoint there are
+        // none, so skip the scan of all cursors.
+        if (specialCursor.getCheckpoint() == checkpointList.begin()) {
+            return {};
+        }
+
         for (const auto& pair : cursors) {
             const auto cursor = pair.second;
             // Note: Strict condition here.
@@ -887,6 +894,12 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
         // Ephemeral
         // There's no persistence cursor, so we want just to remove all cursors
         // that reside in the closed checkpoints.
+
+        // If the open checkpoint is the only one there are no closed
+        // checkpoints, so skip the scan of all cursors.
+        if (checkpointList.size() == 1) {
+            return {};
+        }
 
         const auto id = getOpenCheckpointId(lh);
         for (const auto& pair : cursors) {
