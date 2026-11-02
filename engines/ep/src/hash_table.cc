@@ -20,6 +20,7 @@
 #include <folly/lang/Assume.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/cb_arena_malloc.h>
 #include <utilities/logtags.h>
 #include <chrono>
 #include <cstring>
@@ -166,11 +167,38 @@ HashTable::~HashTable() {
     std::unique_lock lh(visitorMutex, std::try_to_lock);
     Expects(lh.owns_lock());
 
+    if (stats.isShutdown && stats.bucketDestroyOptimisations) {
+        clearForShutdown();
+        return;
+    }
+
     stats.coreLocal.get()->memOverhead -= getMemoryOverhead();
 
     // Use unlocked clear for the destructor, avoids lock inversions on VBucket
     // delete
     clear_UNLOCKED(true);
+}
+
+void HashTable::clearForShutdown() {
+    // The engine is shutting down and the stats which the destructor and
+    // clear_UNLOCKED would update (memOverhead, collection mem_used,
+    // valueStats and the memChanged callback) are about to be destroyed. Skip
+    // all of that and only free the chains. Note the per StoredValue/Blob
+    // accounting is also skipped by ObjectRegistry once the engine has set
+    // EPStats::skipStoredValueAndBlobDeleteAccounting.
+    setActiveState(false);
+
+    // Also skip the arena memory tracking of every free: the arena's tracked
+    // memory is not read again and is reset when the arena is next
+    // registered. The bucket's client stays selected, so the memory is still
+    // freed to its arena (via its tcache). Scoped to just freeing the chains
+    // (StoredValues and Blobs) so nothing else is left untracked.
+    cb::NoArenaTrackingGuard noArenaTracking;
+    for (auto* table : {&values, &resizingTemporaryValues}) {
+        for (auto& chain : *table) {
+            chain.reset();
+        }
+    }
 }
 
 bool HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,

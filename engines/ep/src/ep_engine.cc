@@ -2237,6 +2237,9 @@ void EventuallyPersistentEngine::setConflictResolutionMode(
 }
 
 void EventuallyPersistentEngine::destroyInner(bool force) {
+    // Read once, so every part of the teardown agrees.
+    const bool optimise = configuration.isBucketDestroyOptimisations();
+    stats.bucketDestroyOptimisations = optimise;
     stats.forceShutdown = force;
     stats.isShutdown = true;
 
@@ -2248,6 +2251,15 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
         // deinitialize() will shutdown the flusher, bgfetcher and warmup tasks
         // then take a snapshot the stats.
         kvBucket->deinitialize();
+
+        // The stats are destroyed along with the engine, so skip the
+        // per-object accounting of the bulk freeing of StoredValues and Blobs
+        // which follows (e.g. HashTable destruction).
+        // Done after deinitialize() so the bucket's tasks (flusher, bgfetcher
+        // etc.) have stopped.
+        if (optimise) {
+            stats.skipStoredValueAndBlobDeleteAccounting = true;
+        }
 
         // Need to reset the kvBucket as we need our thread local engine ptr to
         // be valid when destructing Items in CheckpointManagers but we need to

@@ -243,6 +243,13 @@
                 }
             }
         },
+        "bucket_destroy_optimisations": {
+            "added": "ponyo",
+            "default": "true",
+            "descr": "When the bucket is destroyed, skip work which only updates statistics about to be destroyed with it (e.g. the accounting of every item freed from the HashTables). Disable to destroy the bucket as before these optimisations.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "bucket_type": {
             "added": "7.0.0",
             "default": "persistent",

@@ -15,10 +15,14 @@
 
 #include "bucket_logger.h"
 #include "bucket_logger_test.h"
+#include "hash_table.h"
 #include "item.h"
+#include "kv_bucket.h"
 #include "objectregistry.h"
+#include "stored_value_factories.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "vbucket.h"
 
 #include <executor/fake_executorpool.h>
 #include <spdlog/async.h>
@@ -196,6 +200,192 @@ TEST_F(ObjectRegistryTest, BlobStats) {
     EXPECT_EQ(baselineSize, engine->getEpStats().getTotalValueSize());
     EXPECT_EQ(baselineNum, engine->getEpStats().getNumBlob());
     EXPECT_EQ(baselineOverhead, engine->getEpStats().getBlobOverhead());
+}
+
+// Check that EPStats::skipStoredValueAndBlobDeleteAccounting disables the stats
+// accounting of StoredValue and Blob deletion (but not Item deletion).
+TEST_F(ObjectRegistryTest, SkipStoredValueAndBlobDeleteAccounting) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    auto& stats = engine->getEpStats();
+    // Create and destroy one object of each type, returning by how much each
+    // count changed. Note creating the StoredValue also creates an Item and
+    // a Blob (the value) which must be accounted for by the caller.
+    struct Deltas {
+        int64_t blob;
+        int64_t sv;
+        int64_t item;
+    };
+    auto createAndDestroy = [&stats]() {
+        const int64_t numBlob = stats.getNumBlob();
+        const int64_t numSV = stats.getNumStoredVal();
+        const int64_t numItem = stats.getNumItem();
+        // Creates and destroys 1 Item, 1 StoredValue and 2 Blobs.
+        StoredValueFactory()(make_item(Vbid(0), makeStoredDocKey("key"), ""),
+                             nullptr)
+                .reset();
+        std::unique_ptr<Blob>(Blob::New(1)).reset();
+        return Deltas{.blob = int64_t(stats.getNumBlob()) - numBlob,
+                      .sv = int64_t(stats.getNumStoredVal()) - numSV,
+                      .item = int64_t(stats.getNumItem()) - numItem};
+    };
+
+    auto deltas = createAndDestroy();
+    EXPECT_EQ(0, deltas.blob);
+    EXPECT_EQ(0, deltas.sv);
+    EXPECT_EQ(0, deltas.item);
+
+    stats.skipStoredValueAndBlobDeleteAccounting = true;
+    deltas = createAndDestroy();
+    EXPECT_EQ(2, deltas.blob);
+    EXPECT_EQ(1, deltas.sv);
+    EXPECT_EQ(0, deltas.item);
+}
+
+// Check that when the engine is being destroyed (isShutdown and StoredValue/
+// Blob deletion accounting skipped, as destroyInner does), destroying a
+// HashTable skips the per-item stats accounting.
+TEST_F(ObjectRegistryTest, HashTableDestroySkipsAccounting) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    auto& stats = engine->getEpStats();
+    const auto baselineNumSV = stats.getNumStoredVal();
+    const int numItems = 10;
+    auto ht = std::make_unique<HashTable>(
+            stats, std::make_unique<StoredValueFactory>(), 5, 1, 0, 10);
+    for (int index = 0; index < numItems; ++index) {
+        auto item = make_item(
+                Vbid(0), makeStoredDocKey(std::to_string(index)), "value");
+        ASSERT_EQ(MutationStatus::WasClean, ht->set(item));
+    }
+    ASSERT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+
+    stats.isShutdown = true;
+    stats.bucketDestroyOptimisations = true;
+    stats.skipStoredValueAndBlobDeleteAccounting = true;
+    ht.reset();
+    // StoredValue deletion was not accounted
+    EXPECT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+}
+
+// Check that with the bucket destroy optimisations disabled, destroying a
+// HashTable at shutdown performs all of the per-item stats accounting.
+TEST_F(ObjectRegistryTest, HashTableDestroyWithoutOptimisations) {
+    if (!engine->getEpStats().isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    auto& stats = engine->getEpStats();
+    const auto baselineNumSV = stats.getNumStoredVal();
+    const int numItems = 10;
+    auto ht = std::make_unique<HashTable>(
+            stats, std::make_unique<StoredValueFactory>(), 5, 1, 0, 10);
+    for (int index = 0; index < numItems; ++index) {
+        auto item = make_item(
+                Vbid(0), makeStoredDocKey(std::to_string(index)), "value");
+        ASSERT_EQ(MutationStatus::WasClean, ht->set(item));
+    }
+    ASSERT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+
+    stats.isShutdown = true;
+    stats.bucketDestroyOptimisations = false;
+    ht.reset();
+    // StoredValue deletion was accounted
+    EXPECT_EQ(baselineNumSV, stats.getNumStoredVal());
+}
+
+// Check that destroyInner() applies the (dynamic) bucket_destroy_optimisations
+// configuration parameter.
+TEST_F(ObjectRegistryTest, DestroyInnerHonoursBucketDestroyOptimisations) {
+    auto& stats = engine->getEpStats();
+    std::string msg;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("bucket_destroy_optimisations", "false", msg))
+            << msg;
+    engine->destroyInner(false);
+    EXPECT_TRUE(stats.isShutdown);
+    EXPECT_FALSE(stats.bucketDestroyOptimisations);
+    EXPECT_FALSE(stats.skipStoredValueAndBlobDeleteAccounting);
+}
+
+TEST_F(ObjectRegistryTest, DestroyInnerAppliesBucketDestroyOptimisations) {
+    auto& stats = engine->getEpStats();
+    ASSERT_TRUE(engine->getConfiguration().isBucketDestroyOptimisations());
+    engine->destroyInner(false);
+    EXPECT_TRUE(stats.isShutdown);
+    EXPECT_TRUE(stats.bucketDestroyOptimisations);
+    EXPECT_TRUE(stats.skipStoredValueAndBlobDeleteAccounting);
+}
+
+/**
+ * Tests which destroy (destroyInner) a bucket with a populated HashTable.
+ */
+class DestroyPopulatedBucketTest : public ObjectRegistryTest {
+protected:
+    void SetUp() override {
+        ObjectRegistryTest::SetUp();
+        baselineNumSV = engine->getEpStats().getNumStoredVal();
+        ASSERT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->setVBucketState(vbid,
+                                                         vbucket_state_active));
+        vb = engine->getKVBucket()->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        for (int index = 0; index < numItems; ++index) {
+            auto item = make_item(
+                    vbid, makeStoredDocKey(std::to_string(index)), "value");
+            ASSERT_EQ(MutationStatus::WasClean, vb->ht.set(item));
+        }
+    }
+
+    void TearDown() override {
+        vb.reset();
+        ObjectRegistryTest::TearDown();
+    }
+
+    const Vbid vbid{0};
+    const int numItems{10};
+    size_t baselineNumSV{0};
+    VBucketPtr vb;
+};
+
+// Check that destroying a bucket frees the HashTable via the optimised path,
+// which skips the accounting of each StoredValue.
+TEST_F(DestroyPopulatedBucketTest, SkipsAccounting) {
+    auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+    ASSERT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+
+    // The KVBucket must be the only owner so that destroyInner destroys the
+    // VBucket and its HashTable.
+    vb.reset();
+    engine->destroyInner(false);
+    EXPECT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+}
+
+// Check that with bucket_destroy_optimisations disabled, destroying a bucket
+// accounts for every StoredValue it frees.
+TEST_F(DestroyPopulatedBucketTest, AccountsWithoutOptimisations) {
+    auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+    std::string msg;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setFlushParam("bucket_destroy_optimisations", "false", msg))
+            << msg;
+    ASSERT_EQ(baselineNumSV + numItems, stats.getNumStoredVal());
+
+    vb.reset();
+    engine->destroyInner(false);
+    EXPECT_EQ(baselineNumSV, stats.getNumStoredVal());
 }
 
 TEST_F(ObjectRegistryTest, CompressionValueStatsTest) {

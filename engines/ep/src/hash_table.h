@@ -1982,6 +1982,13 @@ protected:
     void clear_UNLOCKED(bool deactivate);
 
     /**
+     * Destructor variant of clear_UNLOCKED for when the engine is shutting
+     * down (EPStats::isShutdown) with EPStats::bucketDestroyOptimisations.
+     * Frees all StoredValues but skips all stats updates.
+     */
+    void clearForShutdown();
+
+    /**
      * Update the frequency counter of a given stored value.
      * @param v  reference to a value in the hash table whose frequency counter
      *           is to be updated.

@@ -71,6 +71,7 @@ static const std::unordered_set<std::string_view> flushParamSet{
         "secondary_warmup_min_items_threshold",
         "warmup_behavior",
         "bfilter_enabled",
+        "bucket_destroy_optimisations",
         "bfilter_residency_threshold",
         "item_compressor_interval",
         "item_compressor_chunk_duration",

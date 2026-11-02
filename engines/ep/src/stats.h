@@ -593,6 +593,23 @@ public:
 
     std::atomic<bool> isShutdown;
 
+    /**
+     * Are the optimisations of destroying the bucket enabled (see the
+     * bucket_destroy_optimisations configuration parameter)? Set when the
+     * engine starts to be destroyed, along with isShutdown.
+     */
+    std::atomic<bool> bucketDestroyOptimisations{false};
+
+    /**
+     * Skip the stats accounting of ObjectRegistry::onDelete{StoredValue,Blob}
+     * (memory is still freed as normal). Set when the engine is being
+     * destroyed, where the stats being updated are about to be destroyed and
+     * the per-object accounting (e.g. malloc_usable_size) is pure overhead.
+     * Read on every StoredValue/Blob deletion so placed next to the
+     * read-mostly isShutdown.
+     */
+    std::atomic<bool> skipStoredValueAndBlobDeleteAccounting{false};
+
     Counter rollbackCount;
 
     /**

@@ -10,9 +10,12 @@
  */
 
 #include "configuration.h"
+#include "engine_fixture.h"
+#include "ep_engine.h"
 #include "hash_table.h"
 #include "item.h"
 #include "module_tests/test_helpers.h"
+#include "objectregistry.h"
 #include "stats.h"
 #include "stored_value_factories.h"
 
@@ -125,6 +128,47 @@ public:
 
     auto& getValueStats() {
         return ht.valueStats;
+    }
+
+    /**
+     * Statistics of the layout of a HashTable, in the order the StoredValues
+     * are destroyed (hash bucket index then chain order).
+     */
+    struct DestroyOrderStats {
+        /// Number of non-empty hash buckets
+        size_t usedBuckets = 0;
+        /// Longest chain
+        size_t maxChain = 0;
+        /// Number of StoredValues within 4KiB of the previous one destroyed
+        size_t nearPrevious = 0;
+        size_t numItems = 0;
+    };
+
+    static DestroyOrderStats getDestroyOrderStats(const HashTable& table) {
+        DestroyOrderStats rv;
+        const StoredValue* previous = nullptr;
+        for (const auto& chain : table.values) {
+            size_t length = 0;
+            for (StoredValue* sv = chain.get().get(); sv;
+                 sv = sv->getNext().get().get()) {
+                ++length;
+                if (previous) {
+                    const auto distance =
+                            std::abs(reinterpret_cast<const char*>(sv) -
+                                     reinterpret_cast<const char*>(previous));
+                    if (distance < 4096) {
+                        ++rv.nearPrevious;
+                    }
+                }
+                previous = sv;
+            }
+            if (length) {
+                ++rv.usedBuckets;
+                rv.maxChain = std::max(rv.maxChain, length);
+                rv.numItems += length;
+            }
+        }
+        return rv;
     }
 
     EPStats stats;
@@ -434,6 +478,105 @@ BENCHMARK_DEFINE_F(HashTableBench, MultiCollectionClear)
     }
 }
 
+/**
+ * Benchmarks destroying a populated HashTable, the dominant cost of destroying
+ * a bucket with many resident items. Unlike HashTableBench this runs against
+ * an engine, so the ObjectRegistry per-object accounting of StoredValue and
+ * Blob deletion is included.
+ *
+ * Arguments:
+ *  shutdown: 0 - destroy as for vbucket deletion (all stats updated)
+ *            1 - destroy as for engine destruction (EPStats::isShutdown with
+ *                bucketDestroyOptimisations, and StoredValue/Blob delete
+ *                accounting skipped, as
+ *                EventuallyPersistentEngine::destroyInner does)
+ *  collections: number of collections the items are spread across
+ *  scrambled: 0 - sequential keys (key0, key1, ...)
+ *             1 - scrambled keys, so the hash bucket order of the items has
+ *                 no relation to their allocation order
+ *
+ * The HashTable is sized as the resizer would size it (a prime from
+ * getPreferredSizeForItemCount). Counters report the layout in destroy order:
+ *  chain_mean: mean chain length of the non-empty hash buckets
+ *  chain_max: longest chain
+ *  near_prev: fraction of StoredValues within 4KiB of the previously
+ *             destroyed StoredValue (i.e. likely to be cache/TLB friendly)
+ */
+class HashTableDestroyBench : public EngineFixture {
+public:
+    static constexpr size_t numItems = 1000000;
+};
+
+BENCHMARK_DEFINE_F(HashTableDestroyBench, Destroy)(benchmark::State& state) {
+    const bool shutdown = state.range(0) != 0;
+    const size_t numCollections = state.range(1);
+    const bool scrambled = state.range(2) != 0;
+
+    ObjectRegistry::onSwitchThread(engine.get());
+    auto& stats = engine->getEpStats();
+
+    std::vector<CollectionID> collections;
+    CollectionIDType counter = CollectionID::Default;
+    while (collections.size() < numCollections) {
+        if (!CollectionID::isReserved(counter)) {
+            collections.emplace_back(counter);
+            stats.trackCollectionStats(counter);
+        }
+        ++counter;
+    }
+
+    if (shutdown) {
+        stats.isShutdown = true;
+        stats.bucketDestroyOptimisations = true;
+        stats.skipStoredValueAndBlobDeleteAccounting = true;
+    }
+
+    // Vary value size across items, as for HashTableBench::Clear
+    const auto data = std::string(256, 'x');
+    bool layoutReported = false;
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+        auto ht = std::make_unique<HashTable>(
+                stats,
+                std::make_unique<StoredValueFactory>(),
+                Configuration().getHtSize(),
+                Configuration().getHtLocks(),
+                Configuration().getFreqCounterIncrementFactor(),
+                Configuration().getHtTempItemsAllowedPercent());
+        ht->resizeInOneStep(ht->getPreferredSizeForItemCount(numItems));
+        for (size_t index = 0; index < numItems; index++) {
+            const auto& collection = collections[index % collections.size()];
+            // Multiplying by an odd constant (mod 2^64) keeps keys unique
+            const uint64_t keyNumber =
+                    scrambled ? index * 0x9E3779B97F4A7C15ULL : index;
+            const auto key =
+                    StoredDocKey(fmt::format("key{}", keyNumber), collection);
+            if (ht->set({key, 0, 0, data.data(), (index % data.size()) + 1}) !=
+                MutationStatus::WasClean) {
+                state.SkipWithError("HashTable::set failed");
+                return;
+            }
+        }
+        if (!layoutReported) {
+            layoutReported = true;
+            const auto layout = HashTableBench::getDestroyOrderStats(*ht);
+            state.counters["chain_mean"] =
+                    double(layout.numItems) / double(layout.usedBuckets);
+            state.counters["chain_max"] = double(layout.maxChain);
+            state.counters["near_prev"] =
+                    double(layout.nearPrevious) / double(layout.numItems);
+        }
+        state.ResumeTiming();
+
+        ht.reset();
+    }
+
+    // Leave the engine in a state where it can be destroyed normally
+    stats.isShutdown = false;
+    state.SetItemsProcessed(state.iterations() * numItems);
+    ObjectRegistry::onSwitchThread(nullptr);
+}
+
 BENCHMARK_REGISTER_F(HashTableBench, FindForRead)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems);
@@ -464,3 +607,9 @@ BENCHMARK_REGISTER_F(HashTableBench, Clear)->Iterations(100);
 BENCHMARK_REGISTER_F(HashTableBench, MultiCollectionClear)
         ->Iterations(100)
         ->Range(100, 1000);
+
+BENCHMARK_REGISTER_F(HashTableDestroyBench, Destroy)
+        ->ArgsProduct({{0, 1}, {1, 1000}, {0, 1}})
+        ->ArgNames({"shutdown", "collections", "scrambled"})
+        ->Iterations(5)
+        ->Unit(benchmark::kMillisecond);

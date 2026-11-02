@@ -45,7 +45,12 @@ void ObjectRegistry::onCreateBlob(const Blob* blob) {
 void ObjectRegistry::onDeleteBlob(const Blob* blob) {
     EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
-        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+        auto& stats = engine->getEpStats();
+        if (stats.skipStoredValueAndBlobDeleteAccounting.load(
+                    std::memory_order_relaxed)) {
+            return;
+        }
+        auto& coreLocalStats = stats.coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
         coreLocalStats->blobOverhead -= size - blob->getSize();
@@ -87,7 +92,12 @@ void ObjectRegistry::onUpdateStoredValue(const StoredValue* sv) {
 void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
     EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
-        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+        auto& stats = engine->getEpStats();
+        if (stats.skipStoredValueAndBlobDeleteAccounting.load(
+                    std::memory_order_relaxed)) {
+            return;
+        }
+        auto& coreLocalStats = stats.coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
         coreLocalStats->storedValOverhead -= size - sv->getObjectSize();
