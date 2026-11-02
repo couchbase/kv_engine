@@ -11,7 +11,7 @@ crlnumber        = $dir/crlnumber
 private_key      = @CA_KEY@
 certificate      = @CA_CERT@
 default_md       = sha256
-default_crl_days = 30
+default_crl_days = 365
 preserve         = no
 policy           = policy_anything
 
