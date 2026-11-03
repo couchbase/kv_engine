@@ -382,7 +382,29 @@ cb::engine_errc DcpProducer::streamRequest(
         return ret;
     }
 
-    ret = checkStreamRequestNeedsRollback(req, *vb, filter, rollback_seqno);
+    // Register the stream's cursor up-front (for any stream that will read
+    // from checkpoints). The rollback check uses it to know whether the
+    // stream can be served from memory; the stream then adopts it.
+    // A start_seqno beyond the checkpoint high seqno can't take a cursor
+    // (registerCursorBySeqno throws); the rollback check handles it.
+    // A start_seqno of 0 is never rolled back due to purging, and the stream
+    // may move its start (e.g. to a collection's start seqno), so let the
+    // stream register its own cursor.
+    std::optional<CursorRegResult> preCursor;
+    if (!isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly) &&
+        !isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer) &&
+        req.start_seqno != 0 &&
+        req.start_seqno <= static_cast<uint64_t>(
+                                   vb->checkpointManager->getHighSeqno())) {
+        preCursor = vb->checkpointManager->registerCursorBySeqno(
+                ActiveStream::makeStreamName(getName(), filter.getStreamId()),
+                req.start_seqno,
+                CheckpointCursor::Droppable::Yes);
+    }
+    const bool servedFromMem = preCursor && !preCursor->tryBackfill;
+
+    ret = checkStreamRequestNeedsRollback(
+            req, *vb, filter, rollback_seqno, servedFromMem);
     if (ret != cb::engine_errc::success) {
         return ret;
     }
@@ -416,6 +438,10 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::failed;
     }
 
+    if (preCursor) {
+        std::static_pointer_cast<ActiveStream>(stream)->setPreCursor(
+                std::move(*preCursor));
+    }
     ret = scheduleTasksForStreamRequest(std::move(stream), *vb, streamID);
     if (ret != cb::engine_errc::success) {
         return ret;
@@ -643,7 +669,8 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
         const StreamRequestInfo& req,
         VBucket& vb,
         const Collections::VB::Filter& filter,
-        uint64_t* rollback_seqno) {
+        uint64_t* rollback_seqno,
+        bool servedFromMem) {
     // Timing for failover table as this has an internal mutex
     using cb::tracing::Code;
     ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
@@ -652,9 +679,12 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
 
     auto purgeSeqno = vb.getPurgeSeqno();
     if (isFlagSet(req.flags,
-                  cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)) {
-        // If the client does not care about purged tombstones, we issue
-        // the request as-if the purgeSeqno is zero.
+                  cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones) ||
+        servedFromMem) {
+        // If the client does not care about purged tombstones, or the stream
+        // can be served entirely from the checkpoints (so no purged
+        // tombstones can be missed), we issue the request as-if the
+        // purgeSeqno is zero.
         purgeSeqno = 0;
     }
 

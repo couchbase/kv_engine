@@ -6127,7 +6127,13 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
                         static_cast<int>(high_seqno - 1),
                         "vbucket-seqno");
 
-    wait_for_stat_to_be_gte(h, "ep_items_expelled_from_checkpoints", 2);
+    // Wait for every item up to high_seqno to be expelled, so the stream
+    // request below can't be served from memory and the purge-seqno check
+    // applies.
+    wait_for_stat_to_be_gte(h,
+                            "vb_0:id_1:highest_expelled_seqno",
+                            static_cast<int>(high_seqno),
+                            "checkpoint");
 
     /* DCP stream, expect a rollback to seq 0 */
     DcpStreamCtx ctx1;

@@ -7120,6 +7120,9 @@ TEST_P(STParameterizedBucketTest, DcpRollbackIgnorePurgedSeqnos) {
     store_item(vbid, makeStoredDocKey("key1"), {});
     store_deleted_item(vbid, makeStoredDocKey("key2"), {});
     store_item(vbid, makeStoredDocKey("key3"), {});
+    // Move the items out of the checkpoints so the stream requests below
+    // can't be served from memory and the purge-seqno check applies.
+    store->getVBucket(vbid)->checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     auto vb = store->getVBucket(vbid);

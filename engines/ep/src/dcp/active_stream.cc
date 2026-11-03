@@ -67,7 +67,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
                            MarkerVersion maxMarkerVersion,
                            Collections::VB::Filter f)
-    : ProducerStream(f.getStreamId() ? n + f.getStreamId().to_string() : n,
+    : ProducerStream(makeStreamName(n, f.getStreamId()),
                      p,
                      f.getStreamId(),
                      flags,
@@ -2401,15 +2401,25 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
          */
 
         CursorRegResult registerResult;
-        try {
-            registerResult = vbucket->checkpointManager->registerCursorBySeqno(
-                    name_, inMemoryStart, CheckpointCursor::Droppable::Yes);
-        } catch (std::exception& error) {
-            OBJ_LOG_WARN_CTX(*this,
-                             "Failed to register cursor",
-                             {"error", error.what()});
-            endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
-            return;
+        if (preCursor) {
+            // Use the cursor registered by the producer during the stream
+            // request, so the purge-seqno rollback decision still holds.
+            registerResult = std::move(*preCursor);
+            preCursor.reset();
+        } else {
+            try {
+                registerResult =
+                        vbucket->checkpointManager->registerCursorBySeqno(
+                                name_,
+                                inMemoryStart,
+                                CheckpointCursor::Droppable::Yes);
+            } catch (std::exception& error) {
+                OBJ_LOG_WARN_CTX(*this,
+                                 "Failed to register cursor",
+                                 {"error", error.what()});
+                endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
+                return;
+            }
         }
 
         scheduleBackfillRegisterCursorHook();

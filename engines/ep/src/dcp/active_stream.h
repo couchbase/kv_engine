@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "checkpoint_manager.h"
 #include "collections/vbucket_filter.h"
 #include "dcp/producer_stream.h"
 #include "utilities/testing_hook.h"
@@ -144,6 +145,26 @@ public:
         if (isPending()) {
             transitionState(StreamState::Backfilling);
         }
+    }
+
+    /**
+     * Hand over a cursor registered by the producer during the stream
+     * request, to be used instead of registering a new one when the stream
+     * is first scheduled. Must be called before the stream is published.
+     *
+     * @param result The pre-registered cursor
+     */
+    void setPreCursor(CursorRegResult&& result) {
+        preCursor = std::move(result);
+    }
+
+    /**
+     * @returns the stream name (and so its checkpoint cursor name) for the
+     * given connection name and stream ID.
+     */
+    static std::string makeStreamName(const std::string& connName,
+                                      cb::mcbp::DcpStreamId sid) {
+        return sid ? connName + sid.to_string() : connName;
     }
 
     /// @returns true if state_ is not Dead
@@ -901,6 +922,13 @@ protected:
     void abortScheduleBackfill(bool notifyStream, DcpProducer& producer);
 
     Cursor cursor;
+
+    /**
+     * Cursor registered by the producer during the stream request (to avoid
+     * an unnecessary purge-seqno rollback). Consumed on the first
+     * scheduleBackfill_UNLOCKED.
+     */
+    std::optional<CursorRegResult> preCursor;
 
     // MB-37468: Test only hooks set via Mock class
     TestingHook<> completeBackfillHook;

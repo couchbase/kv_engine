@@ -1088,6 +1088,9 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     for (int i = 0; i <= numItems; ++i) {
         store_item(vbid, std::string("key" + std::to_string(i)), "value");
     }
+    // Remove the items from the checkpoints so the stream requests below
+    // can't be served from memory and the purge-seqno check applies.
+    vb0->checkpointManager->clear();
     uint64_t vbUuid = vb0->failovers->getLatestUUID();
     auto result = doStreamRequest(*producer,
                                   vb0->getId(),
@@ -6577,6 +6580,121 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
             activeStream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
         }
     }
+}
+
+/**
+ * A stream request with start_seqno < purge_seqno must not be rolled back if
+ * the checkpoints still hold every item after start_seqno - no purged
+ * tombstones can be missed when streaming from memory.
+ */
+TEST_P(SingleThreadedActiveStreamTest,
+       NoPurgeRollbackWhenStartSeqnoInCheckpoints) {
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    // Seqnos 1..5, all still in the checkpoints.
+    for (int i = 0; i < 5; ++i) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+    }
+    ASSERT_EQ(5, manager.getHighSeqno());
+    store->getLockedVBucket(vbid)->setPurgeSeqno(4);
+    const auto numCursors = manager.getNumCursors();
+
+    uint64_t rollbackSeqno = 0;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
+                                      0 /*opaque*/,
+                                      vbid,
+                                      2 /*startSeqno*/,
+                                      ~0ULL /*endSeqno*/,
+                                      vb.failovers->getLatestUUID(),
+                                      2 /*snapStartSeqno*/,
+                                      2 /*snapEndSeqno*/,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+
+    // The stream streams from memory using the cursor registered during the
+    // stream request - exactly one new cursor.
+    auto activeStream = producer->findStream(vbid);
+    ASSERT_TRUE(activeStream);
+    EXPECT_TRUE(activeStream->isInMemory());
+    EXPECT_EQ(numCursors + 1, manager.getNumCursors());
+}
+
+/**
+ * A stream request with start_seqno < purge_seqno must still be rolled back
+ * to 0 if the items after start_seqno are no longer in the checkpoints (the
+ * stream would need to backfill from disk where tombstones were purged).
+ */
+TEST_P(SingleThreadedActiveStreamTest,
+       PurgeRollbackWhenStartSeqnoNotInCheckpoints) {
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    for (int i = 0; i < 5; ++i) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+    }
+    // Force seqnos 1..5 out of the checkpoints.
+    flushAndRemoveCheckpoints(vbid);
+    store->getLockedVBucket(vbid)->setPurgeSeqno(4);
+    const auto numCursors = manager.getNumCursors();
+
+    uint64_t rollbackSeqno = 1;
+    EXPECT_EQ(cb::engine_errc::rollback,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
+                                      0 /*opaque*/,
+                                      vbid,
+                                      2 /*startSeqno*/,
+                                      ~0ULL /*endSeqno*/,
+                                      vb.failovers->getLatestUUID(),
+                                      2 /*snapStartSeqno*/,
+                                      2 /*snapEndSeqno*/,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+    EXPECT_EQ(0, rollbackSeqno);
+    // The cursor registered during the stream request has been removed.
+    EXPECT_EQ(numCursors, manager.getNumCursors());
+}
+
+/**
+ * Being served from memory only disables the purge-seqno check - a client
+ * with a diverged history (unknown vb_uuid) must still be rolled back.
+ */
+TEST_P(SingleThreadedActiveStreamTest,
+       HistoryRollbackWhenStartSeqnoInCheckpoints) {
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    for (int i = 0; i < 5; ++i) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+    }
+    ASSERT_EQ(5, manager.getHighSeqno());
+    store->getLockedVBucket(vbid)->setPurgeSeqno(4);
+    const auto numCursors = manager.getNumCursors();
+
+    // A vb_uuid that isn't in the failover table.
+    const auto unknownUuid = vb.failovers->getLatestUUID() + 1;
+
+    uint64_t rollbackSeqno = 1;
+    EXPECT_EQ(cb::engine_errc::rollback,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
+                                      0 /*opaque*/,
+                                      vbid,
+                                      2 /*startSeqno*/,
+                                      ~0ULL /*endSeqno*/,
+                                      unknownUuid,
+                                      2 /*snapStartSeqno*/,
+                                      2 /*snapEndSeqno*/,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+    EXPECT_EQ(0, rollbackSeqno);
+    EXPECT_EQ(numCursors, manager.getNumCursors());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {

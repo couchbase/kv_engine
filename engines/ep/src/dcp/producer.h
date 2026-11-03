@@ -490,7 +490,8 @@ protected:
             const StreamRequestInfo& req,
             VBucket& vb,
             const Collections::VB::Filter& filter,
-            uint64_t* rollback_seqno);
+            uint64_t* rollback_seqno,
+            bool servedFromMem);
 
     cb::engine_errc adjustSeqnosForStreamRequest(
             StreamRequestInfo& req,
