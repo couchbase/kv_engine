@@ -267,6 +267,70 @@ TEST_F(AuditFileTest, MB53282) {
     auditfile.test_mb53282();
 }
 
+/**
+ * When exactly rotate_interval seconds have elapsed since the file was
+ * opened get_seconds_to_rotation() reports 0 seconds left, so the
+ * consumer thread won't sleep. maybe_rotate_files() must then rotate the
+ * file, otherwise the consumer thread would busy-loop until the next
+ * second. The newly opened file must not be rotated again.
+ */
+TEST_F(AuditFileTest, RotateWhenSecondsToRotationReachesZero) {
+    config.set_rotate_interval(rotation_time);
+    config.set_rotate_size(1024 * 1024);
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+    auditfile.ensure_open();
+
+    cb_timeofday_timetravel(rotation_time);
+    EXPECT_EQ(0, auditfile.get_seconds_to_rotation());
+    EXPECT_TRUE(auditfile.maybe_rotate_files());
+
+    // Opening the next file resets the rotation timer so it must not be
+    // rotated again. Allow some slack for the wall clock ticking on a
+    // slow (or heavily loaded) machine.
+    EXPECT_TRUE(auditfile.ensure_open());
+    const auto secs = auditfile.get_seconds_to_rotation();
+    EXPECT_LE(secs, rotation_time);
+    EXPECT_GE(secs, rotation_time - 5);
+    EXPECT_FALSE(auditfile.maybe_rotate_files());
+
+    // Undo the time travel performed above
+    cb_timeofday_timetravel(-static_cast<int>(rotation_time));
+}
+
+/**
+ * When the next prune is less than a second away get_sleep_time() must
+ * round up to a whole second. Rounding down would return 0, and the
+ * consumer thread would busy-loop until it is time to prune.
+ */
+TEST_F(AuditFileTest, SleepTimeRoundsUpToNextPrune) {
+    class MockAuditFile : public AuditFile {
+    public:
+        MockAuditFile() : AuditFile("SleepTime") {
+        }
+
+        void set_next_prune(std::chrono::steady_clock::duration delta) {
+            prune_age = std::chrono::hours(1);
+            next_prune = std::chrono::steady_clock::now() + delta;
+        }
+    };
+
+    using namespace std::chrono;
+    MockAuditFile auditfile;
+    config.set_rotate_interval(rotation_time);
+    auditfile.reconfigure(config);
+
+    auditfile.set_next_prune(milliseconds(700));
+    EXPECT_EQ(seconds(1), auditfile.get_sleep_time());
+
+    auditfile.set_next_prune(milliseconds(1700));
+    EXPECT_EQ(seconds(2), auditfile.get_sleep_time());
+
+    // Already passed; prune immediately
+    auditfile.set_next_prune(-milliseconds(1));
+    EXPECT_EQ(seconds(0), auditfile.get_sleep_time());
+}
+
 TEST_F(AuditFileTest, PruneFiles) {
     class MockAuditFile : public AuditFile {
     public:

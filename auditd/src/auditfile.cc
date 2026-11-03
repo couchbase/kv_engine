@@ -163,14 +163,21 @@ std::chrono::seconds AuditFile::get_sleep_time() const {
     if (next_prune <= now) {
         return seconds{0};
     }
-    return std::min(rotation, duration_cast<seconds>(next_prune - now));
+    // Round up; truncating would return 0 while the next prune is still
+    // less than a second away, causing the consumer thread to busy-loop
+    // until it is time to prune.
+    return std::min(rotation, ceil<seconds>(next_prune - now));
 }
 
 bool AuditFile::time_to_rotate_log() const {
     if (rotate_interval) {
         cb_assert(open_time != 0);
         time_t now = auditd_time();
-        if (difftime(now, open_time) > rotate_interval) {
+        // Use >= to agree with get_seconds_to_rotation(), which returns 0
+        // once rotate_interval seconds have elapsed. Using > would leave
+        // the consumer thread busy-looping for up to a second, waking
+        // with a zero sleep time without rotating the file.
+        if (difftime(now, open_time) >= rotate_interval) {
             return true;
         }
     }
