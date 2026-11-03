@@ -227,7 +227,7 @@ void VBucketLoadingTask::fail(const char* func,
                                {"ctx", std::move(ctx)}};
     }
     const auto log = fmt::format("VBucketLoadingTask::{}: {}", func, message);
-    cookie.setErrorContext(fmt::format("{} {}", log, ctx));
+    engine->setErrorContext(cookie, fmt::format("{} {}", log, ctx));
     EP_LOG_ERR_CTX(log, std::move(ctx));
     transition(LoadingState::Failed);
 }

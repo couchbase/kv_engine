@@ -125,6 +125,22 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
                         Pair(vbucket + ":max_visible_seqno", "0")));
 }
 
+/**
+ * The error context is owned by the frontend's cookie (and released outside
+ * of any bucket). Verify that setting it from the engine (fusion stats are
+ * not supported by couchstore) doesn't account the memory to the bucket.
+ */
+TEST_F(StatTest, ErrorContextNotAccountedToBucket) {
+    MockCookieUniquePtr cookie{create_mock_cookie()};
+    const auto& client = engine->getArenaMallocClient();
+    const auto baseline = cb::ArenaMalloc::getPreciseAllocated(client);
+    EXPECT_EQ(
+            cb::engine_errc::not_supported,
+            engine->get_stats(*cookie, "fusion", {}, [](auto, auto, auto&) {}));
+    EXPECT_EQ("Fusion is not supported", cookie->getErrorContext());
+    EXPECT_EQ(baseline, cb::ArenaMalloc::getPreciseAllocated(client));
+}
+
 // Test that if we request takeover stats for something that does not exist we
 // return some variation of does_not_exist.
 TEST_F(StatTest, VBTakeoverStats) {

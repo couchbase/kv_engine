@@ -3285,7 +3285,7 @@ cb::engine_errc EPBucket::prepareSnapshot(
                         {"conn_id", cookie.getConnectionId()},
                         {"vb", vbid},
                         {"error", failure});
-        cookie.setErrorContext(failure.dump());
+        engine.setErrorContext(cookie, failure.dump());
         return cb::engine_errc::not_supported;
     }
 
@@ -3540,7 +3540,7 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
                                         std::string_view statKey) {
     if (!getStorageProperties().supportsFusion()) {
         EP_LOG_DEBUG_RAW("EPBucket::doFusionStats: fusion is not supported");
-        cookie.setErrorContext("Fusion is not supported");
+        engine.setErrorContext(cookie, "Fusion is not supported");
         return cb::engine_errc::not_supported;
     }
 
@@ -3561,7 +3561,8 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
     if (stat == FusionStat::Invalid) {
         EP_LOG_DEBUG_CTX("EPBucket::doFusionStats: invalid stat group",
                          {"stat_key", statKey});
-        cookie.setErrorContext("Fusion STAT command has invalid stat group");
+        engine.setErrorContext(cookie,
+                               "Fusion STAT command has invalid stat group");
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -3573,7 +3574,8 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
             if (value > std::numeric_limits<uint16_t>::max()) {
                 EP_LOG_DEBUG_CTX("EPBucket::doFusionStats: invalid vbId",
                                  {"stat_key", statKey});
-                cookie.setErrorContext("Fusion STAT command has invalid vbId");
+                engine.setErrorContext(cookie,
+                                       "Fusion STAT command has invalid vbId");
                 return cb::engine_errc::invalid_arguments;
             }
             extraArg = Vbid(gsl::narrow_cast<Vbid::id_type>(value));
@@ -3582,7 +3584,8 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
         } else {
             EP_LOG_DEBUG_CTX("EPBucket::doFusionStats: invalid argument",
                              {"stat_key", statKey});
-            cookie.setErrorContext("Fusion STAT command has invalid argument");
+            engine.setErrorContext(cookie,
+                                   "Fusion STAT command has invalid argument");
             return cb::engine_errc::invalid_arguments;
         }
     }
@@ -3610,7 +3613,8 @@ cb::engine_errc EPBucket::doFusionStats(CookieIface& cookie,
                 "EPBucket::doFusionStats: stat group aggregate is not "
                 "supported",
                 {"stat_key", statKey});
-        cookie.setErrorContext("Fusion stat group aggregate is not supported");
+        engine.setErrorContext(cookie,
+                               "Fusion stat group aggregate is not supported");
         return cb::engine_errc::invalid_arguments;
     }
     folly::assume_unreachable();

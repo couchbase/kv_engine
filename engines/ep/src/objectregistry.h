@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <platform/cb_arena_malloc.h>
 #include <platform/cb_arena_malloc_client.h>
 
 class EventuallyPersistentEngine;
@@ -55,7 +56,11 @@ public:
 };
 
 /**
- * To avoid mem accounting within a block
+ * To avoid mem accounting within a block.
+ *
+ * The previous ArenaMalloc client (and domain) is restored exactly as it was
+ * on destruction, as it may differ from what the previous engine pointer
+ * implies (e.g. if the caller is running under a cb::NoArenaGuard).
  */
 class NonBucketAllocationGuard {
 public:
@@ -63,13 +68,17 @@ public:
     ~NonBucketAllocationGuard();
 
 private:
-    std::pair<EventuallyPersistentEngine*, cb::MemoryDomain> engineDomainPair{
-            nullptr, cb::MemoryDomain::None};
+    cb::ArenaMalloc::ClientHandle previousClient;
+    EventuallyPersistentEngine* previous = nullptr;
 };
 
 /**
  * BucketAllocationGuard will place the given engine pointer into
- * ObjectRegistry and switch back to the previous state on destruction
+ * ObjectRegistry and switch back to the previous state on destruction.
+ *
+ * The previous ArenaMalloc client (and domain) is restored exactly as it was,
+ * as it may differ from what the previous engine pointer implies (e.g. if
+ * the caller is running under a cb::NoArenaGuard).
  */
 class BucketAllocationGuard {
 public:
@@ -77,5 +86,6 @@ public:
     ~BucketAllocationGuard();
 
 private:
+    cb::ArenaMalloc::ClientHandle previousClient;
     EventuallyPersistentEngine* previous = nullptr;
 };
