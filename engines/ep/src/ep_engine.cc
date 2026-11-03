@@ -7857,11 +7857,11 @@ cb::engine_errc EventuallyPersistentEngine::stopFusionUploader(Vbid vbid) {
 
 cb::engine_errc EventuallyPersistentEngine::pause(
         folly::CancellationToken cancellationToken) {
-    return kvBucket->prepareForPause(cancellationToken);
+    return acquireEngine(this)->kvBucket->prepareForPause(cancellationToken);
 }
 
 cb::engine_errc EventuallyPersistentEngine::resume() {
-    return kvBucket->prepareForResume();
+    return acquireEngine(this)->kvBucket->prepareForResume();
 }
 
 cb::engine_errc EventuallyPersistentEngine::start_persistence(

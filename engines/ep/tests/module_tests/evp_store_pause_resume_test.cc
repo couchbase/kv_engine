@@ -12,6 +12,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "evp_store_single_threaded_test.h"
+#include "objectregistry.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include <folly/CancellationToken.h>
 #include <platform/awaitable_semaphore.h>
@@ -25,6 +26,34 @@ class PauseResumeTest : public STParameterizedBucketTest {};
 TEST_P(PauseResumeTest, Basic) {
     EXPECT_EQ(cb::engine_errc::success, store->prepareForPause({}));
     store->prepareForResume();
+}
+
+/**
+ * The engine is paused by the core outside of the bucket's context, but the
+ * underlying KVStore (e.g. magma) allocates as part of pause(), and that
+ * memory is released as part of resume(), which also happens in the bucket's
+ * context when the bucket is deleted. Verify that pause() switches to the
+ * bucket so the memory is (de)allocated against the same arena / domain.
+ */
+TEST_P(PauseResumeTest, EnginePauseAllocatesInBucket) {
+    const auto& client = engine->getArenaMallocClient();
+    const auto primary = cb::ArenaMalloc::getPreciseAllocated(
+            client, cb::MemoryDomain::Primary);
+    const auto secondary = cb::ArenaMalloc::getPreciseAllocated(
+            client, cb::MemoryDomain::Secondary);
+    {
+        NonBucketAllocationGuard guard;
+        ASSERT_EQ(cb::engine_errc::success, engine->pause({}));
+    }
+    // As performed when the paused bucket is deleted.
+    store->prepareForResume();
+
+    EXPECT_EQ(primary,
+              cb::ArenaMalloc::getPreciseAllocated(client,
+                                                   cb::MemoryDomain::Primary));
+    EXPECT_EQ(secondary,
+              cb::ArenaMalloc::getPreciseAllocated(
+                      client, cb::MemoryDomain::Secondary));
 }
 
 /**

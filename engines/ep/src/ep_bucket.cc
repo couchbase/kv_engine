@@ -26,6 +26,7 @@
 #include "kvstore/kvstore_transaction_context.h"
 #include "kvstore/persistence_callback.h"
 #include "kvstore/rollback_callback.h"
+#include "objectregistry.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "rollback_result.h"
 #include "snapshots/cache.h"
@@ -3107,7 +3108,10 @@ cb::engine_errc EPBucket::prepareForPause(
 
     // If cancelled at or after this point need to release the compaction
     // semaphore and undo the reduction in capacity.
+    // Note: The cancellation callbacks are invoked by the thread requesting
+    // cancellation, which may not be associated with this bucket.
     folly::CancellationCallback compactionUndoPauseCB(cancellationToken, [&] {
+        BucketAllocationGuard guard(&engine);
         compactionSemaphore->release();
         updateCompactionConcurrency();
     });
@@ -3145,6 +3149,7 @@ cb::engine_errc EPBucket::prepareForPause(
     // If cancelled at or after this point then need to unpause all paused
     // shards and reset paused state.
     folly::CancellationCallback kvStoreUndoPauseCB(cancellationToken, [&] {
+        BucketAllocationGuard guard(&engine);
         for (auto shardId : pausedShards) {
             vbMap.getShard(shardId)->getRWUnderlying()->resume();
         }
