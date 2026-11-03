@@ -782,8 +782,10 @@ void disconnect_clients() {
 }
 
 int memcached_main(int argc, char** argv) {
-    // Pause the process on startup (makes attaching debugger easier).
+    cb::ArenaMalloc::setDebugChecksEnabled(true);
+
 #ifndef WIN32
+    // Pause the process on startup (makes attaching debugger easier).
     if (getenv("MEMCACHED_DEBUG_STOP")) {
         raise(SIGSTOP);
     }
