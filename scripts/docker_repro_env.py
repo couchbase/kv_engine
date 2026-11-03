@@ -485,10 +485,13 @@ def write_dockerfile(logfile, dockerfile):
     run_package_cache_command = ' '.join((
         'RUN --mount=type=cache,target=/root/Downloads,sharing=locked cd /root/Downloads',
         command_separator))
-    # Fetch packages (in parallel)
+    # Fetch packages (in parallel). Both wgets must be children of this shell
+    # for wait to cover them, and -c (without -nc) resumes a download that an
+    # earlier build left truncated in the cache.
     print(run_package_cache_command,
-          f'(wget -c -nc --progress=dot:mega \'{server_pkg}\' & wget -c -nc --progress=dot:mega \'{symbols_pkg}\')',
-          command_separator, 'wait', file=dockerfile)
+          f'{{ wget -c --progress=dot:mega \'{server_pkg}\' & server=$!;',
+          f'wget -c --progress=dot:mega \'{symbols_pkg}\' & symbols=$!;',
+          'wait $server && wait $symbols; }', file=dockerfile)
 
     if pkg_manager == 'dpkg':
         # Install packages and cleanup
