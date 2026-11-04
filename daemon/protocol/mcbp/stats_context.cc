@@ -680,17 +680,15 @@ static cb::engine_errc stat_tasks_all_executor(const StatGroup&,
 static cb::engine_errc stat_external_auth_timings_executor(const StatGroup&,
                                                            const std::string&,
                                                            Cookie& cookie) {
+    // Use CBStatCollector so the histogram format follows the client
+    CBStatCollector collector(appendStatsFn, cookie);
     if (externalAuthManager->authenticationResponseTimes.getValueCount() > 0) {
-        append_stats(
-                "auth-external-authentication-durations",
-                externalAuthManager->authenticationResponseTimes.to_string(),
-                cookie);
+        collector.addStat("auth-external-authentication-durations",
+                          externalAuthManager->authenticationResponseTimes);
     }
     if (externalAuthManager->authorizationResponseTimes.getValueCount() > 0) {
-        append_stats(
-                "auth-external-authorization-durations",
-                externalAuthManager->authorizationResponseTimes.to_string(),
-                cookie);
+        collector.addStat("auth-external-authorization-durations",
+                          externalAuthManager->authorizationResponseTimes);
     }
     return cb::engine_errc::success;
 }

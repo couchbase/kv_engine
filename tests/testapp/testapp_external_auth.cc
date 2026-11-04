@@ -633,3 +633,39 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
         EXPECT_EQ(numOfDurations, authorizationHist["total"]);
     }
 }
+
+/// MB-63934: cbstats.py can only parse the legacy flat histogram format, so
+/// external-auth-timings must honour the cbstats agent name like other
+/// histogram stats rather than always returning JSON.
+TEST_P(ExternalAuthSingleThreadTest, TestExternalAuthTimingsCbstatsFormat) {
+    auto conn = getConnection().clone();
+    conn->sendCommand(
+            BinprotSaslAuthCommand{"PLAIN", {"\0osbourne\0password", 18}});
+    stepAuthProvider();
+    BinprotResponse response;
+    conn->recvResponse(response);
+    ASSERT_TRUE(response.isSuccess());
+
+    auto cbstatsConn = getConnection().clone();
+    cbstatsConn->setAgentName("cbstats 1.0");
+    cbstatsConn->setFeature(cb::mcbp::Feature::XERROR, true);
+    cbstatsConn->authenticate("@admin");
+    cbstatsConn->selectBucket(bucketName);
+
+    const auto stats = cbstatsConn->stats("external-auth-timings");
+    const std::string prefix = "auth-external-authorization-durations_";
+    // A cbstats client gets the legacy flat format (<key>_mean,
+    // <key>_<low>,<high>, ...) rather than the single <key> holding the JSON
+    // histogram which other clients receive.
+    EXPECT_FALSE(stats.contains("auth-external-authorization-durations"));
+    EXPECT_TRUE(stats.contains(prefix + "mean")) << stats.dump();
+
+    bool foundBucket = false;
+    for (const auto& [key, value] : stats.items()) {
+        EXPECT_FALSE(value.is_object()) << key << ": " << value.dump();
+        if (key.starts_with(prefix) && key.find(',') != std::string::npos) {
+            foundBucket = true;
+        }
+    }
+    EXPECT_TRUE(foundBucket) << stats.dump();
+}
