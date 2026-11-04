@@ -612,6 +612,64 @@ TEST_P(DcpCacheTransferTest, CacheTransfer_then_ActiveStream_2) {
     EXPECT_EQ(producers.last_dockey, k4);
 }
 
+// Test that when a CacheTransfer stream-request is received but CacheTransfer
+// is disabled on the producer, a single CacheTransferEnd is sent before normal
+// streaming (as the client may be waiting for the end of the transfer).
+TEST_P(DcpCacheTransferTest, CacheTransfer_disabled_sends_end) {
+    engine->getConfiguration().setDcpCacheTransferEnabled(false);
+
+    auto vb = store->getVBucket(vbid);
+    store_item(Vbid(0), makeStoredDocKey("k2"), "2");
+    auto startSeqno = vb->getHighSeqno();
+    auto k3 = makeStoredDocKey("k3");
+    auto k4 = makeStoredDocKey("k4");
+    store_item(Vbid(0), k3, "3");
+    store_item(Vbid(0), k4, "4");
+
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+                                      1,
+                                      Vbid(0),
+                                      startSeqno,
+                                      ~0ULL,
+                                      vb->failovers->getLatestUUID(),
+                                      startSeqno,
+                                      startSeqno,
+                                      nullptr,
+                                      mock_dcp_add_failover_log,
+                                      std::nullopt));
+
+    // An ActiveStream was created (no CacheTransferStream)
+    ASSERT_TRUE(producer->findStream(vbid));
+
+    MockDcpMessageProducers producers;
+    // First message must be the CacheTransferEnd
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpCacheTransferEnd));
+    // The CacheTransferEnd message is just a single Request (24b)
+    EXPECT_EQ(sizeof(cb::mcbp::Request), producer->getBytesOutstanding());
+
+    // Then "normal" streaming
+    notifyAndRunToCheckpoint(*producer, producers);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(3, producers.last_byseqno);
+    EXPECT_EQ(producers.last_dockey, k3);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(4, producers.last_byseqno);
+    EXPECT_EQ(producers.last_dockey, k4);
+
+    // And only a single CacheTransferEnd is ever sent
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+}
+
 TEST_P(DcpCacheTransferTest, free_memory_limit) {
     auto item = store_item(Vbid(0), makeStoredDocKey("k2"), "2");
     expectedItems.insert(item);

@@ -426,6 +426,38 @@ private:
 };
 
 /**
+ * A DcpResponse which generates a single DCP CacheTransferEnd message from the
+ * producer.
+ *
+ * This is queued by an ActiveStream when the client requested CacheTransfer,
+ * but the producer has CacheTransfer disabled. The client may still be waiting
+ * for the end of a cache transfer, so a CacheTransferEnd is sent before any
+ * other stream messages.
+ */
+class CacheTransferEndResponse : public DcpResponse {
+public:
+    CacheTransferEndResponse(uint32_t opaque,
+                             Vbid vbucket,
+                             cb::mcbp::DcpStreamId sid)
+        : DcpResponse(Event::CacheTransferEnd,
+                      opaque,
+                      sid,
+                      sizeof(cb::mcbp::Request)),
+          vbucket(vbucket) {
+    }
+
+    Vbid getVbucket() const {
+        return vbucket;
+    }
+
+protected:
+    bool isEqual(const DcpResponse& rsp) const override;
+
+private:
+    Vbid vbucket;
+};
+
+/**
  * DcpCacheTransfer is used to batch multiple items for cache transfer.
  * It holds a vector of cb::ItemWithCacheHint objects which can be pushed
  * down the DcpProducers cache_transfer_tx API.

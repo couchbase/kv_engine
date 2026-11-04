@@ -890,8 +890,20 @@ cb::engine_errc DcpProducer::switchToActiveStream(Vbid vbid,
 
     // Now, create the new ActiveStream and copy/move some state from the
     // current object to the new one.
-    auto s = makeActiveStream(
-            cts->getOpaque(), cts->getRequest(), *vb, cts->takeFilter());
+    // If the CacheTransfer flag is set, ActiveStream queues a CacheTransferEnd.
+    // The CacheTransferEnd has already been sent (by step()), so clear the
+    // flag.
+    const auto ctsRequest = cts->getRequest();
+    const StreamRequestInfo request{
+            ctsRequest.flags & ~cb::mcbp::DcpAddStreamFlag::CacheTransfer,
+            ctsRequest.vbucket_uuid,
+            ctsRequest.high_seqno,
+            ctsRequest.start_seqno,
+            ctsRequest.end_seqno,
+            ctsRequest.snap_start_seqno,
+            ctsRequest.snap_end_seqno};
+    auto s =
+            makeActiveStream(cts->getOpaque(), request, *vb, cts->takeFilter());
     if (!s) {
         logger->warnWithContext(
                 "switchToActiveStream: Failed to create ActiveStream",
@@ -1245,6 +1257,14 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                               ct.getMessageSize(),
                                               ct.getVBucket(),
                                               ct.getStreamId());
+            break;
+        }
+        case DcpResponse::Event::CacheTransferEnd: {
+            // ActiveStream created for a CacheTransfer request when cache
+            // transfer is disabled - just tell the client the transfer ended.
+            auto& s = static_cast<CacheTransferEndResponse&>(*resp);
+            ret = producers.cache_transfer_end_tx(
+                    s.getOpaque(), s.getVbucket(), s.getStreamId());
             break;
         }
         case DcpResponse::Event::CacheTransferToActiveStream: {
