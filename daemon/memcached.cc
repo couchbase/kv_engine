@@ -633,7 +633,6 @@ static void startExecutorPool() {
             ThreadPoolConfig::IOThreadsPerCore(
                     settings.getNumIOThreadsPerCore()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
-    ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
 
     auto* pool = ExecutorPool::get();
     LOG_INFO_CTX("Started executor pool",

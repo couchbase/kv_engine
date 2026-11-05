@@ -53,7 +53,6 @@
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/range_scan_optional_configuration.h>
-#include <memcached/server_bucket_iface.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
 #include <atomic>

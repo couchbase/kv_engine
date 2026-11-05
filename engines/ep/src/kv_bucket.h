@@ -901,8 +901,6 @@ public:
         return dcpHlcInvalidStrategy.load();
     }
 
-    bool isCrossBucketHtQuotaSharing() const;
-
     /// return the buckets maxTtl value
     std::chrono::seconds getMaxTtl() const;
 
@@ -1740,11 +1738,6 @@ protected:
      * for DCP replication.
      */
     cb::RelaxedAtomic<InvalidCasStrategy> dcpHlcInvalidStrategy;
-
-    /**
-     * Is this bucket sharing HashTable quota?
-     */
-    const bool crossBucketHtQuotaSharing;
 
     std::atomic<size_t> maxTtl;
 

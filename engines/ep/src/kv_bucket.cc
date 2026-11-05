@@ -320,8 +320,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       lastTransTimePerItem(0),
       collectionsManager(std::make_shared<Collections::Manager>()),
       xattrEnabled(true),
-      crossBucketHtQuotaSharing(
-              engine.getConfiguration().isCrossBucketHtQuotaSharing()),
       maxTtl(engine.getConfiguration().getMaxTtl()),
       checkpointMemoryRatio(
               engine.getConfiguration().getCheckpointMemoryRatio()),
@@ -545,7 +543,7 @@ bool KVBucket::initialize() {
      * seconds and will only be woken up when the frequency counter of an
      * item in the hash table becomes saturated.
      */
-    itemFreqDecayerTask = ItemFreqDecayerTaskManager::get().create(
+    itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
             engine,
             gsl::narrow_cast<uint16_t>(config.getItemFreqDecayerPercent()));
     ExecutorPool::get()->schedule(itemFreqDecayerTask);
@@ -2449,19 +2447,12 @@ void KVBucket::enableItemPager() {
 }
 
 void KVBucket::disableItemPager() {
-    Expects(!isCrossBucketHtQuotaSharing());
     ExecutorPool::get()->cancel(itemPagerTask->getId());
 }
 
 void KVBucket::wakeItemFreqDecayerTask() {
-    if (crossBucketHtQuotaSharing) {
-        // Run the cross bucket decayer, which is going to wakeup the
-        // ItemFreqDecayerTasks of all buckets sharing memory.
-        ItemFreqDecayerTaskManager::get().getCrossBucketDecayer()->schedule();
-    } else {
-        auto& t = dynamic_cast<ItemFreqDecayerTask&>(*itemFreqDecayerTask);
-        t.wakeup();
-    }
+    auto& t = dynamic_cast<ItemFreqDecayerTask&>(*itemFreqDecayerTask);
+    t.wakeup();
 }
 
 void KVBucket::itemFrequencyCounterSaturated() {
@@ -3052,10 +3043,6 @@ InvalidCasStrategy KVBucket::parseHlcInvalidStrategy(std::string_view strat) {
     }
     throw std::invalid_argument(
             "parseHlcInvalidStrategy: invalid mode specified");
-}
-
-bool KVBucket::isCrossBucketHtQuotaSharing() const {
-    return crossBucketHtQuotaSharing;
 }
 
 std::chrono::seconds KVBucket::getMaxTtl() const {

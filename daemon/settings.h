@@ -1049,26 +1049,6 @@ public:
 
     void setMaxConcurrentAuthentications(size_t val);
 
-    int getQuotaSharingPagerConcurrencyPercentage() const {
-        return quota_sharing_pager_concurrency_percentage;
-    }
-
-    void setQuotaSharingPagerConcurrencyPercentage(int val) {
-        quota_sharing_pager_concurrency_percentage = val;
-        has.quota_sharing_pager_concurrency_percentage = true;
-        notify_changed("quota_sharing_pager_concurrency_percentage");
-    }
-
-    std::chrono::milliseconds getQuotaSharingPagerSleepTime() const {
-        return std::chrono::milliseconds(quota_sharing_pager_sleep_time_ms);
-    }
-
-    void setQuotaSharingPagerSleepTime(std::chrono::milliseconds val) {
-        quota_sharing_pager_sleep_time_ms = gsl::narrow_cast<int>(val.count());
-        has.quota_sharing_pager_sleep_time_ms = true;
-        notify_changed("quota_sharing_pager_sleep_time_ms");
-    }
-
     // duration units: secs.
     void setSlowPrometheusScrapeDuration(
             std::chrono::duration<float> duration) {
@@ -1704,14 +1684,6 @@ protected:
 
     std::atomic_bool enable_deprecated_bucket_autoselect{false};
 
-    /// The number of concurrent paging visitors to use for quota sharing,
-    /// expressed as a fraction of the number of NonIO threads.
-    std::atomic_int quota_sharing_pager_concurrency_percentage{50};
-
-    /// How long in milliseconds the ItemPager will sleep for when not being
-    /// requested to run.
-    std::atomic_int quota_sharing_pager_sleep_time_ms{5000};
-
     std::atomic<std::chrono::duration<float>> slow_prometheus_scrape_duration{
             std::chrono::duration<float>(0.2)};
 
@@ -1893,8 +1865,6 @@ public:
         bool prometheus_config = false;
         bool phosphor_config = false;
         bool allow_localhost_interface = false;
-        bool quota_sharing_pager_concurrency_percentage = false;
-        bool quota_sharing_pager_sleep_time_ms = false;
         bool dcp_disconnect_when_stuck_timeout_seconds = false;
         bool dcp_disconnect_when_stuck_name_regex = false;
         bool subdoc_multi_max_paths = false;

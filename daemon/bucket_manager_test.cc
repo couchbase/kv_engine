@@ -198,32 +198,6 @@ TEST_F(BucketManagerTest, CreateBucket) {
     EXPECT_TRUE(ready) << "Expected callback for state Ready";
 }
 
-TEST_F(BucketManagerTest, AssociateBucket) {
-    EXPECT_EQ(cb::engine_errc::success,
-              create(1, "mybucket", {}, BucketType::NoBucket));
-
-    auto& bucket = at(1);
-    EXPECT_EQ("mybucket", bucket.name);
-    // Associate with the bucket
-    EXPECT_TRUE(tryAssociateBucket(&bucket.getEngine()));
-    auto future = std::async(std::launch::async, [&]() {
-        // Wait to get in destroying state.
-        while (bucket.state != Bucket::State::Destroying) {
-            std::this_thread::yield();
-        }
-        // Then assert that we are waiting for something for more than 10ms
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        if (bucket.state != Bucket::State::Destroying) {
-            throw std::runtime_error("Test failed");
-        }
-        // Finally, disassociate the bucket to allow it to be destroyed.
-        disassociateBucket(&bucket);
-    });
-    EXPECT_EQ(cb::engine_errc::success,
-              destroy("1", "mybucket", /* force */ true, {}));
-    future.wait();
-}
-
 /// Verify the that everything is good to go before trying to set the bucket
 /// type when promoting a cluster config only bucket to a real bucket
 TEST_F(BucketManagerTest, PromoteClusterConfigOnlyBucket) {

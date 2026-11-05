@@ -19,22 +19,7 @@
 #include <executor/executorpool.h>
 #include <memcached/document_expired.h>
 #include <memcached/engine.h>
-#include <memcached/server_bucket_iface.h>
 #include <memcached/server_core_iface.h>
-
-struct ServerBucketApi : public ServerBucketIface {
-    std::optional<AssociatedBucketHandle> tryAssociateBucket(
-            EngineIface* engine) const override {
-        auto* bucket = BucketManager::instance().tryAssociateBucket(engine);
-        if (!bucket) {
-            return {};
-        }
-
-        return AssociatedBucketHandle(engine, [bucket](EngineIface*) {
-            BucketManager::instance().disassociateBucket(bucket);
-        });
-    }
-};
 
 struct ServerCoreApi : public ServerCoreIface {
     std::chrono::steady_clock::time_point get_uptime_now() override {
@@ -56,20 +41,6 @@ struct ServerCoreApi : public ServerCoreIface {
     uint32_t limit_expiry_time(uint32_t t,
                                std::chrono::seconds limit) override {
         return mc_time_limit_expiry_time(t, limit);
-    }
-
-    size_t getQuotaSharingPagerConcurrency() override {
-        auto& instance = Settings::instance();
-        auto numNonIO = ExecutorPool::get()->getNumNonIO();
-        // Calculate number of concurrent paging visitors to use as a percentage
-        // of the number of NonIO threads.
-        auto userValue = instance.getQuotaSharingPagerConcurrencyPercentage() *
-                         numNonIO / 100;
-        return std::clamp(userValue, size_t(1), numNonIO);
-    }
-
-    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
-        return Settings::instance().getQuotaSharingPagerSleepTime();
     }
 
     std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
@@ -148,12 +119,10 @@ class ServerApiImpl : public ServerApi {
 public:
     ServerApiImpl() : ServerApi() {
         core = &core_api;
-        bucket = &bucket_api;
     }
 
 protected:
     ServerCoreApi core_api;
-    ServerBucketApi bucket_api;
 };
 
 ServerApi* get_server_api() {

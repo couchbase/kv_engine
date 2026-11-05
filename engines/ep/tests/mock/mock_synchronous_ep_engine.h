@@ -93,9 +93,6 @@ public:
             Vbid vbid,
             int64_t revSeq) override;
 
-    /** Construct independent managers, even for quota sharing configs. */
-    QuotaSharingManager& getQuotaSharingManager() override;
-
     /* Allow us to call normally protected methods */
 
     cb::engine_errc public_doDcpVbTakeoverStats(CookieIface& cookie,
@@ -149,7 +146,4 @@ public:
 
     // Test hook called before creating an item that is BgFetched
     TestingHook<> preCreateItemHook;
-
-private:
-    std::unique_ptr<QuotaSharingManager> quotaSharingManager;
 };

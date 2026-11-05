@@ -409,8 +409,6 @@ void EphemeralBucket::setMemRecoveryTaskSleepTime(size_t sleepTime) {
 }
 
 void EphemeralBucket::useEphemeralMemRecovery(bool enableEphMemRec) {
-    Expects(!isCrossBucketHtQuotaSharing());
-
     auto strictQuotaItemPager =
             std::dynamic_pointer_cast<StrictQuotaItemPager>(itemPagerTask);
 

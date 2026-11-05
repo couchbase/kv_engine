@@ -139,28 +139,6 @@ public:
      */
     void forEach(const std::function<bool(Bucket&)>& fn);
 
-    /**
-     * Registers an internal client with the bucket. The bucket must be in the
-     * Ready state to be able to associate with it.
-     *
-     * The bucket will not be shutdown until all clients are unregistered by
-     * calling disassociateBucket. Associated buckets can move to other states
-     * like the Destroying state, which indicates that the bucket is waiting
-     * for clients to disconnect.
-     *
-     * @param engine A pointer to the engine. This is allowed to be a dangling
-     *               pointer (in which case this operation will fail).
-     * @return A pointer to the bucket that we associate with, or nullptr on
-     *         failure.
-     */
-    Bucket* tryAssociateBucket(EngineIface* engine);
-
-    /**
-     * Disassociates from a bucket for which tryAssociateBucket has previously
-     * succeeded.
-     */
-    void disassociateBucket(Bucket* bucket);
-
     /** Move the clock forwards in all buckets. Expected to be called
      * periodically, once per second.
      */

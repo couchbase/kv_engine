@@ -784,9 +784,6 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     boost::replace_all(config, "bfilter_enabled=", "bfilter_");
     boost::replace_all(
             config, "item_eviction_strategy=", "item_eviction_strategy_");
-    boost::replace_all(
-            config, "cross_bucket_ht_quota_sharing=true", "quota_sharing");
-    boost::replace_all(config, "cross_bucket_ht_quota_sharing=false_", "");
     boost::replace_all(config,
                        "magma_per_document_compression_enabled=true",
                        "per_doc_comp");

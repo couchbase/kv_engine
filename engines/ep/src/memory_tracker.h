@@ -13,7 +13,6 @@
 #include <cstddef>
 
 class EventuallyPersistentEngine;
-class EPEngineGroup;
 
 namespace cb {
 class FragmentationStats;

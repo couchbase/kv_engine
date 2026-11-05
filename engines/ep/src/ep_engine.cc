@@ -25,7 +25,6 @@
 #include "dcp/producer.h"
 #include "dockey_validator.h"
 #include "ep_bucket.h"
-#include "ep_engine_group.h"
 #include "ep_engine_public.h"
 #include "ep_engine_storage.h"
 #include "ep_vb.h"
@@ -38,9 +37,9 @@
 #include "getkeys.h"
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
+#include "item_pager.h"
 #include "kvstore/kvstore.h"
 #include "platform/io_hint.h"
-#include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "stats-info.h"
 #include "string_utils.h"
@@ -1764,7 +1763,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       getServerApiFunc(get_server_api),
       checkpointConfig(nullptr),
       trafficEnabled(false),
-      isCrossBucketHtQuotaSharing(false),
       startupTime(0),
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
@@ -2036,14 +2034,6 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
         return cb::engine_errc::failed;
     }
 
-    isCrossBucketHtQuotaSharing = configuration.isCrossBucketHtQuotaSharing();
-    if (isCrossBucketHtQuotaSharing) {
-        // Ephemeral bucket are not supported together with quota sharing,
-        // because we're not handling the fail_new_data policy.
-        Expects(configuration.getBucketTypeString() != "ephemeral");
-        getQuotaSharingManager().getGroup().add(*this);
-    }
-
     memoryTracker = std::make_unique<StrictQuotaMemoryTracker>(*this);
 
     maxItemSize = configuration.getMaxItemSize();
@@ -2249,10 +2239,6 @@ void EventuallyPersistentEngine::setConflictResolutionMode(
 void EventuallyPersistentEngine::destroyInner(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
-
-    if (isCrossBucketHtQuotaSharing) {
-        getQuotaSharingManager().getGroup().remove(*this);
-    }
 
     if (dcpConnMap_) {
         dcpConnMap_->shutdownAllConnections();
@@ -8010,55 +7996,7 @@ void EventuallyPersistentEngine::updateDcpFlowControlBufferSize() {
     }
 }
 
-QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
-    struct QuotaSharingManagerImpl : public QuotaSharingManager {
-        QuotaSharingManagerImpl(
-                ServerBucketIface& bucketApi,
-                std::function<size_t()> getNumConcurrentPagers,
-                std::function<std::chrono::milliseconds()> getPagerSleepTime)
-            : bucketApi(bucketApi),
-              group(bucketApi),
-              getNumConcurrentPagers(std::move(getNumConcurrentPagers)),
-              getPagerSleepTime(std::move(getPagerSleepTime)) {
-        }
-
-        EPEngineGroup& getGroup() override {
-            return group;
-        }
-
-        ExTask getItemPager() override {
-            static ExTask task = [this]() {
-                return std::make_shared<QuotaSharingItemPager>(
-                        bucketApi,
-                        group,
-                        ExecutorPool::get()->getDefaultTaskable(),
-                        getNumConcurrentPagers,
-                        getPagerSleepTime);
-            }();
-            return task;
-        }
-
-        ServerBucketIface& bucketApi;
-        EPEngineGroup group;
-        const std::function<size_t()> getNumConcurrentPagers;
-        const std::function<std::chrono::milliseconds()> getPagerSleepTime;
-    };
-
-    static QuotaSharingManagerImpl manager(
-            *serverApi->bucket,
-            [coreApi = serverApi->core]() {
-                return coreApi->getQuotaSharingPagerConcurrency();
-            },
-            [coreApi = serverApi->core]() {
-                return coreApi->getQuotaSharingPagerSleepTime();
-            });
-    return manager;
-}
-
 ExTask EventuallyPersistentEngine::createItemPager() {
-    if (isCrossBucketHtQuotaSharing) {
-        return getQuotaSharingManager().getItemPager();
-    }
     auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
     auto task = std::make_shared<StrictQuotaItemPager>(
             *this, stats, numConcurrentPagers);

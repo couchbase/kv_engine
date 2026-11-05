@@ -255,7 +255,6 @@ ADD_LIBRARY(ep STATIC
             src/conn_store.cc
             src/connhandler.cc
             src/connmap.cc
-            src/cross_bucket_visitor_adapter.cc
             src/dcp/active_stream.cc
             src/dcp/active_stream.h
             src/dcp/active_stream_checkpoint_processor_task.cc
@@ -297,7 +296,6 @@ ADD_LIBRARY(ep STATIC
             src/encryption_key_provider.cc
             src/ep_bucket.cc
             src/ep_engine.cc
-            src/ep_engine_group.cc
             src/ep_engine_storage.cc
             src/ep_parameters.cc
             src/ep_task.cc
@@ -363,7 +361,6 @@ ADD_LIBRARY(ep STATIC
             src/pre_link_document_context.h
             src/probabilistic_counter.cc
             src/progress_tracker.cc
-            src/quota_sharing_item_pager.cc
             src/range_lock_manager.cc
             src/range_scans/range_scan.cc
             src/range_scans/range_scan_callbacks.cc

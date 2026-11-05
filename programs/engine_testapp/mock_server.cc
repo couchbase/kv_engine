@@ -18,7 +18,6 @@
 #include <memcached/document_expired.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/server_bucket_iface.h>
 #include <memcached/server_core_iface.h>
 #include <platform/atomic_duration.h>
 #include <platform/platform_time.h>
@@ -191,15 +190,6 @@ struct MockServerCoreApi : public ServerCoreIface {
                                std::chrono::seconds limit) override {
         return mock_limit_expiry_time(t, limit);
     }
-    size_t getQuotaSharingPagerConcurrency() override {
-        return 2;
-    }
-
-    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
-        using namespace std::chrono_literals;
-        return 5000ms;
-    }
-
     std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
         return dcp_disconnect_when_stuck_timeout;
     }
@@ -267,13 +257,6 @@ void cb::server::document_expired(const EngineIface&, size_t) {
     // empty
 }
 
-struct MockServerBucketApi : public ServerBucketIface {
-    std::optional<AssociatedBucketHandle> tryAssociateBucket(
-            EngineIface* engine) const override {
-        return AssociatedBucketHandle(engine, [](auto*) {});
-    }
-};
-
 void mock_register_cookie(CookieIface& cookie) {
     auto [it, inserted] = cookieNotifications.lock()->try_emplace(&cookie);
     if (!inserted) {
@@ -319,13 +302,11 @@ bool mock_cookie_notified(CookieIface* cookie) {
 
 ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
-    static MockServerBucketApi server_bucket_api;
     static ServerApi rv;
     static int init;
     if (!init) {
         init = 1;
         rv.core = &core_api;
-        rv.bucket = &server_bucket_api;
     }
 
    return &rv;

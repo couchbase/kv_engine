@@ -88,7 +88,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/doc_pre_expiry_test.cc
         module_tests/durability_monitor_test.cc
         module_tests/ep_bucket_tests.cc
-        module_tests/ep_engine_group_test.cc
         module_tests/ep_time_test.cc
         module_tests/ep_types_log_test.cc
         module_tests/ep_unit_tests_main.cc
@@ -143,7 +142,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/task_signal_test.cc
         module_tests/test_helpers.cc
         module_tests/utilities/auto_refreshed_value_test.cc
-        module_tests/utilities/weak_ptr_bag_test.cc
         module_tests/vb_adapters_test.cc
         module_tests/vb_filter_test.cc
         module_tests/vbucket_test.cc

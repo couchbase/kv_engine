@@ -774,34 +774,6 @@ void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
     }
 }
 
-Bucket* BucketManager::tryAssociateBucket(EngineIface* engine) {
-    Bucket* associated = nullptr;
-    forEach([&associated, engine](auto& bucket) {
-        // Find the correct bucket
-        if (engine != &bucket.getEngine()) {
-            return true;
-        }
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        if (bucket.state != Bucket::State::Ready) {
-            // If it is not in the correct state, we cannot associate it
-            return false;
-        }
-
-        // We "associate with a bucket" by incrementing the num of
-        // clients to the bucket.
-        bucket.references++;
-        associated = &bucket;
-        return false;
-    });
-
-    return associated;
-}
-
-void BucketManager::disassociateBucket(Bucket* bucket) {
-    // Remove the client reference we added earlier
-    disconnectBucket(*bucket, nullptr);
-}
-
 Bucket& BucketManager::at(size_t idx) {
     return *all_buckets_ptr[idx];
 }

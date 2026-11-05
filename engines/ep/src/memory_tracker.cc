@@ -11,7 +11,6 @@
 #include "memory_tracker.h"
 
 #include "ep_engine.h"
-#include "ep_engine_group.h"
 #include "kv_bucket.h"
 #include <utilities/math_utilities.h>
 

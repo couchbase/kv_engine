@@ -794,7 +794,6 @@ bool KVBucketTest::itemCompressorTaskIsSleepingForever() const {
 
 void KVBucketTest::updateItemPagerSleepTime(
         const std::chrono::milliseconds interval) {
-    ASSERT_FALSE(store->isCrossBucketHtQuotaSharing());
     auto strictQuotaItemPager = std::dynamic_pointer_cast<StrictQuotaItemPager>(
             store->itemPagerTask);
     strictQuotaItemPager->updateSleepTime(interval);

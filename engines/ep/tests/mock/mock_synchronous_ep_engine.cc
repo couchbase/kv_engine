@@ -29,10 +29,8 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string>
 
-#include <ep_engine_group.h>
 #include <memcached/server_core_iface.h>
 #include <memory_tracker.h>
-#include <quota_sharing_item_pager.h>
 
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
                                          std::string_view extra_config)
@@ -143,11 +141,6 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
                             error.code().message()));
     }
 
-    // Make sure the cached configuration parameters normally initialised in
-    // EPEngine::initialise() are also initialised.
-    engine->isCrossBucketHtQuotaSharing =
-            engine->getConfiguration().isCrossBucketHtQuotaSharing();
-
     engine->memoryTracker = std::make_unique<StrictQuotaMemoryTracker>(*engine);
     engine->public_setActiveEncryptionKeys(encryptionKeys.is_null()
                                                    ? nlohmann::json::object()
@@ -189,47 +182,6 @@ SynchronousEPEngine::createItem(const DocKeyView& key,
                                                   bySeq,
                                                   vbid,
                                                   revSeq);
-}
-
-QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
-    struct QuotaSharingManagerImpl : public QuotaSharingManager {
-        QuotaSharingManagerImpl(SynchronousEPEngine& engine)
-            : engine(engine), group(*engine.getServerApi()->bucket) {
-        }
-
-        EPEngineGroup& getGroup() override {
-            return group;
-        }
-
-        ExTask getItemPager() override {
-            if (!pager) {
-                pager = std::make_shared<QuotaSharingItemPager>(
-                        *engine.getServerApi()->bucket,
-                        group,
-                        engine.getTaskable(),
-                        [n = engine.getConfiguration()
-                                     .getConcurrentPagers()]() { return n; },
-                        [n = std::chrono::milliseconds(
-                                 engine.getConfiguration()
-                                         .getPagerSleepTimeMs())]() {
-                            return n;
-                        });
-                ExecutorPool::get()->cancel(pager->getId());
-            }
-            return pager;
-        }
-
-        SynchronousEPEngine& engine;
-        EPEngineGroup group;
-        ExTask pager{nullptr};
-    };
-
-    if (!quotaSharingManager) {
-        quotaSharingManager = std::make_unique<QuotaSharingManagerImpl>(*this);
-        quotaSharingManager->getGroup().add(*this);
-    }
-
-    return *quotaSharingManager;
 }
 
 void SynchronousEPEngine::initializeConnmap() {

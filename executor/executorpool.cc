@@ -84,20 +84,6 @@ void ExecutorPool::shutdown() {
     getInstance().reset();
 }
 
-Taskable& ExecutorPool::getDefaultTaskable() const {
-    if (!defaultTaskable) {
-        throw std::runtime_error("Default taskable not set!");
-    }
-    return *defaultTaskable;
-}
-
-void ExecutorPool::setDefaultTaskable(Taskable& taskable) {
-    if (defaultTaskable) {
-        throw std::runtime_error("Default taskable cannot be reset!");
-    }
-    defaultTaskable = &taskable;
-}
-
 size_t ExecutorPool::getNumIOThreadsPerCore() const {
     return std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
             ioThreadsPerCore.load());

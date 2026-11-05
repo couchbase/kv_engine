@@ -44,7 +44,6 @@ class Request;
 enum class ClientOpcode : uint8_t;
 } // namespace cb::mcbp
 
-class EPEngineGroup;
 class CheckpointConfig;
 struct CompactionConfig;
 struct ConnCounter;
@@ -118,20 +117,6 @@ public:
 
 private:
     EventuallyPersistentEngine* myEngine;
-};
-
-/**
- * An object responsible for quota sharing engines.
- */
-class QuotaSharingManager {
-public:
-    /**
-     * Returns a reference to the EPEngineGroup which provides access to the
-     * active quota sharing engine instances.
-     */
-    virtual EPEngineGroup& getGroup() = 0;
-    virtual ExTask getItemPager() = 0;
-    virtual ~QuotaSharingManager() = default;
 };
 
 // Helper class which ensures the calling thread switches to the specified
@@ -1171,11 +1156,6 @@ public:
     void updateDcpFlowControlBufferSize();
 
     /**
-     * Returns the quota sharing manager.
-     */
-    virtual QuotaSharingManager& getQuotaSharingManager();
-
-    /**
      * Create the item pager task for the engine's bucket. Scheduling of the
      * task is left up to the caller.
      */
@@ -1902,9 +1882,7 @@ protected:
     std::mutex setParameterMutex;
 
     /**
-     * Interface used for OOM conditions and triggering memory reclamation. For
-     * quota-sharing engines, the memory usage of the entire quota-sharing
-     * group will be considered.
+     * Interface used for OOM conditions and triggering memory reclamation.
      */
     std::unique_ptr<MemoryTracker> memoryTracker;
     std::unique_ptr<KVBucket> kvBucket;
@@ -1926,8 +1904,6 @@ protected:
     std::chrono::seconds getlMaxTimeout;
     size_t maxFailoverEntries;
     std::atomic<bool> trafficEnabled;
-    // Indicates whether we are sharing quota with any other buckets.
-    std::atomic_bool isCrossBucketHtQuotaSharing;
 
     // a unique system generated token initialized at each time
     // ep_engine starts up.

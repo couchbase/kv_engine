@@ -69,15 +69,6 @@ struct ServerCoreIface {
     virtual uint32_t limit_expiry_time(uint32_t t,
                                        std::chrono::seconds limit) = 0;
 
-    /// The number of concurrent paging visitors to use for quota sharing.
-    virtual size_t getQuotaSharingPagerConcurrency() = 0;
-
-    /**
-     * How long in milliseconds the ItemPager will sleep for when not being
-     * requested to run.
-     */
-    virtual std::chrono::milliseconds getQuotaSharingPagerSleepTime() = 0;
-
     /**
      * How long to wait before disconnecting a DCP producer that appears to be
      * stuck.

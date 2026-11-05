@@ -54,15 +54,6 @@ public:
                 "UnitTestServerCore::limit_expiry_time() not implemented");
     }
 
-    size_t getQuotaSharingPagerConcurrency() override {
-        return 2;
-    }
-
-    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
-        using namespace std::chrono_literals;
-        return 5000ms;
-    }
-
     std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
         using namespace std::chrono_literals;
         return 720s;

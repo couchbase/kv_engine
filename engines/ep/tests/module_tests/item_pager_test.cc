@@ -368,11 +368,6 @@ protected:
         STBucketQuotaTest::SetUp();
 
         if (isEphemeralMemRecoveryEnabled()) {
-            if (isCrossBucketHtQuotaSharing()) {
-                GTEST_SKIP()
-                        << "EphemeralMemRecovery and cross-bucket HT quota "
-                           "sharing are not compatible";
-            }
             // Stop periodic execution of ItemPager
             updateItemPagerSleepTime(std::chrono::milliseconds(INT_MAX));
             scheduleEphemeralMemRecovery();
@@ -426,35 +421,13 @@ protected:
         mockVisitor->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     }
 
-    bool isCrossBucketHtQuotaSharing() {
-        return config_string.find("cross_bucket_ht_quota_sharing=true") !=
-               std::string::npos;
-    }
-
     std::string itemPagerTaskName() {
-        if (isCrossBucketHtQuotaSharing()) {
-            return "Paging out items (quota sharing).";
-        }
         return "Paging out items.";
     }
 
     void runPagingAdapterTask() {
         auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-        if (isCrossBucketHtQuotaSharing()) {
-            // The cross-bucket adapter runs one task per vBucket so we schedule
-            // it until completed
-            while (initialNonIoTasks < lpNonioQ.getFutureQueueSize()) {
-                try {
-                    runNextTask(lpNonioQ,
-                                "Item pager (quota sharing) "
-                                "(SynchronousEPEngine:default)");
-                } catch (const std::runtime_error&) {
-                    break;
-                }
-            }
-        } else {
-            runNextTask(lpNonioQ, "Item pager no vbucket assigned");
-        }
+        runNextTask(lpNonioQ, "Item pager no vbucket assigned");
     }
 
     /**
@@ -1046,9 +1019,7 @@ TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
     const auto timeAdvance = std::chrono::milliseconds{
             engine->getConfiguration().getPagerSleepTimeMs() + 1};
 
-    const auto expectedTask = isCrossBucketHtQuotaSharing()
-                                      ? "Paging out items (quota sharing)."
-                                      : "Paging out items.";
+    const auto expectedTask = "Paging out items.";
     runNextTask(lpNonioQ, expectedTask, timeAdvance);
 
     // Check subsequent runs - again advance time by item pager sleep period,
@@ -1060,10 +1031,6 @@ TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
 TEST_P(STItemPagerTest, ItemPagerUpdateSleepTime) {
     if (ephemeralFailNewData()) {
         // EphemeralFailNewData doesn't enable the ItemPager.
-        GTEST_SKIP();
-    }
-    if (isCrossBucketHtQuotaSharing()) {
-        // QuotaSharingItemPager does not support updating sleep time.
         GTEST_SKIP();
     }
     if (isEphemeralMemRecoveryEnabled()) {
@@ -2225,10 +2192,6 @@ TEST_P(STItemPagerTest, ItemPagerCannotRemoveKeyDuringWarmup) {
 TEST_P(STItemPagerTest, MB65468_ItemPagerWithAllDeadVBuckets) {
     if (ephemeralFailNewData()) {
         // items are not evicted, so the ItemPager does not run.
-        GTEST_SKIP();
-    }
-    if (isCrossBucketHtQuotaSharing()) {
-        // Only applies to StrictItemPager
         GTEST_SKIP();
     }
     if (isEphemeralMemRecoveryEnabled()) {

@@ -87,12 +87,10 @@ class CancellationToken;
  */
 
 struct DocKeyView;
-struct ServerBucketIface;
 struct ServerCoreIface;
 
 struct ServerApi {
     ServerCoreIface* core = nullptr;
-    ServerBucketIface* bucket = nullptr;
 };
 
 using GET_SERVER_API = ServerApi* (*)();

@@ -1369,46 +1369,6 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
     EXPECT_EQ(2, settings.getNumNonIoThreads());
 }
 
-TEST_F(SettingsTest, TestQuotaSharingConcurrencyPercentage) {
-    Settings settings;
-
-    auto testValue = [](int newValue) {
-        Settings s{{{"quota_sharing_pager_concurrency_percentage", newValue}}};
-        EXPECT_EQ(newValue, s.getQuotaSharingPagerConcurrencyPercentage());
-    };
-
-    // Expect a reasonable default
-    EXPECT_LT(0, settings.getQuotaSharingPagerConcurrencyPercentage());
-    EXPECT_GE(100, settings.getQuotaSharingPagerConcurrencyPercentage());
-
-    EXPECT_NO_THROW(testValue(1));
-    EXPECT_NO_THROW(testValue(50));
-    EXPECT_NO_THROW(testValue(100));
-
-    EXPECT_THROW(testValue(-1), std::invalid_argument);
-    EXPECT_THROW(testValue(0), std::invalid_argument);
-    EXPECT_THROW(testValue(101), std::invalid_argument);
-}
-
-TEST_F(SettingsTest, TestQuotaSharingPagerSleepTime) {
-    Settings settings;
-
-    auto testValue = [](int newValue) {
-        Settings s{{{"quota_sharing_pager_sleep_time_ms", newValue}}};
-        EXPECT_EQ(std::chrono::milliseconds(newValue),
-                  s.getQuotaSharingPagerSleepTime());
-    };
-
-    // Expect a reasonable default
-    EXPECT_LT(0, settings.getQuotaSharingPagerSleepTime().count());
-
-    EXPECT_NO_THROW(testValue(1));
-    EXPECT_NO_THROW(testValue(5000));
-
-    EXPECT_THROW(testValue(-1), std::invalid_argument);
-    EXPECT_THROW(testValue(0), std::invalid_argument);
-}
-
 TEST_F(SettingsTest, TestPrometheusScrapeSlowDuration) {
     Settings settings;
 

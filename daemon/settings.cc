@@ -165,22 +165,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setErrorMapsDir(value.get<std::string>());
         } else if (key == "enable_deprecated_bucket_autoselect"sv) {
             setDeprecatedBucketAutoselectEnabled(value.get<bool>());
-        } else if (key == "quota_sharing_pager_concurrency_percentage") {
-            auto val = value.get<int>();
-            if (val <= 0 || val > 100) {
-                throw std::invalid_argument(
-                        "\"quota_sharing_pager_concurrency_percentage\" must "
-                        "be a valid non-zero percentage");
-            }
-            setQuotaSharingPagerConcurrencyPercentage(val);
-        } else if (key == "quota_sharing_pager_sleep_time_ms") {
-            auto val = value.get<int>();
-            if (val <= 0) {
-                throw std::invalid_argument(
-                        "\"quota_sharing_pager_sleep_time_ms\" must "
-                        "be a valid duration in milliseconds");
-            }
-            setQuotaSharingPagerSleepTime(std::chrono::milliseconds(val));
         } else if (key == "threads"sv) {
             setNumWorkerThreads(value.get<size_t>());
         } else if (key == "interfaces") {
@@ -713,12 +697,6 @@ nlohmann::json Settings::to_json() const {
     json["subdoc_multi_max_paths"] = getSubdocMultiMaxPaths();
     json["subdoc_offload_size_threshold"] = getSubdocOffloadSizeThreshold();
     json["subdoc_offload_paths_threshold"] = getSubdocOffloadPathThreshold();
-
-    // Quota sharing
-    json["quota_sharing_pager_concurrency_percentage"] =
-            getQuotaSharingPagerConcurrencyPercentage();
-    json["quota_sharing_pager_sleep_time_ms"] =
-            getQuotaSharingPagerSleepTime().count();
 
     // DCP
     json["dcp_disconnect_when_stuck_timeout_seconds"] =
@@ -1530,25 +1508,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                          {"to", newTPC});
             setNumIOThreadsPerCore(newTPC);
         }
-    }
-
-    if (other.has.quota_sharing_pager_concurrency_percentage &&
-        other.getQuotaSharingPagerConcurrencyPercentage() !=
-                getQuotaSharingPagerConcurrencyPercentage()) {
-        LOG_INFO_CTX("Change pager concurrency percentage for quota sharing",
-                     {"from", getQuotaSharingPagerConcurrencyPercentage()},
-                     {"to", other.getQuotaSharingPagerConcurrencyPercentage()});
-        setQuotaSharingPagerConcurrencyPercentage(
-                other.getQuotaSharingPagerConcurrencyPercentage());
-    }
-
-    if (other.has.quota_sharing_pager_sleep_time_ms &&
-        other.getQuotaSharingPagerSleepTime() !=
-                getQuotaSharingPagerSleepTime()) {
-        LOG_INFO_CTX("Change pager sleep time for quota sharing",
-                     {"from", getQuotaSharingPagerSleepTime()},
-                     {"to", other.getQuotaSharingPagerSleepTime()});
-        setQuotaSharingPagerSleepTime(other.getQuotaSharingPagerSleepTime());
     }
 
     if (other.has.prometheus_config) {
