@@ -13,6 +13,11 @@
 #include <memcached/dockey_view.h>
 
 #include <array>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+
+using namespace std::string_view_literals;
 
 class DocKeyTest : public ::testing::Test {
 protected:
@@ -194,4 +199,48 @@ TEST_F(DocKeyTest, to_string) {
     // 0x8 - id event affects
     // Then the rest of the key
     EXPECT_EQ("cid:0x1:0x0:0x8:key", key4.to_string());
+}
+
+TEST(MakeUidTest, Valid) {
+    EXPECT_EQ(0x8, Collections::makeUid("8", 8));
+    EXPECT_EQ(0xffffffff, Collections::makeUid("ffffffff", 8));
+    EXPECT_EQ(0xABCDEF, Collections::makeUid("ABCDEF", 8));
+}
+
+/**
+ * Manifest uids may be 16 hex digits and must not be truncated (unsigned long
+ * is only 32 bits on Windows)
+ */
+TEST(MakeUidTest, SixtyFourBit) {
+    EXPECT_EQ(0x123456789abcdef0ULL,
+              Collections::makeUid("123456789abcdef0", 16));
+    EXPECT_EQ(0xffffffffffffffffULL,
+              Collections::makeUid("ffffffffffffffff", 16));
+}
+
+/**
+ * Only the characters in the view should be converted even if the
+ * underlying buffer continues with more hex digits
+ */
+TEST(MakeUidTest, UsesViewLength) {
+    const std::string buffer = "8ff";
+    const std::string_view view{buffer.data(), 1};
+    EXPECT_EQ(0x8, Collections::makeUid(view, 8));
+    EXPECT_EQ(CollectionID(8), CollectionID(view));
+    EXPECT_EQ(ScopeID(8), ScopeID(view));
+}
+
+TEST(MakeUidTest, Invalid) {
+    for (std::string_view uid : {""sv,
+                                 "123456789"sv, // too long
+                                 "8g"sv,
+                                 "-1"sv,
+                                 "+1"sv,
+                                 " 8"sv,
+                                 "8 "sv,
+                                 "0x8"sv,
+                                 "\xff"sv}) {
+        EXPECT_THROW(Collections::makeUid(uid, 8), std::invalid_argument)
+                << uid;
+    }
 }

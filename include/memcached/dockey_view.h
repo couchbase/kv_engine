@@ -525,8 +525,10 @@ namespace Collections {
  * Convert the id string into a value, the format of an ID is common between
  * Scope/Collection and Collection Manifest and used in a number of interfaces.
  *
- * A valid id is a string with a size > 0 <= len and each character satisfies
- * std::isxdigit, it finally must be convertable by std::strtoull
+ * A valid id is a string with a size > 0 <= len where each character is a
+ * hex digit (no prefix, sign or whitespace). The value is converted from
+ * exactly the characters in the view (which does not need to be NUL
+ * terminated)
  *
  * @param id view of the string to convert
  * @param the maximum length of the input id

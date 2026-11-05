@@ -15,6 +15,7 @@
 #include <memcached/systemevent.h>
 #include <platform/socket.h>
 #include <cctype>
+#include <charconv>
 #include <sstream>
 #include <string_view>
 
@@ -29,18 +30,21 @@ size_t makeUid(std::string_view uid, size_t limit) {
                             uid.size()));
     }
 
-    // verify that the input characters satisfy isxdigit
-    for (auto c : uid) {
-        if (!std::isxdigit(c)) {
-            throw std::invalid_argument(
-                    fmt::format("makeUid: uid:{} contains invalid character {} "
-                                "fails isxdigit",
-                                uid,
-                                c));
-        }
+    // Convert exactly the characters in the view (strtoul would continue
+    // past the end of the view if followed by more hex digits) into a
+    // 64 bit value (unsigned long is only 32 bits on Windows). For an
+    // unsigned type from_chars doesn't accept leading whitespace, a sign or
+    // a 0x prefix, so requiring that all characters are consumed means that
+    // every character must be a hex digit.
+    static_assert(sizeof(size_t) >= sizeof(uint64_t));
+    uint64_t value = 0;
+    const auto* end = uid.data() + uid.size();
+    const auto [ptr, ec] = std::from_chars(uid.data(), end, value, 16);
+    if (ec != std::errc{} || ptr != end) {
+        throw std::invalid_argument(
+                fmt::format("makeUid: failed to convert uid:{}", uid));
     }
-
-    return std::strtoul(uid.data(), nullptr, 16);
+    return value;
 }
 } // namespace Collections
 
