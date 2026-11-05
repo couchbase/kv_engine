@@ -11,6 +11,8 @@
 #include "vbucket_loading_task.h"
 
 #include "bucket_logger.h"
+#include "collections/flush.h"
+#include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
 
@@ -381,6 +383,18 @@ void VBucketLoadingTask::addToVBucketMap() {
                 {"conn_id", cookie.getConnectionId()},
                 {"vb", vbid},
                 {"highSeqno", loader.getVBucketPtr()->getHighSeqno()});
+    }
+
+    // The snapshot may contain dropped collections which the source had not
+    // yet purged. As warmup does (see Collections::Manager::warmupCompleted),
+    // schedule the purge, otherwise the dropped data remains until some other
+    // compaction runs (which may never happen).
+    if (loader.getVBucketPtr()->getManifest().isDropInProgress()) {
+        EP_LOG_INFO_CTX(
+                "VBucketLoadingTask: Scheduling purge of dropped collections",
+                {"conn_id", cookie.getConnectionId()},
+                {"vb", vbid});
+        Collections::VB::Flush::triggerPurge(vbid, store);
     }
     transition(LoadingState::Done);
 }

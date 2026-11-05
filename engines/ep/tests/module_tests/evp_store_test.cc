@@ -3627,6 +3627,59 @@ TEST_P(EPBucketTestCouchstoreFE, MB_70916) {
 }
 
 /**
+ * MB-75076: A snapshot taken before the source purged a dropped collection
+ * still contains the dropped collection's data. Loading the vbucket from that
+ * snapshot must schedule the purge (as warmup does), otherwise the data (and
+ * item count) remains until some other compaction runs.
+ */
+TEST_P(EPBucketTestCouchstore,
+       LoadVBucketFromLocalSnapshotPurgesDroppedCollection) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    store_item(vbid, makeStoredDocKey("apple", CollectionUid::fruit), "value");
+    store_item(vbid, makeStoredDocKey("banana", CollectionUid::fruit), "value");
+    flushVBucket(vbid);
+
+    // Drop the collection, but don't run the purge before the snapshot
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucket(vbid);
+    ASSERT_TRUE(store->getVBucket(vbid)->getManifest().isDropInProgress());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(*cookie, vbid, {}, [](auto&) {}));
+    auto preserved = preserveSnapshot(*engine, vbid);
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = engine->deleteVBucket(*cookie, vbid, true);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(auxIoQ, "Removing (dead) vb:0 from memory and disk");
+    }
+    restoreSnapshot(*engine, preserved);
+
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*store);
+    // The compaction scheduled for the drop went with the deleted vbucket
+    ASSERT_FALSE(mockEPBucket.getCompactionTask(vbid));
+
+    loadVBucketFromLocalSnapshot(*engine, vbid, vbucket_state_replica);
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_TRUE(vb->getManifest().isDropInProgress());
+    EXPECT_EQ(3, vb->getNumTotalItems());
+
+    // Before the fix, no purge was scheduled
+    EXPECT_TRUE(mockEPBucket.getCompactionTask(vbid));
+    runCollectionsEraser(vbid);
+
+    EXPECT_FALSE(vb->getManifest().isDropInProgress());
+    EXPECT_EQ(1, vb->getNumTotalItems());
+}
+
+/**
  * The error context is owned by the frontend's cookie (and released outside
  * of any bucket). Verify that a failing VBucketLoadingTask doesn't account
  * the memory for the error context to the bucket.

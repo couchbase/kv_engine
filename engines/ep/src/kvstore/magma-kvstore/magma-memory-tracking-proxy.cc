@@ -727,7 +727,6 @@ void MagmaMemoryTrackingProxy::DisableHistoryEviction() {
     magma->DisableHistoryEviction();
 }
 
-// TODO: This does not belong to the proxy
 void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         const cb::crypto::KeyStore& keyStore) {
     // magma only cares about the current key
@@ -741,13 +740,14 @@ void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
     }
 }
 
-// TODO: This does not belong to the proxy
 std::unordered_set<std::string> MagmaMemoryTrackingProxy::getEncryptionKeyIds()
         const {
-    auto keys = magma->GetActiveEncryptionKeyIDs();
-    std::unordered_set<std::string> ret;
-    ret.insert(keys.begin(), keys.end());
-    return ret;
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    const auto keys = magma->GetActiveEncryptionKeyIDs();
+    // Build the result in the primary domain; keys (and anything else
+    // allocated by magma) is released in the secondary domain.
+    cb::UseArenaMallocPrimaryDomain primaryGuard;
+    return {keys.begin(), keys.end()};
 }
 
 std::tuple<magma::Status, nlohmann::json>

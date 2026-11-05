@@ -1404,6 +1404,52 @@ TEST_P(STParamMagmaBucketTest, getDbFileInfo_MemoryDomainLeak) {
                                                  cb::MemoryDomain::Secondary));
     EXPECT_EQ(memUsed, engine->getEpStats().getPreciseTotalMemoryUsed());
 }
+
+// Magma must be called in the secondary domain when fetching the encryption
+// key ids. When the bucket is created with encryption keys (before magma has
+// used any key) magma fetches the current key from KV, allocated in the
+// secondary domain, and previously released it in the primary domain - a free
+// of data on the wrong domain.
+TEST_P(STParamMagmaBucketTest, getEncryptionKeyIds_MemoryDomainLeak) {
+    // Use a key id which doesn't fit in the small string buffer (the real
+    // ids are UUIDs) so the copies of the key perform heap allocations.
+    const std::string keyId = "ac6e1d3c-8a8e-4c3e-9e1a-5f0a6f7e2b11";
+    nlohmann::json keys;
+    {
+        NonBucketAllocationGuard guard;
+        keys = {{"active", keyId},
+                {"keys",
+                 {{{"id", keyId},
+                   {"cipher", "AES-256-GCM"},
+                   {"key", "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="}}}}};
+    }
+    resetEngineAndWarmup({}, false, std::move(keys));
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    auto primaryDomainSz = cb::ArenaMalloc::getPreciseAllocated(
+            engine->getArenaMallocClient(), cb::MemoryDomain::Primary);
+    auto secondaryDomainSz = cb::ArenaMalloc::getPreciseAllocated(
+            engine->getArenaMallocClient(), cb::MemoryDomain::Secondary);
+    EXPECT_NE(0, primaryDomainSz);
+    EXPECT_NE(0, secondaryDomainSz);
+
+    {
+        auto ids = kvstore->getEncryptionKeyIds();
+        auto* set = std::get_if<std::unordered_set<std::string>>(&ids);
+        ASSERT_TRUE(set);
+        EXPECT_TRUE(set->contains(keyId));
+    }
+    EXPECT_EQ(
+            primaryDomainSz,
+            cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                 cb::MemoryDomain::Primary));
+    EXPECT_EQ(
+            secondaryDomainSz,
+            cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                 cb::MemoryDomain::Secondary));
+}
 #endif
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,

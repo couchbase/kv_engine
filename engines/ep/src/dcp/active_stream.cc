@@ -154,6 +154,18 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         collectionStartSeqno = getCollectionStreamStart(vbucket);
     }
 
+    if (isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::CacheTransfer)) {
+        // The client requested CacheTransfer, but this producer is not doing
+        // one (it is disabled). The client may be waiting for the end of the
+        // transfer, so CacheTransferEnd must be the first message sent.
+        OBJ_LOG_INFO_RAW(*this,
+                         "Stream request with CacheTransfer, sending "
+                         "CacheTransferEnd and then streaming normally");
+        std::lock_guard<std::mutex> lh(streamMutex);
+        pushToReadyQ(
+                std::make_unique<CacheTransferEndResponse>(opaque_, vb_, sid));
+    }
+
     if (start_seqno_ >= endSeqno) {
         /* streamMutex lock needs to be acquired because endStream
          * potentially makes call to pushToReadyQueue.

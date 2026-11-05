@@ -368,6 +368,11 @@ bool CacheTransferToActiveStreamResponse::isEqual(
     return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
 }
 
+bool CacheTransferEndResponse::isEqual(const DcpResponse& rsp) const {
+    const auto& other = static_cast<const CacheTransferEndResponse&>(rsp);
+    return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
+}
+
 bool CacheTransferEndConsumer::isEqual(const DcpResponse& rsp) const {
     const auto& other = static_cast<const CacheTransferEndConsumer&>(rsp);
     return vbucket == other.vbucket && DcpResponse::isEqual(rsp);
