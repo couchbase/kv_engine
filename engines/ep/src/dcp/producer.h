@@ -14,6 +14,7 @@
 #include "dcp/dcp-types.h"
 #include "dcp/stream_container.h"
 #include "dcp/stream_request_info.h"
+#include "dcp/streams_map.h"
 #include "ep_engine.h"
 #include "utilities/testing_hook.h"
 #include "vb_ready_queue.h"
@@ -21,7 +22,6 @@
 
 #include <include/mcbp/protocol/dcp_stream_end_status.h>
 
-#include <folly/AtomicHashMap.h>
 #include <folly/SharedMutex.h>
 #include <folly/lang/Aligned.h>
 #include <platform/atomic_duration.h>
@@ -62,8 +62,8 @@ public:
      * via a shared_ptr. This allows multiple threads to obtain the
      * StreamContainer and for safe destruction to occur.
      */
-    using StreamMapValue = std::shared_ptr<StreamContainer<ContainerElement>>;
-    using StreamsMap = folly::AtomicHashArray<uint16_t, StreamMapValue>;
+    using StreamsMap = DcpStreamsMap<StreamContainer<ContainerElement>>;
+    using StreamMapValue = StreamsMap::Value;
 
     /**
      * Construct a DCP Producer
@@ -695,28 +695,22 @@ protected:
      * f some other value only if f returns a value that evaluates to true
      * (bool operator)
      *
-     * The function should take a value_type reference as a parameter and return
-     * some-type by value. some-type must be a type which supports operator bool
-     * e.g. std::shared_ptr. As each map element is evaluated, the iteration
+     * The function should take a StreamMapValue reference as a parameter and
+     * return some-type by value. some-type must be a type which supports
+     * operator bool e.g. std::shared_ptr. As each map element is evaluated,
+     * the iteration
      * will stop when f returns a value which 'if (value)' evaluates to true,
      * the value is then returned.
      * If every element is visited and nothing evaluated to true, then a default
      * initialised some-type is returned.
      *
-     * @param key Key value to lookup
      * @param f Function object to be applied
      * @returns The value found by f or a default initialised value
      */
     template <class UnaryFunction>
     auto find_if2(UnaryFunction f) {
-        using UnaryFunctionRval = decltype(f(*streams->find({})));
-        for (auto& kv : *streams) {
-            auto rv = f(kv);
-            if (rv) {
-                return rv;
-            }
-        }
-        return UnaryFunctionRval{};
+        return streams.find_if(
+                [&f](Vbid, const StreamMapValue& value) { return f(value); });
     }
 
     /**
@@ -797,19 +791,15 @@ protected:
             pendingSetVBucketStateAcks;
 
     /**
-     * folly::AtomicHashArray of uint16_t (Vbid underlying type) to
-     * StreamContainer.
+     * Map of Vbid to StreamContainer.
      *
-     * We will create elements in the map as and when we need them. One caveat
-     * of Folly's AtomicHashArray is that you don't free memory when you call
-     * erase. Given that we don't gain anything from call erase, other than a
-     * boat load of locking issues, we will never call erase on streams.
-     * Instead, we will simply rely on the locks provided by the
-     * StreamContainer/ContainerElement and will just empty the StreamContainer
-     * in place of calling erase. We'll clear up any memory allocated when we
+     * We will create elements in the map as and when we need them. Elements
+     * are never removed from the map; instead, we rely on the locks provided
+     * by the StreamContainer/ContainerElement and empty the StreamContainer
+     * in place of erasing it. We'll clear up any memory allocated when we
      * destruct the DcpProducer.
      */
-    StreamsMap::SmartPtr streams;
+    StreamsMap streams;
     std::atomic<size_t> itemsSent;
     std::atomic<size_t> totalBytesSent;
     std::atomic<size_t> totalUncompressedDataSize;

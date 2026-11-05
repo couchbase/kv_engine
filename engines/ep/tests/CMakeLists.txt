@@ -81,6 +81,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/dcp_stream_test.cc
         module_tests/dcp_stream_ephemeral_test.cc
         module_tests/dcp_stream_sync_repl_test.cc
+        module_tests/dcp_streams_map_test.cc
         module_tests/dcp_test.cc
         module_tests/dcp_utils.cc
         module_tests/diskdockey_test.cc

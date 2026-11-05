@@ -134,8 +134,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::addMockActiveStream(
                      baseStream,
                      AllowSwapInStreamMap::No);
 
-    auto found = streams->find(vb.getId().get());
-    if (found == streams->end()) {
+    if (!streams.find(vb.getId())) {
         throw std::logic_error(
                 "MockDcpProducer::addMockActiveStream "
                 "failed to insert requested stream");
@@ -173,8 +172,7 @@ MockDcpProducer::addMockCacheTransferStream(
                      baseStream,
                      AllowSwapInStreamMap::No);
 
-    auto found = streams->find(vb.getId().get());
-    if (found == streams->end()) {
+    if (!streams.find(vb.getId())) {
         throw std::logic_error(
                 "MockDcpProducer::addMockCacheTransferStream "
                 "failed to insert requested stream");
@@ -289,9 +287,8 @@ cb::engine_errc MockDcpProducer::stepWithBorderGuard(
 }
 
 std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
-    auto rv = streams->find(vbid.get());
-    if (rv != streams->end()) {
-        auto handle = rv->second->rlock();
+    if (const auto& rv = streams.find(vbid)) {
+        auto handle = rv->rlock();
         // An empty StreamContainer for this vbid is allowed
         if (handle.size() == 0) {
             return nullptr;
@@ -315,9 +312,8 @@ std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
 }
 
 std::shared_ptr<ProducerStream> MockDcpProducer::findProducerStream(Vbid vbid) {
-    auto rv = streams->find(vbid.get());
-    if (rv != streams->end()) {
-        auto handle = rv->second->rlock();
+    if (const auto& rv = streams.find(vbid)) {
+        auto handle = rv->rlock();
 
         if (handle.size() == 0) {
             return nullptr;
@@ -343,9 +339,8 @@ MockDcpProducer::getCheckpointSnapshotTask() const {
 
 std::pair<std::shared_ptr<ActiveStream>, bool> MockDcpProducer::findStream(
         Vbid vbid, cb::mcbp::DcpStreamId sid) {
-    auto rv = streams->find(vbid.get());
-    if (rv != streams->end()) {
-        auto handle = rv->second->rlock();
+    if (const auto& rv = streams.find(vbid)) {
+        auto handle = rv->rlock();
         // Try and locate a matching stream
         for (; !handle.end(); handle.next()) {
             if (handle.get()->compareStreamId(sid)) {

@@ -11,6 +11,7 @@
 
 #include "dcp/producer.h"
 #include <benchmark/benchmark.h>
+#include <folly/AtomicHashMap.h>
 #include <folly/portability/GMock.h>
 
 class DcpProducerStreamsMapBench : public ::benchmark::Fixture {};
@@ -75,8 +76,39 @@ BENCHMARK_DEFINE_F(DcpProducerStreamsMapBench, findArray)
     state.counters["capacity"] = streams->capacity_;
 }
 
+/**
+ * Benchmark performance of DcpProducer::StreamsMap::find(), implemented
+ * using DcpStreamsMap (a fixed size array indexed by vbid) of size 1024.
+ * Varying number of elements in map.
+ */
+BENCHMARK_DEFINE_F(DcpProducerStreamsMapBench, findStreamsMap)
+(benchmark::State& state) {
+    DcpProducer::StreamsMap streams(1024);
+    std::vector<Vbid> vbs;
+    for (uint16_t vb = 0; vb < state.range(); vb++) {
+        streams.insert(Vbid(vb),
+                       std::make_shared<
+                               StreamContainer<DcpProducer::ContainerElement>>(
+                               DcpProducer::ContainerElement{}));
+        vbs.emplace_back(vb);
+    }
+
+    auto it = vbs.begin();
+    while (state.KeepRunning()) {
+        const auto* found = &streams.find(*it++);
+        benchmark::DoNotOptimize(found);
+        if (it == vbs.end()) {
+            it = vbs.begin();
+        }
+    }
+    state.counters["capacity"] = streams.capacity();
+}
+
 BENCHMARK_REGISTER_F(DcpProducerStreamsMapBench, findMap)
         ->DenseRange(128, 1024, 128);
 
 BENCHMARK_REGISTER_F(DcpProducerStreamsMapBench, findArray)
+        ->DenseRange(128, 1024, 128);
+
+BENCHMARK_REGISTER_F(DcpProducerStreamsMapBench, findStreamsMap)
         ->DenseRange(128, 1024, 128);
