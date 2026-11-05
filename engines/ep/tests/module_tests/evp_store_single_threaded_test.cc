@@ -6948,3 +6948,135 @@ MutationStatus STParameterizedBucketTest::public_processSet(
                         {/*no predicate*/})
             .first;
 }
+
+/**
+ * A CompactTask which is queued waiting for a compaction concurrency token, and
+ * is then cancelled (its vbucket deleted, e.g. by rebalance) must not consume
+ * the signal when a token is released. Previously the dead task took the
+ * signal and the next waiter was never woken, leaving it (and every compaction
+ * queued behind it) waiting forever, even though tokens were available.
+ */
+TEST_P(STParamPersistentBucketTest, CancelledCompactionWaiterLosesWakeup) {
+    auto& mockEP = dynamic_cast<MockEPBucket&>(*store);
+    auto& semaphore = mockEP.public_getCompactionSemaphore();
+    const Vbid vb1(1);
+    const Vbid vb2(2);
+    setVBucketStateAndRunPersistTask(vb1, vbucket_state_active);
+    setVBucketStateAndRunPersistTask(vb2, vbucket_state_active);
+
+    CompactionConfig config;
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEP.scheduleCompaction(
+                      vb1, config, nullptr, std::chrono::milliseconds(0)));
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEP.scheduleCompaction(
+                      vb2, config, nullptr, std::chrono::milliseconds(0)));
+
+    // Take every token, as if other compactions are running.
+    size_t held = 0;
+    while (semaphore.try_acquire()) {
+        ++held;
+    }
+    ASSERT_GT(held, 0);
+
+    // Both compactions run, fail to get a token and queue as waiters.
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    runNextTask(auxIoQ, "Compact DB file 1");
+    runNextTask(auxIoQ, "Compact DB file 2");
+    ASSERT_EQ(2, semaphore.getWaiters().size());
+
+    // Rebalance removes vb1 - its queued compaction is cancelled.
+    ASSERT_EQ(cb::engine_errc::success, store->deleteVBucket(vb1, nullptr));
+
+    // One of the "running" compactions completes and returns its token.
+    semaphore.release();
+
+    // Expected: vb2's compaction is woken to use the token, so it is no
+    // longer queued as a waiter.
+    EXPECT_EQ(0, semaphore.getWaiters().size())
+            << "vb2 compaction still waiting with a token available";
+
+    // vb2's compaction should be able to run now (after vb1's deletion)
+    runNextTask(auxIoQ, "Removing (dead) vb:1 from memory and disk");
+    runNextTask(auxIoQ, "Compact DB file 2");
+    EXPECT_EQ(0, semaphore.getWaiters().size());
+
+    // vb2's compaction ran to completion (was not aborted), its task has been
+    // removed and it took and returned the token - which is available again.
+    EXPECT_EQ(0, engine->getEpStats().compactionAborted);
+    EXPECT_TRUE(mockEP.public_getCompactionTasks().empty());
+    EXPECT_TRUE(semaphore.try_acquire());
+    semaphore.release();
+
+    // Cleanup - return the remaining tokens
+    if (held > 1) {
+        semaphore.release(held - 1);
+    }
+}
+
+/**
+ * As CancelledCompactionWaiterLosesWakeup, but the queued CompactTask is
+ * signalled that a token is available before it is cancelled. The cancelled
+ * task never runs to use the token, so the signal must be passed on.
+ */
+TEST_P(STParamPersistentBucketTest, CancelledSignalledCompactionLosesWakeup) {
+    auto& mockEP = dynamic_cast<MockEPBucket&>(*store);
+    auto& semaphore = mockEP.public_getCompactionSemaphore();
+    const Vbid vb1(1);
+    const Vbid vb2(2);
+    setVBucketStateAndRunPersistTask(vb1, vbucket_state_active);
+    setVBucketStateAndRunPersistTask(vb2, vbucket_state_active);
+
+    CompactionConfig config;
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEP.scheduleCompaction(
+                      vb1, config, nullptr, std::chrono::milliseconds(0)));
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEP.scheduleCompaction(
+                      vb2, config, nullptr, std::chrono::milliseconds(0)));
+
+    // Take every token, as if other compactions are running.
+    size_t held = 0;
+    while (semaphore.try_acquire()) {
+        ++held;
+    }
+    ASSERT_GT(held, 0);
+
+    // Both compactions run, fail to get a token and queue as waiters.
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    runNextTask(auxIoQ, "Compact DB file 1");
+    runNextTask(auxIoQ, "Compact DB file 2");
+    ASSERT_EQ(2, semaphore.getWaiters().size());
+
+    // One of the "running" compactions completes and returns its token, vb1's
+    // compaction is signalled.
+    semaphore.release();
+    ASSERT_EQ(1, semaphore.getWaiters().size());
+
+    // Rebalance removes vb1 before its compaction runs.
+    ASSERT_EQ(cb::engine_errc::success, store->deleteVBucket(vb1, nullptr));
+
+    // vb2's compaction must now be signalled to use the token.
+    EXPECT_EQ(0, semaphore.getWaiters().size())
+            << "vb2 compaction still waiting with a token available";
+
+    // vb2's compaction should be able to run now (after vb1's deletion).
+    // vb1's compaction was woken before it was cancelled, so is still queued
+    // (dead) - the executor pops it but does not run it.
+    runNextTask(auxIoQ, "Removing (dead) vb:1 from memory and disk");
+    runNextTask(auxIoQ, "Compact DB file 1");
+    runNextTask(auxIoQ, "Compact DB file 2");
+    EXPECT_EQ(0, semaphore.getWaiters().size());
+
+    // vb2's compaction ran to completion (was not aborted), its task has been
+    // removed and it took and returned the token - which is available again.
+    EXPECT_EQ(0, engine->getEpStats().compactionAborted);
+    EXPECT_TRUE(mockEP.public_getCompactionTasks().empty());
+    EXPECT_TRUE(semaphore.try_acquire());
+    semaphore.release();
+
+    // Cleanup - return the remaining tokens
+    if (held > 1) {
+        semaphore.release(held - 1);
+    }
+}

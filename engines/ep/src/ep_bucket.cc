@@ -1332,16 +1332,26 @@ cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
 }
 
 cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
-    auto handle = compactionTasks.wlock();
-    if (auto itr = handle->find(vbid); itr != handle->end()) {
-        const auto& task = (*itr).second;
-        EP_LOG_INFO_CTX("Compaction cancelled", {"vb", vbid});
-        task->cancel();
+    std::shared_ptr<CompactTask> task;
+    {
+        auto handle = compactionTasks.wlock();
+        if (auto itr = handle->find(vbid); itr != handle->end()) {
+            task = (*itr).second;
+            EP_LOG_INFO_CTX("Compaction cancelled", {"vb", vbid});
+            task->cancel();
 
-        // Erase the task from the map. The task itself if it does run (or is
-        // running) would also do/try this, but if the task never runs after
-        // cancel the task would remain in the map.
-        handle->erase(itr);
+            // Erase the task from the map. The task itself if it does run (or
+            // is running) would also do/try this, but if the task never runs
+            // after cancel the task would remain in the map.
+            handle->erase(itr);
+        }
+    }
+
+    if (task) {
+        // The task may have been signalled that a compaction token is free,
+        // but will now never run to use it. Pass the signal on to any other
+        // waiting compaction.
+        task->passOnSignal();
     }
     return cb::engine_errc::success;
 }

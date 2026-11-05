@@ -94,6 +94,10 @@ EpLimitedConcurrencyTask::EpLimitedConcurrencyTask(
 }
 
 void EpLimitedConcurrencyTask::signal() {
+    if (isdead()) {
+        passOnSignal();
+        return;
+    }
     wakeup();
 }
 
