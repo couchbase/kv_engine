@@ -1177,3 +1177,38 @@ TEST(ManifestTest, configureHistory) {
     EXPECT_EQ(CanDeduplicate::No,
               manifest.getCanDeduplicate(CollectionEntry::vegetable));
 }
+
+TEST(MakeIdFromStringTest, Valid) {
+    using Collections::makeCollectionIDFromString;
+    using Collections::makeScopeIDFromString;
+    for (std::string_view str : {"8", "0x8", "0X8"}) {
+        EXPECT_EQ(CollectionID(8), makeCollectionIDFromString(str)) << str;
+        EXPECT_EQ(ScopeID(8), makeScopeIDFromString(str)) << str;
+    }
+    EXPECT_EQ(CollectionID(0xffffffff), makeCollectionIDFromString("ffffffff"));
+    EXPECT_EQ(CollectionID(0xabcdef), makeCollectionIDFromString("0xABCDEF"));
+}
+
+/**
+ * Only the characters in the view should be converted. The stat key is a view
+ * into the packet, and the conversion used to read until a NUL byte
+ * (std::stoul(str.data()) constructs a std::string using strlen)
+ */
+TEST(MakeIdFromStringTest, UsesViewLength) {
+    const std::string buffer = "8ff";
+    const std::string_view view{buffer.data(), 1};
+    EXPECT_EQ(CollectionID(8), Collections::makeCollectionIDFromString(view));
+    EXPECT_EQ(ScopeID(8), Collections::makeScopeIDFromString(view));
+}
+
+TEST(MakeIdFromStringTest, Invalid) {
+    for (std::string_view str :
+         {"", "0x", "8g", "8 ", " 8", "-1", "+8", "0x-1", "100000000"}) {
+        EXPECT_THROW(Collections::makeCollectionIDFromString(str),
+                     std::invalid_argument)
+                << str;
+        EXPECT_THROW(Collections::makeScopeIDFromString(str),
+                     std::invalid_argument)
+                << str;
+    }
+}

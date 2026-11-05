@@ -22,6 +22,7 @@
 #include <platform/monotonic.h>
 #include <relaxed_atomic.h>
 
+#include <charconv>
 #include <functional>
 #include <unordered_map>
 
@@ -434,6 +435,10 @@ constexpr std::string_view LegacyJSONFormat = R"({{"max_dcp_seqno":"{}"}})";
  * representations that come from stat calls, not for values that come from the
  * Manifest (JSON)
  *
+ * The string must be a hex number (N, 0xN or 0XN) and the entire string must
+ * be consumed. Only the characters in the view are used (it does not need to
+ * be NUL terminated).
+ *
  * @param str The string to convert.
  * @return The converted CollectionID or ScopeID.
  * @throws std::invalid_argument if the string is not a valid CollectionID or
@@ -441,11 +446,20 @@ constexpr std::string_view LegacyJSONFormat = R"({{"max_dcp_seqno":"{}"}})";
  */
 template <typename T>
 T makeIdFromString(std::string_view str) {
-    auto value = std::stoul(str.data(), nullptr, 16);
-    if (value > std::numeric_limits<uint32_t>::max()) {
+    if (str.starts_with("0x") || str.starts_with("0X")) {
+        str.remove_prefix(2);
+    }
+    uint32_t value = 0;
+    const auto* end = str.data() + str.size();
+    const auto [ptr, ec] = std::from_chars(str.data(), end, value, 16);
+    if (ec == std::errc::result_out_of_range) {
         throw std::invalid_argument("makeIdFromString: value is too large");
     }
-    return T(gsl::narrow_cast<uint32_t>(value));
+    if (ec != std::errc{} || ptr != end) {
+        throw std::invalid_argument(
+                "makeIdFromString: value is not a valid hex number");
+    }
+    return T(value);
 }
 
 static inline CollectionID makeCollectionIDFromString(std::string_view str) {
