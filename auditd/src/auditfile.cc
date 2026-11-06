@@ -259,7 +259,17 @@ bool AuditFile::open() {
 void AuditFile::close_and_rotate_log() {
     Expects(file);
     const auto empty = file->size() == 0;
-    file->flush();
+    // close() flushes the file and syncs it to disk, and reports any errors
+    // which would be ignored if the writer was just destroyed. This method
+    // is used to handle errors from writing to the file, so it must not
+    // throw (the file is rotated even if closing it failed)
+    try {
+        file->close();
+    } catch (const std::exception& exception) {
+        LOG_WARNING_CTX("Audit: Failed to close file",
+                        {"path", open_file_name.generic_string()},
+                        {"error", exception.what()});
+    }
     file.reset();
     open_time = 0;
 

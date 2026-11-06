@@ -205,7 +205,9 @@ void Manager::save(Entity entity,
                    std::string_view data) const {
     auto writer = crypto::FileWriter::create(lookup(entity), path);
     writer->write(data);
-    writer->flush();
+    // close() syncs the file to disk and reports any errors (which would
+    // be ignored if the writer was just destroyed)
+    writer->close();
 }
 
 } // namespace cb::dek

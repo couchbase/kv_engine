@@ -55,7 +55,9 @@ public:
                                    std::chrono::microseconds wait = {});
 
     /// Encrypt the provided data with the active key for the entity (if no keys
-    /// are generated the data will be saved in plain text)
+    /// are generated the data will be saved in plain text). The file is
+    /// synced to disk before returning, and an exception is thrown if an
+    /// error occurs
     void save(Entity entity,
               const std::filesystem::path& path,
               std::string_view data) const;

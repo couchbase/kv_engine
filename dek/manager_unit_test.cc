@@ -9,6 +9,8 @@
  */
 #include "manager.h"
 #include <folly/portability/GTest.h>
+#include <platform/dirutils.h>
+#include <filesystem>
 using namespace cb::dek;
 
 TEST(ManagerTest, GlobalInstance) {
@@ -73,4 +75,33 @@ TEST(ManagerTest, GenerationUpdatedKeyStore) {
               Manager::instance()
                       .getEntityGenerationCounter(Entity::Config)
                       ->load());
+}
+
+TEST(ManagerTest, SaveAndLoad) {
+    auto manager = Manager::create();
+    const auto file = std::filesystem::path{cb::io::mktemp("ManagerTest")};
+    const std::string content = "This is the content";
+
+    // No key: the data is stored in plain text
+    manager->save(Entity::Config, file, content);
+    EXPECT_EQ(content, cb::io::loadFile(file));
+    EXPECT_EQ(content, manager->load(Entity::Config, file));
+
+    manager->setActive(Entity::Config,
+                       cb::crypto::KeyDerivationKey::generate());
+    manager->save(Entity::Config, file, content);
+    EXPECT_EQ(std::string::npos, cb::io::loadFile(file).find(content))
+            << "The data should be encrypted";
+    EXPECT_EQ(content, manager->load(Entity::Config, file));
+    std::filesystem::remove(file);
+}
+
+TEST(ManagerTest, SaveFailure) {
+    auto manager = Manager::create();
+    const auto file = std::filesystem::path{cb::io::mktemp("ManagerTest")};
+    std::filesystem::remove(file);
+    EXPECT_THROW(manager->save(Entity::Config,
+                               file / "non-existing-subdir" / "file",
+                               "content"),
+                 std::exception);
 }
