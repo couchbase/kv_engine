@@ -21,7 +21,18 @@ LimitedConcurrencyTask::LimitedConcurrencyTask(
 }
 
 void LimitedConcurrencyTask::signal() {
+    if (isdead()) {
+        passOnSignal();
+        return;
+    }
     wakeup();
+}
+
+void LimitedConcurrencyBase::passOnSignal() {
+    // Taking and returning a token signals the next waiter (if any).
+    if (semaphore.try_acquire()) {
+        semaphore.release();
+    }
 }
 
 cb::SemaphoreGuard<cb::Semaphore*> LimitedConcurrencyBase::acquireOrWait() {
