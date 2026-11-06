@@ -22,6 +22,20 @@ public:
         : semaphore(semaphore) {
     }
 
+    /**
+     * Pass a signal on to the next waiter.
+     *
+     * A cancelled (dead) task will never run again, so must not consume a
+     * signal from the semaphore - it may still be queued as a waiter, or it
+     * may have been signalled but not yet run. In either case, if a token is
+     * now available, the next waiter must be signalled to use it, else that
+     * waiter (and all waiters queued behind it) could wait forever.
+     *
+     * Called by signal() if the task is dead. Should also be called by the
+     * owner of a task after cancelling it (the semaphore must still exist).
+     */
+    void passOnSignal();
+
 protected:
     /**
      * Attempt to acquire a token from the semaphore provided at construction.
