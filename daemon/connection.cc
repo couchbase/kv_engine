@@ -860,9 +860,13 @@ void Connection::tryToProgressDcpStream() {
             more = false;
         }
     }
-    // There is no need to try to trigger a callback as we should
-    // have data in the output queue if we have more data to send (otherwise
-    // we would have tried to put it in the output queue).
+    if (more && (numEvents == 0 || exceededTimeslice)) {
+        // We stopped while the engine may still have data to send. If this
+        // call queued nothing, no write-drain callback will follow, and the
+        // engine only notifies paused producers (MB-75165). This is a no-op
+        // when data is queued, as the write-drain callback runs us again.
+        triggerCallback();
+    }
 }
 
 void Connection::processBlockedSendQueue() {

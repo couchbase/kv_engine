@@ -15,6 +15,7 @@
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include "settings.h"
 
 #include <daemon/cookie.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -54,10 +55,40 @@ public:
         return *cookies.back();
     }
 
+    using Connection::executeCommandsCallback;
+
+    /// Grant the connection the DcpProducer privilege (checked by
+    /// tryToProgressDcpStream()). The context uses the generation of the
+    /// empty privilege database so it isn't replaced as stale.
+    void grantDcpProducerPrivilege() {
+        cb::rbac::PrivilegeMask mask;
+        mask.set(size_t(cb::rbac::Privilege::DcpProducer));
+        privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                0, getUser().domain, mask, nullptr);
+    }
+
+    auto& getPrivilegeContextRef() const {
+        return *privilegeContext;
+    }
+
+    /// Observe the order connections are woken up in in the provided vector
+    void recordCallbacks(std::vector<Connection*>& order) {
+        callbackOrder = &order;
+        bufferevent_setcb(bev.get(), recordCallback, nullptr, nullptr, this);
+    }
+
     /// Returns the current state of the connection.
     auto getState() const {
         return state;
     }
+
+protected:
+    static void recordCallback(bufferevent*, void* arg) {
+        auto* self = static_cast<MockConnection*>(arg);
+        self->callbackOrder->push_back(self);
+    }
+
+    std::vector<Connection*>* callbackOrder = nullptr;
 };
 
 class MockFrontEndThread : public FrontEndThread {
@@ -108,6 +139,8 @@ public:
     }
 
     void resetConnectionTest(bool emptySendQueue);
+
+    void expectDcpStepRescheduled();
 
 protected:
     std::unique_ptr<MockFrontEndThread> frontEndThread;
@@ -273,6 +306,58 @@ TEST_F(ConnectionUnitTests, MB_67796_emptySendQueue) {
 
 TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
     resetConnectionTest(false);
+}
+
+/**
+ * MB-75165: the DCP step loop stops early when the time slice or the
+ * request budget is used up. If it stops before queuing anything, no
+ * write-drain callback will run it again and the engine only notifies
+ * paused producers, so it must schedule the next callback itself.
+ *
+ * Run one callback on a DCP connection and check that another one was
+ * scheduled.
+ */
+void ConnectionUnitTests::expectDcpStepRescheduled() {
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+    connection->setDcpConnHandler(nullptr);
+    connection->grantDcpProducerPrivilege();
+    ASSERT_FALSE(connection->getPrivilegeContextRef().isStale());
+
+    connection->executeCommandsCallback();
+    ASSERT_EQ(Connection::State::running, connection->getState())
+            << connection->getTerminationReason();
+    ASSERT_EQ(0, connection->getSendQueueSize());
+
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    EXPECT_EQ(1, order.size())
+            << "The step loop stopped early with nothing queued and nothing "
+               "will run it again";
+}
+
+TEST_F(ConnectionUnitTests, MB75165_DcpStepTimeSliceUsedUp) {
+    // The callback starts with its time slice already used up (as if the
+    // thread was descheduled), so the loop stops before calling step()
+    auto& settings = Settings::instance();
+    const auto oldTimeSlice = settings.getCommandTimeSlice();
+    settings.setCommandTimeSlice(std::chrono::milliseconds{0});
+    expectDcpStepRescheduled();
+    settings.setCommandTimeSlice(oldTimeSlice);
+}
+
+TEST_F(ConnectionUnitTests, MB75165_DcpStepRequestBudgetUsedUp) {
+    // In production inbound packets with no response (e.g. buffer acks)
+    // use up the budget; a budget of zero gets the loop to the same state
+    // without an engine to execute them
+    auto& settings = Settings::instance();
+    const auto oldRequests =
+            settings.getRequestsPerEventNotification(EventPriority::Low);
+    settings.setRequestsPerEventNotification(0, EventPriority::Low);
+    connection->setPriority(ConnectionPriority::Low);
+    expectDcpStepRescheduled();
+    settings.setRequestsPerEventNotification(oldRequests, EventPriority::Low);
 }
 
 /** A task which only records that it received a response */
