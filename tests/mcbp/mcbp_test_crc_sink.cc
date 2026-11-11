@@ -68,11 +68,8 @@ void CRCSinkTest::buildData(size_t chunks, size_t chunkSize, bool addTail) {
         }
         std::string_view fileData{&data.back() - (size - 1), size};
         // And append the checksum as per GetFileFragment (network order)
-        auto crc = htonl(crc32c(fileData, 0));
-        data.push_back(crc & 0xff);
-        data.push_back((crc >> 8) & 0xff);
-        data.push_back((crc >> 16) & 0xff);
-        data.push_back((crc >> 24) & 0xff);
+        const uint32_t crc = htonl(crc32c(fileData, 0));
+        data.append(reinterpret_cast<const char*>(&crc), sizeof(crc));
     };
 
     // This loop generates the "GetFileFragment" data when checksumming is
