@@ -177,6 +177,56 @@ protected:
                   "magmakv::Version is not the expected size.");
 
     /**
+     * The flag bits stored in the V0 (and V2) metadata.
+     *
+     * The bits are defined with explicit masks (instead of as bitfields) as
+     * the layout of bitfields depends on the endianness of the platform, and
+     * the encoded value must be identical on all platforms.
+     */
+    class FlagBits {
+    public:
+        bool isDeleted() const {
+            return all & deletedBit;
+        }
+        void setDeleted(bool value) {
+            set(deletedBit, value);
+        }
+
+        DeleteSource getDeleteSource() const {
+            return (all & deleteSourceBit) ? DeleteSource::TTL
+                                           : DeleteSource::Explicit;
+        }
+        void setDeleteSource(DeleteSource value) {
+            set(deleteSourceBit, value == DeleteSource::TTL);
+        }
+
+        /// Only defined for V2 metadata
+        bool isHistory() const {
+            return all & historyBit;
+        }
+        void setHistory(bool value) {
+            set(historyBit, value);
+        }
+
+        uint8_t all{0};
+
+    private:
+        void set(uint8_t mask, bool value) {
+            if (value) {
+                all |= mask;
+            } else {
+                all &= ~mask;
+            }
+        }
+
+        static constexpr uint8_t deletedBit = 0x01;
+        static constexpr uint8_t deleteSourceBit = 0x02;
+        static constexpr uint8_t historyBit = 0x04;
+    };
+    static_assert(sizeof(FlagBits) == 1,
+                  "magmakv::FlagBits is not the expected size.");
+
+    /**
      * Standard metadata used for commit namespace items
      */
     class MetaDataV0 {
@@ -203,14 +253,7 @@ protected:
         uint32_t valueSize = 0;
         uint8_t datatype = 0;
 
-        union V0Bits {
-            V0Bits() = default;
-            struct {
-                uint8_t deleted : 1;
-                uint8_t deleteSource : 1; // 0 Explicit, 1 TTL
-            } bits;
-            uint8_t all{0};
-        } bits;
+        FlagBits bits;
 
         // The leb128 encoded fields get added at the end of the encoded meta
         cb::uint48_t revSeqno = 0;
@@ -244,24 +287,46 @@ protected:
         // See magmakv::MetaData::encode() documentation
         std::string encode() const;
 
-        union durabilityDetails {
-            // Need to supply a default constructor or the compiler will
-            // complain about cb::uint48_t
-            durabilityDetails() : raw(0){};
+        /**
+         * The durability details are either the details of a pending
+         * SyncWrite (prepare) or the prepareSeqno of a completed SyncWrite
+         * (abort), stored in the same 48 bits.
+         *
+         * For a prepare bit 0 holds isDelete (0:pendingSyncWrite,
+         * 1:pendingSyncDelete) and bits 1-2 hold the cb::durability::level.
+         * The bits are defined with explicit masks (instead of as bitfields)
+         * so that the encoded value is identical on all platforms.
+         */
+        class DurabilityDetails {
+        public:
+            bool isDelete() const {
+                return uint64_t(raw) & isDeleteMask;
+            }
 
-            struct {
-                // 0:pendingSyncWrite, 1:pendingSyncDelete
-                uint8_t isDelete : 1;
-                // cb::durability::level
-                uint8_t level : 2;
-            } pending;
+            uint8_t getLevel() const {
+                return (uint64_t(raw) & levelMask) >> levelShift;
+            }
 
-            struct completedDetails {
-                // prepareSeqno of the completed Syncwrite
-                cb::uint48_t prepareSeqno;
-            } completed;
+            void setPending(bool isDelete, uint8_t level) {
+                raw = (uint64_t(raw) & ~(isDeleteMask | levelMask)) |
+                      (isDelete ? isDeleteMask : 0) |
+                      ((uint64_t(level) << levelShift) & levelMask);
+            }
+
+            cb::uint48_t getPrepareSeqno() const {
+                return raw;
+            }
+
+            void setPrepareSeqno(cb::uint48_t prepareSeqno) {
+                raw = prepareSeqno;
+            }
 
             cb::uint48_t raw;
+
+        private:
+            static constexpr uint64_t isDeleteMask = 0x1;
+            static constexpr uint64_t levelShift = 1;
+            static constexpr uint64_t levelMask = 0x3 << levelShift;
         } durabilityDetails;
     };
 
@@ -274,16 +339,8 @@ protected:
 
         bool operator==(const MetaDataV2& other) const;
 
-        // clone of V0 bits + a history bit
-        union V2Bits {
-            V2Bits() = default;
-            struct {
-                uint8_t deleted : 1;
-                uint8_t deleteSource : 1; // 0 Explicit, 1 TTL
-                uint8_t history : 1;
-            } bits;
-            uint8_t all{0};
-        } bits;
+        // clone of V0 bits + the history bit
+        FlagBits bits;
 
         // true if the V1 (durability) data is available
         bool containsV1Meta{false};

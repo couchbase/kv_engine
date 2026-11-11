@@ -660,6 +660,89 @@ TEST_F(MagmaKVStoreTest, MetadataV2Encoding) {
     EXPECT_LT(encoded.size(), totalSizeOfV1);
 }
 
+/**
+ * Verify that the encoded metadata is byte for byte identical on all
+ * platforms. The expected values were generated on a little endian platform
+ * (x86-64) before the encoding was made platform independent, so this also
+ * verifies that the on-disk format is unchanged.
+ */
+TEST(MagmaMetaDataTest, EncodingIsPlatformIndependent) {
+    auto makeMetaData = [](magmakv::MetaData::Version version) {
+        magmakv::MetaData metadata;
+        metadata.setVersion(version);
+        metadata.setBySeqno(0x010203040506ULL);
+        metadata.setCas(0x1122334455667788ULL);
+        metadata.setValueSize(0xA1B2C3D4);
+        metadata.setDataType(7);
+        metadata.setFlags(0xdeadbeef);
+        metadata.setExptime(1234567);
+        metadata.setRevSeqno(0xBBCCDDEEULL);
+        return metadata;
+    };
+
+    auto verify = [](const magmakv::MetaData& metadata,
+                     std::string_view expectedHex) {
+        const auto encoded = metadata.encode();
+        std::string hex;
+        for (const auto byte : encoded) {
+            hex += fmt::format("{:02x}", static_cast<uint8_t>(byte));
+        }
+        EXPECT_EQ(expectedHex, hex);
+        EXPECT_EQ(metadata, magmakv::MetaData(encoded));
+    };
+
+    // The common V0 part of the encoded metadata (without the version
+    // prefix and the flag bits)
+    const std::string fixedFields = "0605040302018877665544332211d4c3b2a107";
+    const std::string lebFields = "eebbb3de0b87ad4beffdb6f50d";
+
+    auto metadata = makeMetaData(magmakv::MetaData::Version::V0);
+    verify(metadata, "00" + fixedFields + "00" + lebFields);
+
+    metadata.setDeleted(true, DeleteSource::TTL);
+    verify(metadata, "00" + fixedFields + "03" + lebFields);
+    EXPECT_TRUE(metadata.isDeleted());
+    EXPECT_EQ(DeleteSource::TTL, metadata.getDeleteSource());
+
+    metadata.setDeleted(true, DeleteSource::Explicit);
+    verify(metadata, "00" + fixedFields + "01" + lebFields);
+
+    // V1 prepare: isDelete in bit 0 and level in bits 1-2 of a single byte
+    metadata = makeMetaData(magmakv::MetaData::Version::V1);
+    metadata.setDurabilityDetailsForPrepare(false, 2);
+    verify(metadata, "01" + fixedFields + "00" + lebFields + "04");
+    EXPECT_FALSE(metadata.isSyncDelete());
+    EXPECT_EQ(2, metadata.getDurabilityLevel());
+
+    metadata.setDurabilityDetailsForPrepare(true, 3);
+    verify(metadata, "01" + fixedFields + "00" + lebFields + "07");
+    EXPECT_TRUE(metadata.isSyncDelete());
+    EXPECT_EQ(3, metadata.getDurabilityLevel());
+
+    // V1 abort
+    metadata = makeMetaData(magmakv::MetaData::Version::V1);
+    metadata.setDeleted(true, DeleteSource::Explicit);
+    metadata.setDurabilityDetailsForAbort(0xFEDCBA987654ULL);
+    verify(metadata, "01" + fixedFields + "01" + lebFields + "d4ece1d4cbdb3f");
+    EXPECT_EQ(0xFEDCBA987654ULL, metadata.getPrepareSeqno());
+
+    // V2 with history and a prepare
+    metadata = makeMetaData(magmakv::MetaData::Version::V2);
+    verify(metadata, "02" + fixedFields + "00" + lebFields);
+    metadata.setHistory(true);
+    verify(metadata, "02" + fixedFields + "04" + lebFields);
+    metadata.setDurabilityDetailsForPrepare(true, 3);
+    verify(metadata, "02" + fixedFields + "04" + lebFields + "07");
+
+    // V2 abort, deleted by TTL with history
+    metadata = makeMetaData(magmakv::MetaData::Version::V2);
+    metadata.setHistory(true);
+    metadata.setDeleted(true, DeleteSource::TTL);
+    metadata.setDurabilityDetailsForAbort(7777777);
+    verify(metadata, "02" + fixedFields + "07" + lebFields + "f1dbda03");
+    EXPECT_TRUE(metadata.isHistoryEnabled());
+}
+
 TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     initialize_kv_store(kvstore.get(), vbid);
 

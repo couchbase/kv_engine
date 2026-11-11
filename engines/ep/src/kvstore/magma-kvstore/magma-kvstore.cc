@@ -136,13 +136,13 @@ std::string MetaData::to_string() const {
             // abort
             fmt::format_to(std::back_inserter(memoryBuffer),
                            " prepareSeqno:{}",
-                           allMeta.v1.durabilityDetails.completed.prepareSeqno);
+                           allMeta.v1.durabilityDetails.getPrepareSeqno());
         } else {
             // prepare
             fmt::format_to(std::back_inserter(memoryBuffer),
                            " durabilityLevel:{} syncDelete:{}",
-                           allMeta.v1.durabilityDetails.pending.level,
-                           allMeta.v1.durabilityDetails.pending.isDelete);
+                           allMeta.v1.durabilityDetails.getLevel(),
+                           int(allMeta.v1.durabilityDetails.isDelete()));
         }
     }
 

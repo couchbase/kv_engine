@@ -12,11 +12,48 @@
 #include "magma-kvstore_metadata.h"
 
 #include <folly/lang/Assume.h>
+#include <folly/lang/Bits.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 
 namespace magmakv {
+
+/**
+ * Append the least significant bytes of value to the buffer in little endian
+ * byte order (independent of the platform's byte order).
+ *
+ * @param buffer the buffer to append to
+ * @param value the value to append
+ * @param size the number of bytes of value to append
+ */
+static void appendLittleEndian(std::string& buffer,
+                               uint64_t value,
+                               size_t size) {
+    Expects(size <= sizeof(value));
+    // Convert to little endian (a no-op on little endian platforms) so that
+    // the least significant bytes come first, and append them in one go
+    value = folly::Endian::little(value);
+    buffer.append(reinterpret_cast<const char*>(&value), size);
+}
+
+/**
+ * Read a little endian encoded value from the start of the buffer and
+ * remove it from the buffer.
+ *
+ * @param buffer the buffer to read from
+ * @param size the number of bytes to read
+ * @return the decoded value
+ */
+static uint64_t consumeLittleEndian(std::string_view& buffer, size_t size) {
+    Expects(buffer.size() >= size);
+    uint64_t value = 0;
+    for (size_t byte = 0; byte < size; ++byte) {
+        value |= uint64_t(static_cast<uint8_t>(buffer[byte])) << (8 * byte);
+    }
+    buffer.remove_prefix(size);
+    return value;
+}
 
 MetaData::MetaData(std::string_view buf) {
     // Read version first, that should always exist
@@ -58,12 +95,12 @@ MetaData::VersionStorage::decode(std::string_view buf) {
 
 uint8_t MetaData::getDurabilityLevel() const {
     Expects(isDurabilityDefined());
-    return allMeta.v1.durabilityDetails.pending.level;
+    return allMeta.v1.durabilityDetails.getLevel();
 }
 
 cb::uint48_t MetaData::getPrepareSeqno() const {
     Expects(isDurabilityDefined());
-    return allMeta.v1.durabilityDetails.completed.prepareSeqno;
+    return allMeta.v1.durabilityDetails.getPrepareSeqno();
 }
 
 bool MetaData::isDeleted() const {
@@ -71,9 +108,9 @@ bool MetaData::isDeleted() const {
     case Version::V0:
     case Version::V1:
         // both v0/v1 use the v0 bits.
-        return allMeta.v0.bits.bits.deleted;
+        return allMeta.v0.bits.isDeleted();
     case Version::V2:
-        return allMeta.v2.bits.bits.deleted;
+        return allMeta.v2.bits.isDeleted();
     }
     folly::assume_unreachable();
 }
@@ -83,12 +120,12 @@ void MetaData::setDeleted(bool deleted, DeleteSource deleteSource) {
     case Version::V0:
     case Version::V1:
         // both v0/v1 use the v0 bits.
-        allMeta.v0.bits.bits.deleted = deleted;
-        allMeta.v0.bits.bits.deleteSource = uint8_t(deleteSource);
+        allMeta.v0.bits.setDeleted(deleted);
+        allMeta.v0.bits.setDeleteSource(deleteSource);
         break;
     case Version::V2:
-        allMeta.v2.bits.bits.deleted = deleted;
-        allMeta.v2.bits.bits.deleteSource = uint8_t(deleteSource);
+        allMeta.v2.bits.setDeleted(deleted);
+        allMeta.v2.bits.setDeleteSource(deleteSource);
         break;
     }
 }
@@ -98,9 +135,9 @@ DeleteSource MetaData::getDeleteSource() const {
     case Version::V0:
     case Version::V1:
         // both v0/v1 use the v0 bits.
-        return static_cast<DeleteSource>(allMeta.v0.bits.bits.deleteSource);
+        return allMeta.v0.bits.getDeleteSource();
     case Version::V2:
-        return static_cast<DeleteSource>(allMeta.v2.bits.bits.deleteSource);
+        return allMeta.v2.bits.getDeleteSource();
     }
 
     folly::assume_unreachable();
@@ -108,13 +145,12 @@ DeleteSource MetaData::getDeleteSource() const {
 
 bool MetaData::isSyncDelete() const {
     Expects(isDurabilityDefined());
-    return allMeta.v1.durabilityDetails.pending.isDelete;
+    return allMeta.v1.durabilityDetails.isDelete();
 }
 
 void MetaData::setDurabilityDetailsForPrepare(bool isDelete, uint8_t level) {
     Expects(getVersion() == Version::V1 || getVersion() == Version::V2);
-    allMeta.v1.durabilityDetails.pending.isDelete = isDelete;
-    allMeta.v1.durabilityDetails.pending.level = level;
+    allMeta.v1.durabilityDetails.setPending(isDelete, level);
 
     // Ok to write to v2 if version is v1, it just gets ignored in that case
     allMeta.v2.containsV1Meta = true;
@@ -122,14 +158,14 @@ void MetaData::setDurabilityDetailsForPrepare(bool isDelete, uint8_t level) {
 
 void MetaData::setDurabilityDetailsForAbort(cb::uint48_t prepareSeqno) {
     Expects(getVersion() == Version::V1 || getVersion() == Version::V2);
-    allMeta.v1.durabilityDetails.completed.prepareSeqno = prepareSeqno;
+    allMeta.v1.durabilityDetails.setPrepareSeqno(prepareSeqno);
     allMeta.v2.containsV1Meta = true;
 }
 
 bool MetaData::isHistoryEnabled() const {
     switch (getVersion()) {
     case Version::V2:
-        return allMeta.v2.bits.bits.history;
+        return allMeta.v2.bits.isHistory();
     case Version::V0:
     case Version::V1:
         break;
@@ -139,7 +175,7 @@ bool MetaData::isHistoryEnabled() const {
 
 void MetaData::setHistory(bool value) {
     Expects(isHistoryDefined());
-    allMeta.v2.bits.bits.history = value;
+    allMeta.v2.bits.setHistory(value);
 }
 
 std::string MetaData::encode() const {
@@ -177,11 +213,13 @@ std::string MetaData::MetaDataV0::encode(uint8_t bits) const {
             2 * sizeof(cb::mcbp::unsigned_leb128<uint32_t>::getMaxSize());
     ret.reserve(maxSize);
 
-    ret.append(reinterpret_cast<const char*>(&bySeqno), sizeof(bySeqno));
-    ret.append(reinterpret_cast<const char*>(&cas), sizeof(cas));
-    ret.append(reinterpret_cast<const char*>(&valueSize), sizeof(valueSize));
-    ret.append(reinterpret_cast<const char*>(&datatype), sizeof(datatype));
-    ret.append(reinterpret_cast<const char*>(&bits), sizeof(bits));
+    // The fixed size fields are stored in little endian byte order on all
+    // platforms
+    appendLittleEndian(ret, bySeqno, sizeof(bySeqno));
+    appendLittleEndian(ret, cas, sizeof(cas));
+    appendLittleEndian(ret, valueSize, sizeof(valueSize));
+    ret.push_back(static_cast<char>(datatype));
+    ret.push_back(static_cast<char>(bits));
 
     // Now all the leb128 encoded fields, doing these in one chunk makes the
     // decode slightly simpler as we just need to resize the buffer once after
@@ -219,21 +257,14 @@ std::string MetaData::MetaDataV2::encode(MetaDataV1 v1) const {
 
 std::pair<uint8_t, std::string_view> MetaData::MetaDataV0::decode(
         std::string_view buf) {
-    std::memcpy(&bySeqno, buf.data(), sizeof(bySeqno));
-    buf.remove_prefix(sizeof(bySeqno));
-
-    std::memcpy(&cas, buf.data(), sizeof(cas));
-    buf.remove_prefix(sizeof(cas));
-
-    std::memcpy(&valueSize, buf.data(), sizeof(valueSize));
-    buf.remove_prefix(sizeof(valueSize));
-
-    std::memcpy(&datatype, buf.data(), sizeof(datatype));
-    buf.remove_prefix(sizeof(datatype));
-
-    uint8_t allBits{0};
-    std::memcpy(&allBits, buf.data(), sizeof(allBits));
-    buf.remove_prefix(sizeof(allBits));
+    bySeqno = consumeLittleEndian(buf, sizeof(bySeqno));
+    cas = consumeLittleEndian(buf, sizeof(cas));
+    valueSize = gsl::narrow_cast<uint32_t>(
+            consumeLittleEndian(buf, sizeof(valueSize)));
+    datatype = gsl::narrow_cast<uint8_t>(
+            consumeLittleEndian(buf, sizeof(datatype)));
+    const auto allBits = gsl::narrow_cast<uint8_t>(
+            consumeLittleEndian(buf, sizeof(uint8_t)));
 
     std::pair<uint64_t, cb::const_byte_buffer> decoded = {
             0,
