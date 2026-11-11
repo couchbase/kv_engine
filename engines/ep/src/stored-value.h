@@ -16,12 +16,12 @@
 #include "ep_types.h"
 #include "memcached/dockey_view.h"
 #include "serialised_dockey.h"
-#include "tagged_ptr.h"
 
 #include <mcbp/protocol/datatype.h>
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
 #include <memcached/types.h>
 #include <platform/n_byte_integer.h>
+#include <platform/tagged_ptr.h>
 
 #include <boost/intrusive/list.hpp>
 #include <memcached/durability_spec.h>

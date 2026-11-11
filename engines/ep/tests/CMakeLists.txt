@@ -137,7 +137,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/stored_value_test.cc
         module_tests/stream_container_test.cc
         module_tests/systemevent_test.cc
-        module_tests/tagged_ptr_test.cc
         module_tests/task_concurrency_test.cc
         module_tests/task_signal_test.cc
         module_tests/test_helpers.cc

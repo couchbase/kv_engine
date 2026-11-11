@@ -22,10 +22,10 @@
 #include "item.h"
 #include "kvstore/kvstore_iface.h"
 #include "systemevent_factory.h"
-#include "tagged_ptr.h"
 #include "vbucket.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/tagged_ptr.h>
 #include <statistics/cbstat_collector.h>
 #include <xattr/blob.h>
 

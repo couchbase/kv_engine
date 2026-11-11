@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "tagged_ptr.h"
 #include "utility.h"
 #include <platform/atomic.h>
+#include <platform/tagged_ptr.h>
 #include <string_view>
 
 /**
