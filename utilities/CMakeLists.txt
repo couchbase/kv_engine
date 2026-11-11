@@ -63,10 +63,7 @@ set_source_files_properties(crc32.c
         SKIP_PRECOMPILE_HEADERS ON
         SKIP_UNITY_BUILD_INCLUSION ON)
 
-
-if (APPLE)
-    target_sources(mcd_util PRIVATE breakpad_not_supported.cc)
-else ()
+if (BREAKPAD_FOUND)
     if (WIN32)
         set(platform_specific_breakpad_source breakpad_win32.cc)
     else ()
@@ -82,6 +79,8 @@ else ()
     target_sources(mcd_util PRIVATE ${platform_specific_breakpad_source})
     target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
     target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
+else ()
+    target_sources(mcd_util PRIVATE breakpad_not_supported.cc)
 endif ()
 
 target_link_libraries(mcd_util
