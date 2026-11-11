@@ -59,6 +59,7 @@ public:
     }
 
     using Connection::checkRemainingThrottledCookies;
+    using Connection::executeCommandsCallback;
 
     /// Observe the order connections are woken up in in the provided vector
     void recordCallbacks(std::vector<Connection*>& order) {
@@ -222,6 +223,8 @@ public:
     }
 
     void resetConnectionTest(bool emptySendQueue);
+
+    void expectDcpStepRescheduled();
 
     /// Throttle a command on the connection (like Bucket::shouldThrottle()
     /// does when the bucket is over its limit)
@@ -427,6 +430,55 @@ TEST_F(ConnectionUnitTests, MB_67796_emptySendQueue) {
 
 TEST_F(ConnectionUnitTests, MB_67796_nonEmptySendQueue) {
     resetConnectionTest(false);
+}
+
+/**
+ * MB-75165: the DCP step loop stops early when the time slice or the
+ * request budget is used up. If it stops before queuing anything, no
+ * write-drain callback will run it again and the engine only notifies
+ * paused producers, so it must schedule the next callback itself.
+ *
+ * Run one callback on a DCP connection and check that another one was
+ * scheduled.
+ */
+void ConnectionUnitTests::expectDcpStepRescheduled() {
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+    connection->setDcpConnHandler({}, {});
+
+    connection->executeCommandsCallback();
+    ASSERT_EQ(Connection::State::running, connection->getState());
+    ASSERT_EQ(0, connection->getSendQueueSize());
+
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    EXPECT_EQ(1, order.size())
+            << "The step loop stopped early with nothing queued and nothing "
+               "will run it again";
+}
+
+TEST_F(ConnectionUnitTests, MB75165_DcpStepTimeSliceUsedUp) {
+    // The callback starts with its time slice already used up (as if the
+    // thread was descheduled), so the loop stops before calling step()
+    auto& settings = Settings::instance();
+    const auto oldTimeSlice = settings.getCommandTimeSlice();
+    settings.setCommandTimeSlice(std::chrono::milliseconds{0});
+    expectDcpStepRescheduled();
+    settings.setCommandTimeSlice(oldTimeSlice);
+}
+
+TEST_F(ConnectionUnitTests, MB75165_DcpStepRequestBudgetUsedUp) {
+    // In production inbound packets with no response (e.g. buffer acks)
+    // use up the budget; a budget of zero gets the loop to the same state
+    // without an engine to execute them
+    auto& settings = Settings::instance();
+    const auto oldRequests =
+            settings.getRequestsPerEventNotification(EventPriority::Low);
+    settings.setRequestsPerEventNotification(0, EventPriority::Low);
+    connection->setPriority(ConnectionPriority::Low);
+    expectDcpStepRescheduled();
+    settings.setRequestsPerEventNotification(oldRequests, EventPriority::Low);
 }
 
 /**
