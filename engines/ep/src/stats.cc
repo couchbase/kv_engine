@@ -46,7 +46,11 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2304,
+// EPStats contains members padded to the cache line size, so the expected
+// size only holds for platforms with a 64 byte cache line (e.g. s390x uses
+// 256 bytes).
+static_assert(folly::hardware_constructive_interference_size != 64 ||
+                      sizeof(EPStats) == 2304,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {
