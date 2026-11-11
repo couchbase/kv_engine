@@ -744,6 +744,25 @@ TEST_P(CompactDbValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+/**
+ * Verify that the limits are encoded in network byte order and read back
+ * correctly.
+ */
+TEST(RangeScanContinuePayloadTest, Limits) {
+    const cb::mcbp::request::RangeScanContinuePayload payload(
+            cb::rangescan::Id{}, 0x01020304, 0x05060708, 0x090a0b0c);
+    EXPECT_EQ(0x01020304, payload.getItemLimit());
+    EXPECT_EQ(0x05060708, payload.getTimeLimit());
+    EXPECT_EQ(0x090a0b0c, payload.getByteLimit());
+
+    // The limits follow the 16 byte id, in network byte order
+    const auto buffer = payload.getBuffer();
+    ASSERT_EQ(28, buffer.size());
+    EXPECT_EQ(std::string_view(
+                      "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c", 12),
+              buffer.substr(16));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DropPrivilegeValidatorTest,
                          ::testing::Bool(),
