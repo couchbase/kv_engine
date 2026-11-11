@@ -17,6 +17,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "vbucket_test.h"
 #include <checkpoint.h>
+#include <folly/container/detail/F14IntrinsicsAvailability.h>
 #include <folly/portability/GTest.h>
 
 class MockCheckpointManager;
@@ -198,7 +199,14 @@ protected:
     // to, but we do know the first element will need to allocate a new row.
     // Therefore expect the below additional bytes to be allocated above the
     // bytes for the key+value.
-#if WIN32
+#if !FOLLY_F14_VECTOR_INTRINSICS_AVAILABLE
+    // Platforms without the SIMD instructions required by F14 (e.g. s390x)
+    // use a fallback implementation based on std::unordered_map. Each node
+    // holds a next pointer and the cached hash code (16 bytes) in addition to
+    // the key+value, and the first insertion allocates the initial bucket
+    // array (13 buckets of 8 bytes with libstdc++).
+    const size_t firstElemOverhead = 16 + 13 * 8;
+#elif WIN32
     const size_t firstElemOverhead = 32 + 16;
 #else
     const size_t firstElemOverhead = 32;
