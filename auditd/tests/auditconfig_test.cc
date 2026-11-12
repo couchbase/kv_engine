@@ -431,7 +431,8 @@ TEST_F(AuditConfigTest, EnabledUserids) {
     json.erase("disabled_userids");
     config = AuditConfig(json);
 
-    const auto& ids = config.get_enabled_userids();
+    ASSERT_TRUE(config.get_enabled_userids().has_value());
+    const auto& ids = *config.get_enabled_userids();
     EXPECT_EQ(3, ids.size());
     ASSERT_TRUE(ids.contains("steve"));
     ASSERT_EQ(1, ids.at("steve").size());
@@ -506,6 +507,44 @@ TEST_F(AuditConfigTest, EnabledUseridsProducesValidFilterJson) {
     // throwing.
     EXPECT_NO_THROW(
             AuditEventFilter::create(AuditImpl::generation.load(), filter));
+}
+
+/**
+ * An empty enabled_userids list means that no users should be audited
+ * (for filterable events), so it must be kept distinct from not having
+ * an enabled_userids list at all, and get_audit_event_filter() must
+ * produce an empty "filter_in" entry.
+ */
+TEST_F(AuditConfigTest, EmptyEnabledUseridsProducesEmptyFilterIn) {
+    json["enabled_userids"] = nlohmann::json::array();
+    json.erase("disabled_userids");
+    config = AuditConfig(json);
+
+    ASSERT_TRUE(config.get_enabled_userids().has_value());
+    EXPECT_TRUE(config.get_enabled_userids()->empty());
+
+    const auto filter = config.get_audit_event_filter();
+    const auto& def = filter.at("default");
+    ASSERT_TRUE(def.contains("filter_in")) << def.dump(2);
+    EXPECT_TRUE(def["filter_in"].is_object()) << def.dump(2);
+    EXPECT_TRUE(def["filter_in"].empty()) << def.dump(2);
+    EXPECT_FALSE(def.contains("filter_out"));
+
+    EXPECT_NO_THROW(
+            AuditEventFilter::create(AuditImpl::generation.load(), filter));
+}
+
+/**
+ * Without an enabled_userids list no "filter_in" entry should be produced.
+ */
+TEST_F(AuditConfigTest, NoEnabledUseridsProducesNoFilterIn) {
+    json.erase("enabled_userids");
+    json.erase("disabled_userids");
+    config = AuditConfig(json);
+
+    EXPECT_FALSE(config.get_enabled_userids().has_value());
+    const auto filter = config.get_audit_event_filter();
+    EXPECT_FALSE(filter.at("default").contains("filter_in")) << filter.dump(2);
 }
 
 /**

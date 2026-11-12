@@ -81,6 +81,12 @@ public:
         return prune_age;
     }
 
+    /**
+     * Get the users to include in auditing of filterable events. An
+     * empty optional means no include list is configured (all users are
+     * audited unless excluded), whereas an empty map means that no user
+     * should be audited for filterable events.
+     */
     const auto& get_enabled_userids() const {
         return enabled_userids;
     }
@@ -122,5 +128,5 @@ protected:
     std::unordered_map<uint32_t, EventState> event_states;
     std::string uuid;
 
-    UserMap enabled_userids;
+    std::optional<UserMap> enabled_userids;
 };

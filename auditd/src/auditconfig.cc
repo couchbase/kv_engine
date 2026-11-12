@@ -413,10 +413,14 @@ nlohmann::json AuditConfig::get_audit_event_filter() const {
             def["filter_out"][u] = enabled;
         }
     }
-    if (!enabled_userids.empty()) {
-        for (const auto& [name, domains] : enabled_userids) {
+    if (enabled_userids) {
+        // Always add the entry (even if empty) as an empty include list
+        // means that no users should be audited
+        auto& filter_in = def["filter_in"];
+        filter_in = nlohmann::json::object();
+        for (const auto& [name, domains] : *enabled_userids) {
             for (const auto& domain : domains) {
-                def["filter_in"][to_filter_userid(name, domain)] = enabled;
+                filter_in[to_filter_userid(name, domain)] = enabled;
             }
         }
     }

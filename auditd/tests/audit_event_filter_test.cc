@@ -197,3 +197,62 @@ TEST(AuditEventFilterTest, isFilteredOut_Include_List) {
     EXPECT_TRUE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_MODIFY, user2External, {}, {}, {}, {}));
 }
+
+/**
+ * An empty include list means that no users should be audited (for
+ * filterable events), which is different from not having an include list.
+ */
+TEST(AuditEventFilterTest, isFilteredOut_Empty_Include_List) {
+    cb::rbac::UserIdent user1Local{"user1", cb::rbac::Domain::Local};
+    cb::rbac::UserIdent user1External{"user1", cb::rbac::Domain::External};
+
+    auto json =
+            R"({"default":{"enabled":[20481,20488,20490],"filter_in":{}}})"_json;
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1External, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(MEMCACHED_AUDIT_DOCUMENT_READ,
+                                      user1Local,
+                                      &user1External,
+                                      {},
+                                      {},
+                                      {}));
+
+    // Events which don't allow filtering must still be audited
+    EXPECT_FALSE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_AUTHENTICATION_FAILED, user1Local, {}, {}, {}, {}));
+
+    // Without the include list the user should be audited
+    json["default"].erase("filter_in");
+    filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+    EXPECT_FALSE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));
+}
+
+/**
+ * to_json() must include the include list (also when it is empty) and
+ * preserve the domain of each user, so that the generated JSON creates
+ * an identical filter.
+ */
+TEST(AuditEventFilterTest, to_json_IncludesFilterIn) {
+    auto json =
+            R"({"default":{"enabled":[20481,20488],"filter_in":{"user1/couchbase":[20488],"user2/external":"*","user3/unknown":[20481]}}})"_json;
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+    EXPECT_EQ(json, filter->to_json());
+
+    json = R"({"default":{"enabled":[20481,20488],"filter_in":{}}})"_json;
+    filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+    EXPECT_EQ(json, filter->to_json());
+
+    json = R"({"default":{"enabled":[20481,20488],"filter_out":{"user3/unknown":"*"}}})"_json;
+    filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+    EXPECT_EQ(json, filter->to_json());
+}

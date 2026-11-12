@@ -40,16 +40,18 @@ public:
     explicit BucketFilter(const nlohmann::json& json)
         : enabled(getEnabled(json)),
           exclude_user_filter(getFilter(json, "filter_out")),
-          include_user_filter(getFilter(json, "filter_in")) {
+          include_user_filter(getOptionalFilter(json, "filter_in")) {
     }
 
     bool isMatch(AuditId id,
                  const cb::rbac::UserIdent& user,
                  std::optional<ScopeID>,
                  std::optional<CollectionID>) const {
-        if (!include_user_filter.empty()) {
-            auto iter = include_user_filter.find(user);
-            if (iter == include_user_filter.end()) {
+        if (include_user_filter) {
+            // An include list is configured; only the users listed (which
+            // may be none) should be audited
+            auto iter = include_user_filter->find(user);
+            if (iter == include_user_filter->end()) {
                 return true;
             }
 
@@ -84,20 +86,10 @@ public:
             ret["enabled"] = enabled;
         }
         if (!exclude_user_filter.empty()) {
-            auto& entry = ret["filter_out"];
-            for (const auto& [name, id] : exclude_user_filter) {
-                std::string nm = name.name;
-                if (name.domain == cb::rbac::Domain::Local) {
-                    nm.append("/couchbase");
-                } else {
-                    nm.append("/external");
-                }
-                if (id.size() == 1 && id.front() == allEvents) {
-                    entry[nm] = wildcard;
-                } else {
-                    entry[nm] = id;
-                }
-            }
+            ret["filter_out"] = filterToJson(exclude_user_filter);
+        }
+        if (include_user_filter) {
+            ret["filter_in"] = filterToJson(*include_user_filter);
         }
         return ret;
     }
@@ -107,6 +99,35 @@ public:
     }
 
 protected:
+    /**
+     * Create the JSON representation of the provided user filter (the
+     * same format as accepted by getFilter()).
+     */
+    static nlohmann::json filterToJson(const UserFilterMap& filter) {
+        static const char* wildcard = "*";
+        auto ret = nlohmann::json::object();
+        for (const auto& [name, id] : filter) {
+            std::string nm = name.name;
+            switch (name.domain) {
+            case cb::rbac::Domain::Local:
+                nm.append("/couchbase");
+                break;
+            case cb::rbac::Domain::External:
+                nm.append("/external");
+                break;
+            case cb::rbac::Domain::Unknown:
+                nm.append("/unknown");
+                break;
+            }
+            if (id.size() == 1 && id.front() == allEvents) {
+                ret[nm] = wildcard;
+            } else {
+                ret[nm] = id;
+            }
+        }
+        return ret;
+    }
+
     static cb::rbac::UserIdent userIdentFromString(std::string_view str) {
         auto pos = str.find("/");
         if (pos == std::string_view::npos) {
@@ -191,12 +212,30 @@ protected:
         return ret;
     }
 
+    /**
+     * Get the user filter for the provided key.
+     *
+     * @return The filter, or an empty optional if the key isn't present
+     *         (which is different from a present but empty filter)
+     */
+    std::optional<UserFilterMap> getOptionalFilter(const nlohmann::json& json,
+                                                   const std::string_view key) {
+        if (!json.contains(key)) {
+            return std::nullopt;
+        }
+        return getFilter(json, key);
+    }
+
     /// A sorted vector containing all of the enabled identifiers (to allow
     /// for binary search). If all events are enabled the vector contains
     /// a single entry with '-1'.
     std::vector<AuditId> enabled;
     UserFilterMap exclude_user_filter;
-    UserFilterMap include_user_filter;
+    /**
+     * The users to include. An empty optional means that no include list
+     * is configured, whereas an empty map means that no users are included.
+     */
+    std::optional<UserFilterMap> include_user_filter;
 };
 
 class AuditEventFilterImpl : public AuditEventFilter {
