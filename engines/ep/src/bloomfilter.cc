@@ -18,12 +18,6 @@
 
 #include <cmath>
 
-#if __x86_64__ || __ppc64__
-#define MURMURHASH_3 MurmurHash3_x64_128
-#else
-#define MURMURHASH_3 MurmurHash3_x86_128
-#endif
-
 BloomFilter::BloomFilter(size_t key_count,
                          double false_positive_prob,
                          bfilter_status_t new_status)
@@ -51,7 +45,12 @@ uint64_t BloomFilter::hashDocKey(const DocKeyView& key, uint32_t iteration) {
     auto hashable = key.getIdAndKey();
     uint32_t seed = iteration + (uint32_t(hashable.first) *
                                  gsl::narrow_cast<uint32_t>(noOfHashes));
-    MURMURHASH_3(hashable.second.data(), hashable.second.size(), seed, &result);
+    // Always use the x64 variant (we only support 64 bit platforms). It
+    // stores the result as a single 64 bit value, so (unlike the x86
+    // variant) the result for keys shorter than 16 bytes doesn't depend on
+    // the byte order of the platform.
+    MurmurHash3_x64_128(
+            hashable.second.data(), hashable.second.size(), seed, &result);
     return result;
 }
 

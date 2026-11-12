@@ -94,6 +94,25 @@ TEST_F(BloomFilterTest, FalsePositiveRate) {
                 expectedFalsePositives * 0.1);
 }
 
+class BloomFilterHashTest : public BloomFilter, public ::testing::Test {
+public:
+    BloomFilterHashTest() : BloomFilter(10000, 0.01, BFILTER_ENABLED) {
+    }
+};
+
+/**
+ * Verify that the hash values for a key shorter than 16 bytes are the same
+ * on all platforms (independent of the byte order and word size), so that
+ * the bloom filter behaves identically everywhere. The expected values are
+ * the first 64 bits of MurmurHash3_x64_128.
+ */
+TEST_F(BloomFilterHashTest, HashIsPlatformIndependent) {
+    const auto key = StoredDocKey("key", CollectionID::Default);
+    EXPECT_EQ(0xa0f887f3011d3ebcULL, hashDocKey(key, 0));
+    EXPECT_EQ(0xd936293b223f6a07ULL, hashDocKey(key, 1));
+    EXPECT_EQ(0x025acb6b1a94b95aULL, hashDocKey(key, 2));
+}
+
 class BloomFilterDocKeyTest
     : public BloomFilter,
       public ::testing::TestWithParam<std::tuple<CollectionID, CollectionID>> {
