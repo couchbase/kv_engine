@@ -570,7 +570,16 @@ bool Connection::processAllReadyCookies() {
         auto& cookie = *iter;
 
         if (cookie->empty()) {
-            ++iter;
+            // Keep the front cookie (MB-40076), the back one (reused for
+            // the next command) and those still referenced, but drop the
+            // rest so the list doesn't grow with completed commands (they
+            // don't count against the command limit)
+            if (iter == cookies.begin() || std::next(iter) == cookies.end() ||
+                cookie->getRefcount() > 0) {
+                ++iter;
+            } else {
+                iter = cookies.erase(iter);
+            }
             continue;
         }
 
@@ -610,6 +619,11 @@ bool Connection::processAllReadyCookies() {
     }
 
     return active;
+}
+
+size_t Connection::getNumCommandsInFlight() const {
+    return std::ranges::count_if(
+            cookies, [](const auto& cookie) { return !cookie->empty(); });
 }
 
 static bool isReAuthenticate(const cb::mcbp::Header& header) {
@@ -690,7 +704,7 @@ void Connection::executeCommandPipeline() {
 
     std::chrono::steady_clock::time_point now;
     bool allow_more_commands = (!active || cookies.back()->mayReorder()) &&
-                               cookies.size() < maxActiveCommands;
+                               getNumCommandsInFlight() < maxActiveCommands;
     if (allow_more_commands) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
@@ -698,7 +712,7 @@ void Connection::executeCommandPipeline() {
         bool stop = tooMuchData();
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
-               !stop && cookies.size() < maxActiveCommands &&
+               !stop && getNumCommandsInFlight() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
                state == State::running) {
             const auto auth_stale = authContextLifetime.isStale(now);
@@ -750,7 +764,7 @@ void Connection::executeCommandPipeline() {
             --numEvents;
         }
         allow_more_commands = (!active || cookies.back()->mayReorder()) &&
-                              cookies.size() < maxActiveCommands;
+                              getNumCommandsInFlight() < maxActiveCommands;
     } else {
         now = std::chrono::steady_clock::now();
     }

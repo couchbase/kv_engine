@@ -1329,6 +1329,15 @@ protected:
     bool processAllReadyCookies();
 
     /**
+     * Count the cookies holding a command. Completed commands may leave
+     * empty cookies in the list (the front cookie is always kept), and those
+     * must not count against max_concurrent_commands_per_connection.
+     *
+     * @return the number of non-empty cookies
+     */
+    size_t getNumCommandsInFlight() const;
+
+    /**
      * Execute commands in the pipeline.
      *
      * Continue to execute the commands already started, and if we may start
