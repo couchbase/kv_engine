@@ -558,9 +558,10 @@ bool Connection::reEvaluateThrottledCookies() {
     return throttled;
 }
 
-bool Connection::processAllReadyCookies() {
+std::pair<bool, bool> Connection::processAllReadyCookies() {
     // Look at the existing commands and check possibly execute them
     bool active = false;
+    bool barrier = false;
     auto iter = cookies.begin();
     // Iterate over all of the cookies and try to execute them
     // (and nuke the entries as they complete so that we may start
@@ -596,6 +597,7 @@ bool Connection::processAllReadyCookies() {
         if (active && !cookie->mayReorder()) {
             // we've got active commands, and this command can't be
             // reordered... stop executing!
+            barrier = true;
             break;
         }
 
@@ -618,7 +620,8 @@ bool Connection::processAllReadyCookies() {
         }
     }
 
-    return active;
+    // Cookies behind a barrier wait for the active command's notification
+    return {active, !barrier && iter != cookies.end()};
 }
 
 size_t Connection::getNumCommandsInFlight() const {
@@ -694,7 +697,7 @@ void Connection::executeCommandPipeline() {
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
 
-    bool active = processAllReadyCookies();
+    auto [active, unvisited] = processAllReadyCookies();
 
     // We might add more commands to the queue
     if (is_bucket_dying(*this)) {
@@ -786,15 +789,13 @@ void Connection::executeCommandPipeline() {
         // out again due to too much data in the queue to start executing
         // a new command
         disableReadEvent();
-    } else if (allow_more_commands) {
-        if (isPacketReadyForExecutionAvailable()) {
-            // We have the entire packet spooled up in the input buffer
-            // and may continue processing it at the next time slice
-            disableReadEvent();
-            triggerCallback();
-        } else {
-            enableReadEvent();
-        }
+    } else if (unvisited ||
+               (allow_more_commands && isPacketReadyForExecutionAvailable())) {
+        // We ran out of time (or events) before visiting every cookie, or
+        // have the entire packet spooled up in the input buffer. Nothing
+        // else will wake us for either, so continue at the next time slice
+        disableReadEvent();
+        triggerCallback();
     } else {
         enableReadEvent();
     }

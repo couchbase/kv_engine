@@ -31,6 +31,7 @@
 #include <memory>
 #include <queue>
 #include <string>
+#include <utility>
 
 class Bucket;
 class Cookie;
@@ -1324,9 +1325,13 @@ protected:
      * Iterate over all of the existing cookies (commands) and try to call
      * execute() on all of the cookies which isn't blocked in the engine.
      *
-     * @return true if there is any blocked commands, false otherwise
+     * @return a pair: first is true if any command is blocked (in the engine
+     *         or on the send buffer); second is true if the time slice or
+     *         event budget ran out before all cookies were visited. Ready
+     *         cookies among those have already used their notification, so
+     *         nothing else will wake the connection for them.
      */
-    bool processAllReadyCookies();
+    std::pair<bool, bool> processAllReadyCookies();
 
     /**
      * Count the cookies holding a command. Completed commands may leave

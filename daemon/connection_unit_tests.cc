@@ -21,6 +21,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/socket.h>
 
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
 #include <future>
@@ -54,6 +55,11 @@ public:
     Cookie& allocateCookie() {
         cookies.emplace_back(std::make_unique<Cookie>(*this));
         return *cookies.back();
+    }
+
+    Cookie& getFirstCookie() {
+        Expects(!cookies.empty());
+        return *cookies.front();
     }
 
     using Connection::executeCommandsCallback;
@@ -435,6 +441,61 @@ TEST_F(ConnectionUnitTests, MB75165_DcpStepRequestBudgetUsedUp) {
     connection->setPriority(ConnectionPriority::Low);
     expectDcpStepRescheduled();
     settings.setRequestsPerEventNotification(oldRequests, EventPriority::Low);
+}
+
+/**
+ * MB-75178: A notified cookie no longer runs in processNotifiedCookie(), but
+ * in the callback it triggers. If that callback's time slice is used up
+ * before it reaches the cookie, the cookie must not be left without another
+ * callback, even when the connection is at its command limit (so no new
+ * commands may be started).
+ */
+TEST_F(ConnectionUnitTests, MB75178_ReadyCookieAtCommandLimitIsRescheduled) {
+    using namespace cb::mcbp;
+    auto& settings = Settings::instance();
+    const auto oldMax = settings.getMaxConcurrentCommandsPerConnection();
+    const auto oldSlice = settings.getCommandTimeSlice();
+    settings.setMaxConcurrentCommandsPerConnection(2);
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+
+    std::array<uint8_t, 256> requestBuffer{};
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(ClientOpcode::Get);
+    builder.setKey("key");
+    const auto& header = *reinterpret_cast<const Header*>(builder.getFrame());
+
+    // Two commands which completed their engine I/O: processNotifiedCookie()
+    // cleared ewouldblock, so both are ready to execute
+    auto& first = connection->getFirstCookie();
+    auto& second = connection->allocateCookie();
+    const auto now = std::chrono::steady_clock::now();
+    first.initialize(now, header);
+    second.initialize(now, header);
+
+    const auto guard = folly::makeGuard([&] {
+        settings.setCommandTimeSlice(oldSlice);
+        settings.setMaxConcurrentCommandsPerConnection(oldMax);
+        first.reset();
+        second.reset();
+    });
+
+    // The callback starts with its time slice already used up (e.g. the
+    // thread was descheduled), so processAllReadyCookies() runs nothing
+    settings.setCommandTimeSlice(std::chrono::milliseconds{0});
+    connection->executeCommandsCallback();
+    settings.setCommandTimeSlice(oldSlice);
+
+    ASSERT_EQ(0, connection->getSendQueueSize());
+    ASSERT_FALSE(first.empty());
+    ASSERT_FALSE(second.empty());
+
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    EXPECT_EQ(1, order.size())
+            << "Ready cookies were not executed and no callback is scheduled";
 }
 
 /** A task which only records that it received a response */
