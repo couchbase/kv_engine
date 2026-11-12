@@ -39,6 +39,7 @@
 #include "htresizer.h"
 #include "item_pager.h"
 #include "kvstore/kvstore.h"
+#include "nightmare_configuration.h"
 #include "platform/io_hint.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "stats-info.h"
@@ -872,6 +873,14 @@ cb::engine_errc EventuallyPersistentEngine::setParameter(
         std::string_view key,
         std::string_view value,
         Vbid vbid) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+    if (nightmareParameters.contains(std::string(key))) {
+        // Nightmare mode owns this parameter: swallow the change so ns_server
+        // cannot undo it, but report success so it does not treat the bucket
+        // as broken.
+        return cb::engine_errc::success;
+    }
+#endif
     return acquireEngine(this)->setParameterInner(
             cookie, category, key, value, vbid);
 }
@@ -1998,6 +2007,13 @@ cb::engine_errc EventuallyPersistentEngine::initializeInner(
         return cb::engine_errc::failed;
     }
     name = configuration.getCouchBucket();
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    auto status = applyNightmareConfiguration();
+    if (status != cb::engine_errc::success) {
+        return status;
+    }
+#endif
 
     // Create the bucket data directory, ns_server should have created the
     // process level one but they expect us to create the bucket level one.
@@ -5060,6 +5076,60 @@ cb::engine_errc EventuallyPersistentEngine::doScopeStats(
     }
     return res.result;
 }
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+cb::engine_errc EventuallyPersistentEngine::applyNightmareConfiguration() {
+    // The variable names the file to apply; empty counts as unset.
+    const char* path = std::getenv("COUCHBASE_NIGHTMARE_MODE");
+    if (!path || std::string_view{path}.empty()) {
+        return cb::engine_errc::success;
+    }
+
+    cb::config::NightmareParameters parameters;
+    try {
+        parameters = cb::config::loadNightmareConfiguration(path);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX(
+                "Failed to load the nightmare mode configuration during bucket "
+                "initialization",
+                {"path", path},
+                {"error", e.what()});
+        return cb::engine_errc::failed;
+    }
+
+    // parseConfiguration only logs a warning for an unknown key, which is
+    // easily missed, so fail before applying anything rather than run a
+    // weaker nightmare mode than intended.
+    for (const auto& [key, value] : parameters) {
+        if (!configuration.hasParameter(key)) {
+            EP_LOG_WARN_CTX(
+                    "Unknown parameter in the nightmare mode configuration",
+                    {"path", path},
+                    {"key", key});
+            return cb::engine_errc::failed;
+        }
+    }
+
+    // Validation is bypassed: nightmare mode deliberately picks values outside
+    // the range ns_server permits.
+    const auto config = cb::config::toConfigString(parameters);
+    if (!configuration.parseConfiguration(config, true)) {
+        EP_LOG_WARN_CTX(
+                "Failed to parse the nightmare mode configuration during "
+                "bucket initialization",
+                {"path", path},
+                {"config", config});
+        return cb::engine_errc::failed;
+    }
+
+    for (auto& [key, value] : parameters) {
+        nightmareParameters.insert(std::move(key));
+    }
+    EP_LOG_INFO_CTX(
+            "Nightmare mode enabled", {"path", path}, {"config", config});
+    return cb::engine_errc::success;
+}
+#endif
 
 cb::EngineErrorGetCollectionIDResult
 EventuallyPersistentEngine::parseKeyStatCollection(

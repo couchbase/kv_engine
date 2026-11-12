@@ -1793,6 +1793,18 @@ private:
     void doEngineStatsMagma(const StatCollector& collector);
     void doEngineStatsFusion(const StatCollector& collector);
 
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /**
+     * If COUCHBASE_NIGHTMARE_MODE names a nightmare configuration file, apply
+     * its overrides on top of the bucket's configuration and record which
+     * parameters they claimed, so setParameter can refuse to change them.
+     *
+     * Fails the bucket rather than applying the file partially. Must be called
+     * after the bucket configuration has been parsed.
+     */
+    cb::engine_errc applyNightmareConfiguration();
+#endif
+
     cb::EngineErrorGetCollectionIDResult parseKeyStatCollection(
             std::string_view expectedStatPrefix,
             std::string_view statKeyArg,
@@ -1874,6 +1886,13 @@ protected:
      * after) them.
      */
     Configuration configuration;
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /**
+     * Parameters owned by nightmare mode; setParam attempts on these are
+     * ignored. Empty unless nightmare mode is enabled.
+     */
+    std::unordered_set<std::string> nightmareParameters;
+#endif
     /**
      * Mutex to lock setting parameters, which serialises execution of all
      * setParameter calls. This also ensures all listeners are serialised,

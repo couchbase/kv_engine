@@ -21,6 +21,8 @@
 #include <ep_time.h>
 #include <executor/executorpool.h>
 #include <fmt/format.h>
+#include <folly/ScopeGuard.h>
+#include <folly/portability/Stdlib.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
@@ -2683,6 +2685,86 @@ static enum test_result test_warmup_conf(EngineIface* h) {
             "Expected 0 values loaded after warmup");
 
     return SUCCESS;
+}
+
+static test_result test_nightmare_mode(EngineIface* h) {
+#ifndef CB_DEVELOPMENT_ASSERTS
+    return SKIPPED;
+#else
+    checkeq(600,
+            get_int_stat(h, "ep_exp_pager_stime"),
+            "ep_exp_pager_stime is not set correctly to its default value");
+
+    // Enable nightmare mode and reload the engine so that the overrides in
+    // nightmare_configuration.json are applied during initialization. The
+    // guard unsets it even if a check below fails, so later tests are
+    // unaffected.
+    checkeq(0,
+            setenv("COUCHBASE_NIGHTMARE_MODE",
+                   SOURCE_ROOT "/engines/ep/nightmare_configuration.json",
+                   1),
+            "Failed to set env variable");
+    auto unsetGuard =
+            folly::makeGuard([] { unsetenv("COUCHBASE_NIGHTMARE_MODE"); });
+    std::string config(testHarness->get_current_testcase()->cfg);
+    testHarness->reload_engine(&h, config, true, false);
+
+    // exp_pager_stime is one of the parameters nightmare mode overrides.
+    checkeq(0,
+            get_int_stat(h, "ep_exp_pager_stime"),
+            "ep_exp_pager_stime was not overridden by nightmare mode to 0");
+
+    // set_param will return success but not change its value
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Flush, "exp_pager_stime", "600"),
+            "Set exp_pager_stime should succeed but not update the value");
+    checkeq(0,
+            get_int_stat(h, "ep_exp_pager_stime"),
+            "ep_exp_pager_stime is updated when it was not expected");
+
+    // Unset the env variable and reload to restore normal functionality.
+    unsetGuard.dismiss();
+    checkeq(0,
+            unsetenv("COUCHBASE_NIGHTMARE_MODE"),
+            "Failed to unset env variable");
+    testHarness->reload_engine(&h, config, true, false);
+    checkeq(600,
+            get_int_stat(h, "ep_exp_pager_stime"),
+            "ep_exp_pager_stime is not set correctly to its default value");
+
+    return SUCCESS;
+#endif
+}
+
+static test_result test_nightmare_mode_unknown_parameter(EngineIface* h) {
+#ifndef CB_DEVELOPMENT_ASSERTS
+    return SKIPPED;
+#else
+    // A nightmare configuration naming an unknown parameter (a typo of
+    // max_checkpoints) must fail bucket initialization rather than be applied
+    // partially.
+    const auto path = cb::io::mktemp("nightmare_unknown_parameter");
+    auto removeGuard =
+            folly::makeGuard([&path] { std::filesystem::remove(path); });
+    cb::io::saveFile(path, R"({"max_checkpointz": 2})");
+    checkeq(0,
+            setenv("COUCHBASE_NIGHTMARE_MODE", path.c_str(), 1),
+            "Failed to set env variable");
+    auto unsetGuard =
+            folly::makeGuard([] { unsetenv("COUCHBASE_NIGHTMARE_MODE"); });
+
+    // destroy() directly, as destroy_bucket() calls initiate_shutdown(), which
+    // requires a successfully initialized bucket.
+    auto* bucket = testHarness->create_bucket(false, {});
+    auto destroyGuard = folly::makeGuard([bucket] { bucket->destroy(true); });
+    checkeq(cb::engine_errc::failed,
+            bucket->initialize(
+                    testHarness->get_current_testcase()->cfg, {}, {}, {}),
+            "Bucket initialization should fail on an unknown nightmare mode "
+            "parameter");
+
+    return SUCCESS;
+#endif
 }
 
 // Test that all the configuration parameters associated with the ItemPager,
@@ -8592,6 +8674,20 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("warmup conf",
                  test_warmup_conf,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+        TestCase("nightmare mode",
+                 test_nightmare_mode,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+        TestCase("nightmare mode unknown parameter",
+                 test_nightmare_mode_unknown_parameter,
                  test_setup,
                  teardown,
                  nullptr,

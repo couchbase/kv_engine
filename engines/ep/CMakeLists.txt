@@ -354,6 +354,7 @@ ADD_LIBRARY(ep STATIC
             src/mutation_log_entry.cc
             src/mutation_log_writer.cc
             src/mutation_log_writer.h
+            src/nightmare_configuration.cc
             src/objectregistry.cc
             src/paging_visitor.cc
             src/pid_controller.cc

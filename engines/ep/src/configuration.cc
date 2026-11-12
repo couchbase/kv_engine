@@ -300,7 +300,9 @@ void Configuration::addParameter(
 }
 
 template <class T>
-void Configuration::setParameter(std::string_view key, T value) {
+void Configuration::setParameter(std::string_view key,
+                                 T value,
+                                 bool bypassValidation) {
     Expects(initialized);
 
     auto it = attributes.find(key);
@@ -309,7 +311,7 @@ void Configuration::setParameter(std::string_view key, T value) {
                                     std::string{key} + ") doesn't exist.");
     }
 
-    if (it->second->validator) {
+    if (!bypassValidation && it->second->validator) {
         it->second->validator->validate(key, value);
     };
 
@@ -323,9 +325,10 @@ void Configuration::setParameter(std::string_view key, T value) {
 
 template <>
 void Configuration::setParameter<const char*>(std::string_view key,
-                                              const char* value) {
+                                              const char* value,
+                                              bool bypassValidation) {
     Expects(initialized);
-    setParameter(key, std::string(value));
+    setParameter(key, std::string(value), bypassValidation);
 }
 
 template <class T>
@@ -579,7 +582,8 @@ static void parseParameter(const std::string& value, value_variant_t& variant) {
     }
 }
 
-bool Configuration::parseConfiguration(std::string_view str) {
+bool Configuration::parseConfiguration(std::string_view str,
+                                       bool bypassValidation) {
     Expects(initialized);
     enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
 
@@ -600,8 +604,11 @@ bool Configuration::parseConfiguration(std::string_view str) {
                 try {
                     auto newValue = value->getValue();
                     parseParameter(v, newValue);
-                    std::visit([this, k](auto&& val) { setParameter(k, val); },
-                               newValue);
+                    std::visit(
+                            [this, k, bypassValidation](auto&& val) {
+                                setParameter(k, val, bypassValidation);
+                            },
+                            newValue);
                     newConfiguredParameters.insert(std::string(k));
                 } catch (const std::exception& e) {
                     if (loggingEnabled) {
@@ -623,13 +630,19 @@ bool Configuration::parseConfiguration(std::string_view str) {
 
     if (!failed) {
         // Now do the conditional init, which is last so it can read all current
-        // state.
+        // state. On a bypassValidation (nightmare mode) parse this runs after
+        // the overrides, so it could overwrite any that it also sets.
         runConditionalInitialize();
     }
 
     // Store the configured parameters. We do this after the conditional init,
     // so that we do not count conditional init parameters as configured.
-    configuredParameters = std::move(newConfiguredParameters);
+    // A bypassValidation parse (nightmare mode) runs on top of the bucket's
+    // config, so keep the existing set rather than replacing it.
+    // setParameter() has already added the nightmare-mode keys to it.
+    if (!bypassValidation) {
+        configuredParameters = std::move(newConfiguredParameters);
+    }
     return !failed;
 }
 

@@ -1,0 +1,144 @@
+/**
+ * Nightmare mode configuration overrides: values tuned so that edge-cases
+ * occur far more frequently, and background work which is normally occasional
+ * runs constantly.
+ *
+ * A flat map of parameter name to its nightmare value. Every key must exist in
+ * configuration.json and its value must be convertible to the type declared
+ * there, but values are deliberately not subject to the parameter's validator.
+ * Anything not listed keeps its default. Parameters specific to one bucket
+ * type or backend are set unconditionally; they are simply unused elsewhere.
+ *
+ * Enabled by pointing COUCHBASE_NIGHTMARE_MODE at a copy of this file.
+ * Requires CB_DEVELOPMENT_ASSERTS.
+ */
+{
+    // Access scanner: run constantly, never skip a full walk.
+    "alog_max_stored_items": 1,
+    "alog_resident_ratio_threshold": 100,
+    "alog_sleep_time": 1,
+
+    // Checkpoints: tiny checkpoints, minimal retention, and recovery triggered
+    // early so it frees almost everything almost always. The quota is left at
+    // its default - shrinking it also lowers the TempOOM point, which throttles
+    // the very mutations that generate checkpoint churn. Keep lower_mark before
+    // upper_mark: each setter rejects a value crossing the other's current one.
+    "checkpoint_destruction_tasks": 4,
+    "checkpoint_max_size": 1,
+    "checkpoint_memory_recovery_lower_mark": 0.01,
+    "checkpoint_memory_recovery_upper_mark": 0.05,
+    "checkpoint_remover_task_count": 4,
+    "max_checkpoints": 2,
+
+    // Compaction and tombstone purging: as soon as eligible, to maximise the
+    // chance of racing a purge against a reader.
+    "collections_drop_compaction_delay": 0,
+    "compaction_max_concurrent_ratio": 1.0,
+    "ephemeral_metadata_purge_age": 0,
+    "ephemeral_metadata_purge_interval": 1,
+    "persistent_metadata_purge_age": 60,
+
+    // Always compress, exercising compression on every mutation, and store the
+    // result even when it is no smaller.
+    "compression_mode": "active",
+    "min_compression_ratio": 0.0,
+
+    // Connection management: an order of magnitude more often.
+    "connection_cleanup_interval": 0.1,
+    "connection_manager_interval": 0.1,
+
+    // Verification which is normally off - a bug-hunting mode should pay for it.
+    "couchstore_mprotect": true,
+    "couchstore_write_validation": true,
+    "magma_sync_every_batch": true,
+
+    // DCP producer/backfill/cache transfer: yield, pause and resume at every
+    // opportunity. OSO backfill for multi-collection streams too, not just
+    // single-collection ones.
+    "dcp_active_stream_inline_checkpoint_item_limit": 0,
+    "dcp_backfill_antilag_interval": 1,
+    "dcp_backfill_byte_limit": 1,
+    "dcp_backfill_in_progress_per_connection_limit": 1,
+    "dcp_backfill_run_duration_limit": 1,
+    "dcp_cache_transfer_max_batch_bytes": 1,
+    "dcp_cache_transfer_max_batch_items": 0,
+    "dcp_cache_transfer_visit_duration_ms": 1,
+    "dcp_checkpoint_dequeue_limit": 1,
+    "dcp_oso_backfill": "enabled",
+    "dcp_oso_max_collections_per_backfill": 100,
+    "dcp_producer_processor_run_duration_us": 1,
+    "dcp_scan_byte_limit": 1,
+    "dcp_scan_item_limit": 1,
+    "dcp_takeover_max_time": 0,
+
+    // DCP consumer: small buffer and eager acking keeps flow control engaged.
+    "dcp_consumer_buffer_ratio": 0.01,
+    "dcp_consumer_flow_control_ack_ratio": 0.01,
+    "dcp_consumer_flow_control_ack_seconds": 1,
+
+    // Defragmenter: static settings, back-to-back, regardless of age, at
+    // higher concurrency.
+    "defragmenter_age_threshold": 0,
+    "defragmenter_chunk_duration": 1000,
+    "defragmenter_interval": 0.0,
+    "defragmenter_mode": "static",
+    "defragmenter_stored_value_age_threshold": 0,
+    "defragmenter_tasks": 4,
+
+    // Ephemeral memory recovery and stale metadata: constantly, yielding often.
+    "ephemeral_mem_recovery_sleep_time": 1,
+    "ephemeral_metadata_mark_stale_chunk_duration": 1,
+    "ephemeral_metadata_purge_stale_chunk_duration": 1,
+
+    // Expiry: back-to-back at maximum concurrency. exp_pager_initial_run_time
+    // is left at its -1 default; any other value pins the first run to that
+    // hour of the GMT day, delaying it by up to 24 hours.
+    "exp_pager_stime": 0,
+    "expiry_pager_concurrency": 4,
+    "expiry_visitor_expire_after_visit_duration_ms": 1,
+    "expiry_visitor_items_only_duration_ms": 1,
+
+    // Flusher: one item per batch, and an fsync after every write.
+    "flush_batch_max_bytes": 1,
+    "flusher_total_batch_limit": 1,
+    "fsync_after_every_n_bytes_written": 1,
+
+    // Hash table: resize continuously, shrink as soon as allowed.
+    "ht_resize_interval": 0.0,
+    "ht_size_decrease_delay": 0,
+
+    // Item compressor and frequency decayer: constantly, shortest chunk.
+    "item_compressor_chunk_duration": 1,
+    "item_compressor_interval": 1,
+    "item_freq_decayer_chunk_duration": 1,
+
+    // Magma: checkpoint, heartbeat and expiry-purge far more often, merge level
+    // 0 almost constantly, and use group commit, which is normally off.
+    "magma_checkpoint_interval": 1,
+    "magma_enable_group_commit": true,
+    "magma_expiry_purger_interval": 1,
+    "magma_heartbeat_interval": 1,
+    "magma_max_checkpoints": 2,
+    "magma_max_level0_ttl": 1,
+    "magma_max_num_level0_tables": 2,
+
+    // Item pager: maximum concurrency, no sleep, frequent pause checks.
+    "concurrent_pagers": 4,
+    "pager_sleep_time_ms": 0,
+    "paging_visitor_pause_check_count": 1000,
+
+    // Range scans: send after every item read, yielding as often as possible.
+    "range_scan_read_buffer_send_size": 0,
+
+    // Rollback: trim the failover log after a couple of takeovers so streams
+    // roll back more often, and take the partial-rollback path rather than
+    // rolling back to 0 when more than half the seqnos would go.
+    "couchstore_midpoint_rollback_optimisation": false,
+    "max_failover_entries": 2,
+
+    // Warmup: one task per shard, yielding after the shortest unit of work.
+    "warmup_accesslog_load_batch_size": 1,
+    "warmup_accesslog_load_duration": 1,
+    "warmup_backfill_scan_chunk_duration": 1,
+    "warmup_backfill_task_shard_ratio": 1.0
+}

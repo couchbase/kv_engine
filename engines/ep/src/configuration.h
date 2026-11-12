@@ -202,9 +202,12 @@ public:
      * Parse a configuration string and set the local members
      *
      * @param str the string to parse
+     * @param bypassValidation true if value validation should be bypassed,
+     * false otherwise
      * @return true if success, false otherwise
      */
-    bool parseConfiguration(std::string_view str);
+    bool parseConfiguration(std::string_view str,
+                            bool bypassValidation = false);
 
     /**
      * Add all of the configuration variables as stats
@@ -278,6 +281,14 @@ public:
      * @throws logic_error if the requirements are not met
      */
     void requirementsMetOrThrow(std::string_view key) const;
+
+    /**
+     * @param key the key to check
+     * @return true if key names a known configuration parameter
+     */
+    bool hasParameter(std::string_view key) const {
+        return attributes.contains(key);
+    }
 
     /**
      * Parse a parameter value, validate it and set it in the configuration.
@@ -428,11 +439,15 @@ protected:
      * a new value (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
      * @param value the new value
+     * @param bypassValidation true if value validation should be bypassed,
+     * false otherwise
      * @throws invalid_argument if the given key doesn't exist.
      * @throws runtime_error if the validation failed
      */
     template <class T>
-    void setParameter(std::string_view key, T value);
+    void setParameter(std::string_view key,
+                      T value,
+                      bool bypassValidation = false);
 
     /**
      * Get the configuration parameter for a given key
@@ -531,4 +546,5 @@ protected:
 // the variant.
 template <>
 void Configuration::setParameter<const char*>(std::string_view key,
-                                              const char* value);
+                                              const char* value,
+                                              bool bypassValidation);

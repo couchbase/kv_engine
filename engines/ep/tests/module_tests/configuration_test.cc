@@ -13,6 +13,7 @@
 
 #include "configuration_impl.h"
 #include "ep_parameters.h"
+#include "nightmare_configuration.h"
 
 #include <folly/ScopeGuard.h>
 #include <folly/portability/GMock.h>
@@ -998,5 +999,81 @@ TEST(ConfigurationTest, AliasParameters) {
         EXPECT_EQ(configuration.getParameter<size_t>(original), 1024);
         EXPECT_TRUE(configuration.isParameterConfigured(original));
         EXPECT_TRUE(configuration.isParameterConfigured(alias));
+    }
+}
+
+TEST(ConfigurationTest, HasParameter) {
+    Configuration configuration;
+    EXPECT_TRUE(configuration.hasParameter("max_checkpoints"));
+    EXPECT_FALSE(configuration.hasParameter("max_checkpointz"));
+}
+
+/**
+ * A value outside its parameter's validator range is rejected, unless
+ * validation is bypassed (as nightmare mode does).
+ */
+TEST(ConfigurationTest, ParseConfigurationBypassValidation) {
+    Configuration configuration;
+    // max_checkpoints must be at least 2.
+    EXPECT_FALSE(configuration.parseConfiguration("max_checkpoints=1"));
+    EXPECT_NE(1, configuration.getMaxCheckpoints());
+
+    EXPECT_TRUE(configuration.parseConfiguration("max_checkpoints=1", true));
+    EXPECT_EQ(1, configuration.getMaxCheckpoints());
+}
+
+/**
+ * Load nightmare_configuration.json, apply it to each bucket type, and check
+ * that every parameter is set to the value the file gives it.
+ */
+TEST(NightmareConfigurationTest, ValidateNightmareConfiguration) {
+    const auto parameters = cb::config::loadNightmareConfiguration(
+            SOURCE_ROOT "/engines/ep/nightmare_configuration.json");
+    ASSERT_FALSE(parameters.empty());
+
+    // The file says 1.0 where the configuration reports 1, so compare values
+    // as JSON, where those are equal. Non-JSON values (e.g. "auto") are
+    // compared as strings.
+    const auto asJson = [](const std::string& value) {
+        auto json = nlohmann::json::parse(value, nullptr, false);
+        return json.is_discarded() ? nlohmann::json(value) : json;
+    };
+
+    // Some parameters only apply to one bucket type or backend, so check each
+    // and record which parameters it applied.
+    std::unordered_set<std::string> checked;
+    for (const std::string bucketConfig :
+         {"bucket_type=persistent",
+          "bucket_type=persistent;backend=magma",
+          "bucket_type=ephemeral"}) {
+        Configuration configuration;
+        ASSERT_TRUE(configuration.parseConfiguration(bucketConfig))
+                << bucketConfig;
+        ASSERT_TRUE(configuration.parseConfiguration(
+                cb::config::toConfigString(parameters), true))
+                << bucketConfig
+                << ": failed to parse the nightmare configuration";
+
+        std::unordered_map<std::string, std::string> actual;
+        configuration.visit([&actual](auto key, bool, std::string value) {
+            actual.emplace(key, std::move(value));
+        });
+
+        for (const auto& [key, expected] : parameters) {
+            const auto it = actual.find(key);
+            if (it == actual.end()) {
+                continue; // Does not apply to this bucket config.
+            }
+            EXPECT_EQ(asJson(expected), asJson(it->second))
+                    << bucketConfig << ": " << key;
+            checked.insert(key);
+        }
+    }
+
+    for (const auto& [key, expected] : parameters) {
+        EXPECT_TRUE(checked.contains(key))
+                << key
+                << " does not belong to any bucket type or backend, may be "
+                   "an invalid configuration key";
     }
 }
