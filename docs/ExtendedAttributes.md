@@ -74,7 +74,11 @@ https://docs.google.com/document/d/18UVa5j8KyufnLLy29VObbWRtoBn9vs8pcxttuMt6rz8
       expanded by the server during execution.
     * The following Macros are permitted:
         1. `${Mutation.CAS}` - Expands to the CAS value after mutation (i.e. the
-           new CAS value of the document).
+           new CAS value of the document). The value is formatted as `0x`
+           followed by the 8 bytes of the CAS in little endian order (least
+           significant byte first) as 16 lowercase hex digits, independent
+           of the platform the server runs on. Example: the CAS
+           `0x18e76b0551e50000` expands to `"0x0000e551056be718"`.
 9. XATTRs can be streamed via DCP:
     * XATTRs by default are not included in the DCP stream - any existing
       clients will not be exposed to them.

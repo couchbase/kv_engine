@@ -473,22 +473,23 @@ TEST_P(WithMetaTest, MutateWithMeta) {
         nlohmann::json meta = nlohmann::json::parse(results[0].value);
         EXPECT_EQ(Status::Success, results[1].status);
         nlohmann::json user = nlohmann::json::parse(results[1].value);
-        // So this is a bit of a mess.. using macro-expansion will store the
-        // cas in network byte order.. but returned from $document it is in
-        // host byte order...
+        // Macro expansion stores the CAS with its bytes in little endian
+        // order, but $document returns it as a plain hex number
         EXPECT_EQ(user["CAS"].get<std::string>(),
-                  cb::to_hex(htonll(
-                          cb::from_hex(meta["CAS"].get<std::string>()))));
-        EXPECT_EQ(user["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+                  cb::xattr::macros::cas_to_hex(
+                          cb::from_hex(meta["CAS"].get<std::string>())));
+        EXPECT_EQ(user["CAS"].get<std::string>(),
+                  cb::xattr::macros::cas_to_hex(info.cas));
         EXPECT_EQ(user["seqno"].get<std::string>(),
                   meta["seqno"].get<std::string>());
         EXPECT_EQ(user["seqno"].get<std::string>(), cb::to_hex(info.seqno));
         EXPECT_EQ(Status::Success, results[2].status);
         nlohmann::json sys = nlohmann::json::parse(results[2].value);
         EXPECT_EQ(sys["CAS"].get<std::string>(),
-                  cb::to_hex(htonll(
-                          cb::from_hex(meta["CAS"].get<std::string>()))));
-        EXPECT_EQ(sys["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+                  cb::xattr::macros::cas_to_hex(
+                          cb::from_hex(meta["CAS"].get<std::string>())));
+        EXPECT_EQ(sys["CAS"].get<std::string>(),
+                  cb::xattr::macros::cas_to_hex(info.cas));
         EXPECT_EQ(sys["seqno"].get<std::string>(),
                   meta["seqno"].get<std::string>());
         // The fields in the body should not have been touched.
@@ -595,8 +596,10 @@ TEST_P(WithMetaTest, MutateWithMeta) {
     EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
     nlohmann::json sys = nlohmann::json::parse(results[1].value);
     EXPECT_EQ(sys["CAS"].get<std::string>(),
-              cb::to_hex(htonll(cb::from_hex(meta["CAS"].get<std::string>()))));
-    EXPECT_EQ(sys["CAS"].get<std::string>(), cb::to_hex(htonll(info.cas)));
+              cb::xattr::macros::cas_to_hex(
+                      cb::from_hex(meta["CAS"].get<std::string>())));
+    EXPECT_EQ(sys["CAS"].get<std::string>(),
+              cb::xattr::macros::cas_to_hex(info.cas));
     EXPECT_EQ(sys["seqno"].get<std::string>(),
               meta["seqno"].get<std::string>());
 }

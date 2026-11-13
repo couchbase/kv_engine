@@ -14,7 +14,8 @@ cb_enable_unity_build(xattr)
 cb_add_test_executable(xattr_test
         blob_test.cc
         blob_validator_test.cc
-        key_validator_test.cc)
+        key_validator_test.cc
+        utils_test.cc)
 target_link_libraries(xattr_test
         PRIVATE
         xattr

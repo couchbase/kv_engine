@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -94,7 +95,22 @@ static constexpr macro CAS = {R"("${Mutation.CAS}")", sizeof(uint64_t)};
 static constexpr macro SEQNO = {R"("${Mutation.seqno}")", sizeof(uint64_t)};
 static constexpr macro VALUE_CRC32C = {R"("${Mutation.value_crc32c}")",
                                        sizeof(uint32_t)};
-}
+
+/**
+ * Format a CAS value the way it is written into a document by the
+ * `${Mutation.CAS}` macro and by the `cas_offsets` of MutateWithMeta.
+ *
+ * The format is "0x" followed by the 8 bytes of the CAS in little endian
+ * order (least significant byte first) as 16 lower case hex digits. Clients
+ * (SDKs, Sync Gateway, XDCR) decode the value in this format, so it must
+ * be identical on every platform independent of the host byte order.
+ *
+ * @param cas the CAS value to format
+ * @return the formatted string, e.g. 0x18e76b0551e50000 is returned as
+ *         "0x0000e551056be718"
+ */
+std::string cas_to_hex(uint64_t cas);
+} // namespace macros
 
 namespace vattrs {
 static std::string_view DOCUMENT = {"$document", 9};

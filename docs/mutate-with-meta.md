@@ -94,6 +94,9 @@ If `cas_offsets` or `seqno_offsets` are provided, the server will:
 1. Generate the actual CAS and/or sequence number for the mutation.
 2. Write these values at the specified offsets within the **XATTR** section of the document before storing it.
 3. The values are written as 18-byte hexadecimal strings (including the `0x` prefix) using digits and lowercase letters.
+   The CAS is written in the same format as the `${Mutation.CAS}` macro: the 8 bytes of the CAS in little endian order
+   (least significant byte first), independent of the platform the server runs on (e.g. the CAS `0x18e76b0551e50000`
+   is written as `0x0000e551056be718`). The sequence number is written as a plain hexadecimal number.
 
 **Constraints**:
 * Patching is only supported if the document contains an XATTR section.

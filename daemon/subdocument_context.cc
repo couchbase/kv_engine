@@ -22,6 +22,7 @@
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
+#include <xattr/utils.h>
 #include <iomanip>
 #include <random>
 #include <sstream>
@@ -295,7 +296,8 @@ cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
             if (containsMacro(cb::xattr::macros::CAS)) {
                 substituteMacro(
                         cb::xattr::macros::CAS,
-                        macroToString(cb::xattr::macros::CAS, htonll(info.cas)),
+                        fmt::format(R"("{}")",
+                                    cb::xattr::macros::cas_to_hex(info.cas)),
                         value);
             }
 

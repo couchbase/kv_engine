@@ -40,7 +40,7 @@ cb::engine_errc MutateWithMetaCommandContext::pre_link_document(
 
     const auto datatype = static_cast<cb::mcbp::Datatype>(info.datatype);
     LOG_DEBUG_CTX("Pre link document called",
-                  {"cas", cb::to_hex(htonll(info.cas))},
+                  {"cas", cb::to_hex(info.cas)},
                   {"cas_offsets", cas_offsets},
                   {"seqno", cb::to_hex(info.seqno)},
                   {"seqno_offsets", seqno_offsets},
@@ -57,7 +57,7 @@ cb::engine_errc MutateWithMetaCommandContext::pre_link_document(
     auto view = cb::char_buffer{static_cast<char*>(info.value[0].iov_base),
                                 info.value[0].iov_len};
     // Write CAS value at all specified offsets
-    const auto cas_hex = cb::to_hex(htonll(info.cas));
+    const auto cas_hex = cb::xattr::macros::cas_to_hex(info.cas);
     for (auto cas_offset : cas_offsets) {
         std::copy_n(cas_hex.data(), cas_hex.size(), view.data() + cas_offset);
     }

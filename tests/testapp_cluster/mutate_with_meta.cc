@@ -17,6 +17,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <xattr/blob.h>
+#include <xattr/utils.h>
 
 using namespace cb::mcbp;
 using namespace cb::mcbp::subdoc;
@@ -75,7 +76,7 @@ void MutateWithMetaTest::validateDocument(MemcachedConnection& conn,
                                           bool macro_expansion,
                                           uint64_t expected_cas,
                                           std::optional<uint64_t> rev_seqno) {
-    std::string expected_cas_str = cb::to_hex(htonll(expected_cas));
+    std::string expected_cas_str = cb::xattr::macros::cas_to_hex(expected_cas);
     std::string hostlocal_expected_cas_str = cb::to_hex(expected_cas);
 
     BinprotSubdocMultiLookupCommand cmd{

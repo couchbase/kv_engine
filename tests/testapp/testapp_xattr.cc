@@ -15,6 +15,7 @@
 #include <platform/dirutils.h>
 #include <platform/string_hex.h>
 #include <utilities/string_utilities.h>
+#include <xattr/utils.h>
 #include <array>
 
 using namespace cb::mcbp;
@@ -820,12 +821,13 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
                   PathFlag::XattrPath | PathFlag::ExpandMacros);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    /// Fetch the field and verify that it expanded the cas! (the expanded
-    /// value is in _NETWORK BYTE ORDER_
+    // Fetch the field and verify that it expanded the cas! (the expanded
+    // value contains the CAS bytes in little endian order)
     resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     const auto first_cas = resp.getCas();
-    const auto cas_string = "\"" + cb::to_hex(htonll(resp.getCas())) + "\"";
+    const auto cas_string =
+            "\"" + cb::xattr::macros::cas_to_hex(resp.getCas()) + "\"";
     EXPECT_EQ(cas_string, resp.getDataView());
 
     // Let's update the body version..

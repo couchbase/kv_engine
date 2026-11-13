@@ -12,10 +12,12 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
+#include <platform/string_hex.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
 
+#include <bit>
 #include <unordered_set>
 
 namespace cb::xattr {
@@ -213,5 +215,13 @@ std::string make_wire_encoded_string(
     }
     encoded.append(body);
     return encoded;
+}
+
+std::string macros::cas_to_hex(uint64_t cas) {
+    // The format was defined by cb::to_hex(htonll(cas)) on little endian
+    // platforms, which is the byte swapped CAS. Swap unconditionally so
+    // that big endian platforms (where htonll is a no-op) produce the same
+    // string.
+    return cb::to_hex(std::byteswap(cas));
 }
 } // namespace cb::xattr
