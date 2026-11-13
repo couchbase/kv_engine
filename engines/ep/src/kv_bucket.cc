@@ -1071,6 +1071,15 @@ void KVBucket::setVBucketState_UNLOCKED(
         }
     }
 
+    // MB-74970: Needed by continueToActive for failover. Read before
+    // setState_UNLOCKED, which converts the DurabilityMonitor to Active and
+    // may immediately resolve (dequeue) SyncWrites for completion.
+    std::optional<uint64_t> lowestInFlightPrepareSeqno;
+    if (to == vbucket_state_active && vb->getState() != vbucket_state_active &&
+        transfer == TransferVB::No) {
+        lowestInFlightPrepareSeqno = vb->getLowestInFlightPrepareSeqno();
+    }
+
     auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);
 
     if (notifyDcp && (oldstate != to || deleteVB)) {
@@ -1084,8 +1093,11 @@ void KVBucket::setVBucketState_UNLOCKED(
 
     bool needToPersistVbState = true;
     if (to == vbucket_state_active) {
-        needToPersistVbState =
-                continueToActive(oldstate, transfer, vb, vbStateLock);
+        needToPersistVbState = continueToActive(oldstate,
+                                                transfer,
+                                                vb,
+                                                vbStateLock,
+                                                lowestInFlightPrepareSeqno);
     }
 
     if (needToPersistVbState) {
@@ -1097,7 +1109,8 @@ bool KVBucket::continueToActive(
         vbucket_state_t oldstate,
         TransferVB transfer,
         VBucketPtr& vb,
-        std::unique_lock<folly::SharedMutex>& vbStateLock) {
+        std::unique_lock<folly::SharedMutex>& vbStateLock,
+        std::optional<uint64_t> lowestInFlightPrepareSeqno) {
     /**
      * Expect this to happen for failover
      */
@@ -1106,8 +1119,17 @@ bool KVBucket::continueToActive(
          * Create a new checkpoint to ensure that we do not now write to a
          * Disk checkpoint. This updates the snapshot range to maintain the
          * correct snapshot sequence numbers even in a failover scenario.
+         *
+         * MB-74970: On failover (not a takeover) the open checkpoint may
+         * hold a partial snapshot from the old active; that is corrected so
+         * it doesn't claim seqnos (or completions) we never received.
          */
-        vb->checkpointManager->createNewCheckpoint();
+        if (transfer == TransferVB::No) {
+            vb->checkpointManager->createNewCheckpointForFailover(
+                    lowestInFlightPrepareSeqno);
+        } else {
+            vb->checkpointManager->createNewCheckpoint();
+        }
 
         /**
          * Update the manifest of this vBucket from the
