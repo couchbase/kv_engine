@@ -123,6 +123,46 @@ Guidelines:
 - Avoid global variables and side effects in CMake scripts
 - The `CMake Best Practices<https://cliutils.gitlab.io/modern-cmake/>` are also a key part of our CMake style.
 
+Language: **Markdown**
+
+Guidelines:
+
+- Use [markfmt](https://crates.io/crates/markfmt) to format Markdown
+  files. Install it with `cargo install markfmt`.
+- Only format the changed parts of a file (similar to
+  `git clang-format`) to avoid reformatting large areas of unrelated
+  text:
+
+      markfmt --overlaps-git-changes staged .
+
+  Use `--diff` to view the suggested changes or `--check` to verify the
+  formatting without modifying any files.
+- Optionally add a git alias to make it available as
+  `git markdown-format`:
+
+      git config --global alias.markdown-format \
+          '!markfmt --overlaps-git-changes staged .'
+
+- Optionally add a pre-commit hook rejecting commits with formatting
+  issues in the staged Markdown changes. Git 2.54 and later support
+  hooks defined in the git configuration (see `hook.<name>.*`
+  in `git help config`), which run in addition to the hooks in
+  `.git/hooks`. Install it in the repository:
+
+      git config hook.markfmt.event pre-commit
+      git config hook.markfmt.command \
+          'markfmt --check --overlaps-git-changes staged .'
+
+  Adding `--global` installs it for all repositories instead, but it
+  then checks the Markdown in every repository you commit to (which may
+  use a different style), and commits fail on machines where markfmt is
+  not installed.
+
+  With versions of Git older than 2.54, add the `markfmt` command
+  above to `.git/hooks/pre-commit` instead. Do not use `core.hooksPath`
+  for this, as it disables the repository hooks (including the Gerrit
+  `commit-msg` hook adding the `Change-Id`).
+
 ## New C++ File Headers
 Whenever you create a new C++ file (e.g., `.cc`, or `.h`), you must prepend the exact copyright header specified below.
 

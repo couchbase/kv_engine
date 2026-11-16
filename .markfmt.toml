@@ -1,0 +1,32 @@
+# Configuration for markfmt (https://crates.io/crates/markfmt).
+#
+# markfmt searches for .markfmt.toml from the directory of each file and
+# upwards (past the git root), using the first one found. Keeping this
+# file in the repository root stops configuration files in directories
+# above the checkout from affecting how kv_engine is formatted.
+#
+# All values below are the markfmt defaults.
+
+# Maximum line width.
+max_line_width = 72
+
+# Override continuation and nested list indent spaces. When unset the
+# indentation is determined automatically (there is no value for
+# "automatic", so leave it commented out to keep the default).
+# hanging_indent = 2
+
+# Align GFM table columns.
+align_table_columns = true
+
+# Use greedy line breaking instead of optimal Knuth-Plass.
+greedy = false
+
+# How to break paragraph text into lines: "always", "never", "preserve"
+# or "sentence".
+wrap = "always"
+
+# How to number ordered list items: "preserve", "ascending" or "one".
+ordered_lists = "preserve"
+
+# Files to skip (patterns).
+exclude = []
