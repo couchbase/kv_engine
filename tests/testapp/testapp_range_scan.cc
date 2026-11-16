@@ -189,7 +189,8 @@ public:
             cb::rangescan::Id id,
             bool keyScan,
             size_t itemLimit,
-            const std::unordered_set<std::string>& expectedKeySet);
+            const std::unordered_set<std::string>& expectedKeySet,
+            size_t byteLimit = 0);
 
     void testErrorsDuringContinue(cb::mcbp::Status error);
 
@@ -437,7 +438,8 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
         cb::rangescan::Id id,
         bool keyScan,
         size_t itemLimit,
-        const std::unordered_set<std::string>& expectedKeySet) {
+        const std::unordered_set<std::string>& expectedKeySet,
+        size_t byteLimit) {
     BinprotResponse resp;
     size_t recordsReturned = 0;
     size_t frames = 0;
@@ -450,7 +452,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
                 id,
                 itemLimit,
                 std::chrono::milliseconds(0) /* no time limit*/,
-                0 /*no byte limit*/);
+                byteLimit);
         userConnection->sendCommand(scanContinue);
         ++continuesIssued;
 
@@ -556,6 +558,26 @@ TEST_P(RangeScanTest, ScanWithSmallBufferWithLimit) {
     // the scan happens to stop after reading the last key, but won't know that
     // it's the last key until 1 extra continue pushes the scan over to the end.
     smallBufferTest(2, (userKeys.size() / 2) + 1);
+}
+
+TEST_P(RangeScanTest, ScanWithByteLimit) {
+    // A byte limit of 1 is exceeded by every key, so each continue should
+    // return a single key. Prior to fixing RangeScanContinuePayload the byte
+    // limit was decoded incorrectly (shifted left by 32 bits) on little endian
+    // platforms and the scan would run to completion with one continue.
+    // As with the item limit the scan needs 1 extra continue to discover that
+    // it has reached the end of the range.
+    config["key_only"] = true;
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    auto resp = userConnection->execute(create);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
+
+    auto result = drainScan(id, true, 0 /* no item limit */, userKeys, 1);
+    EXPECT_EQ(userKeys.size() + 1, result.continuesIssued);
+    EXPECT_EQ(userKeys.size(), result.records);
 }
 
 TEST_P(RangeScanTest, ExclusiveRangeStart) {
