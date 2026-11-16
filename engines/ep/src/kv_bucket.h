@@ -1395,7 +1395,8 @@ protected:
     bool continueToActive(vbucket_state_t oldstate,
                           TransferVB transfer,
                           VBucketPtr& vb,
-                          std::unique_lock<folly::SharedMutex>& vbStateLock);
+                          std::unique_lock<folly::SharedMutex>& vbStateLock,
+                          std::optional<uint64_t> lowestInFlightPrepareSeqno);
 
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
