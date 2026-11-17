@@ -359,6 +359,13 @@ TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
 }
 
 TEST_F(SslCertTest, TestSecurityLevel2) {
+#ifdef WIN32
+    // MB-75338: On Windows the server may reset the connection before the
+    // client has read the TLS "bad certificate" alert. Windows discards the
+    // unread data on reset, causing the next read to fail with WSAECONNRESET
+    // (10054) instead of reporting the alert.
+    GTEST_SKIP();
+#endif
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
     const auto connection = createConnection();
