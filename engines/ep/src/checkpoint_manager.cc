@@ -187,6 +187,35 @@ void CheckpointManager::addNewCheckpoint(
             oldOpenCkpt.getId(),
             (minSeqno ? std::to_string(*minSeqno) : "N/A"),
             (highSeqno ? std::to_string(*highSeqno) : "N/A"));
+
+    // MB-74970: The visibleSnapEnd of the checkpoint may be a seqno which was
+    // never received, e.g. a replica which received a partial snapshot and
+    // then a new marker (or was promoted). Cap it to what this vBucket has,
+    // else a DCP stream reading this checkpoint could send a snapshot with
+    // maxVisibleSeqno > snapEnd. That is always safe as the checkpoint can't
+    // have a visible item above maxVisibleSeqno, so it is done for a complete
+    // snapshot too (a marker with a visibleSnapEnd which isn't a visible
+    // item); snapEnd and lastBySeqno in the log message tell the cases apart.
+    // Note: snapEnd is deliberately not changed. A partial snapshot is not a
+    // consistent point (items were deduplicated against ones never received)
+    // and the flusher treats reaching snapEnd as one: the failover table
+    // entry may be placed there and PCS/HPS persisted.
+    const auto maxVisible = static_cast<uint64_t>(maxVisibleSeqno);
+    if (maxVisible < oldOpenCkpt.getVisibleSnapshotEndSeqno()) {
+        EP_LOG_INFO(
+                "CheckpointManager::addNewCheckpoint: {} capping "
+                "visibleSnapEnd of checkpoint id:{} snapStart:{} snapEnd:{} "
+                "lastBySeqno:{} visibleSnapEnd:{}->{}",
+                vb.getId(),
+                oldOpenCkpt.getId(),
+                oldOpenCkpt.getSnapshotStartSeqno(),
+                oldOpenCkpt.getSnapshotEndSeqno(),
+                lastBySeqno.load(),
+                oldOpenCkpt.getVisibleSnapshotEndSeqno(),
+                maxVisible);
+        oldOpenCkpt.capVisibleSnapshotEndSeqno(maxVisible);
+    }
+
     queued_item qi = createCheckpointMetaItem(oldOpenCkpt.getId(),
                                               queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
@@ -1638,6 +1667,52 @@ queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
 
 void CheckpointManager::createNewCheckpoint() {
     std::lock_guard<std::mutex> lh(queueLock);
+    addNewCheckpoint(lh);
+}
+
+void CheckpointManager::createNewCheckpointForFailover(
+        std::optional<uint64_t> lowestInFlightPrepareSeqno) {
+    std::lock_guard<std::mutex> lh(queueLock);
+    auto& ckpt = getOpenCheckpoint(lh);
+
+    // The open checkpoint may be a partial Disk snapshot from the old active,
+    // i.e. the snapshot end was never received. Its HCS is the old active's,
+    // which DCP sends to peers for this checkpoint (persisted there as PCS at
+    // the snapshot end, which is the last item this vBucket has). A Disk
+    // snapshot never contains a prepare <= its HCS (the backfill skips them),
+    // so the HCS is valid for the prepares of this checkpoint. As the
+    // snapshot is partial it is capped so that it doesn't:
+    // a) exceed lastBySeqno; seqnos above are reused by this vBucket for new
+    //    prepares once active.
+    // b) cover a prepare of an earlier snapshot which is still in-flight here;
+    //    its completion was in the part of the snapshot never received.
+    //
+    // Note: The visibleSnapEnd of a partial snapshot is capped by
+    // addNewCheckpoint.
+    const uint64_t lastSeqno = lastBySeqno;
+    const auto oldHcs = ckpt.getHighCompletedSeqno();
+    if (oldHcs && lastSeqno < ckpt.getSnapshotEndSeqno()) {
+        auto hcs = std::min(*oldHcs, lastSeqno);
+        if (lowestInFlightPrepareSeqno) {
+            Expects(*lowestInFlightPrepareSeqno > 0);
+            hcs = std::min(hcs, *lowestInFlightPrepareSeqno - 1);
+        }
+        if (hcs != *oldHcs) {
+            EP_LOG_INFO(
+                    "CheckpointManager::createNewCheckpointForFailover: {} "
+                    "open checkpoint id:{} snapStart:{} snapEnd:{} "
+                    "lastBySeqno:{} HCS:{}->{} lowestInFlightPrepareSeqno:{}",
+                    vb.getId(),
+                    ckpt.getId(),
+                    ckpt.getSnapshotStartSeqno(),
+                    ckpt.getSnapshotEndSeqno(),
+                    lastSeqno,
+                    *oldHcs,
+                    hcs,
+                    to_string_or_none(lowestInFlightPrepareSeqno));
+            ckpt.capHighCompletedSeqnoForFailover(hcs);
+        }
+    }
     addNewCheckpoint(lh);
 }
 

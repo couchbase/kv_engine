@@ -15,6 +15,7 @@
 #include "ep_types.h"
 #include "item.h"
 #include <folly/container/F14Map.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine_common.h>
 #include <platform/monotonic.h>
 #include <platform/non_negative_counter.h>
@@ -412,6 +413,31 @@ public:
         visibleSnapEndSeqno = visibleSnapEnd;
     }
 
+    /**
+     * Cap the visibleSnapEnd of a checkpoint which is being closed to what the
+     * vBucket has received, e.g. a partial snapshot. Must only be used by
+     * CheckpointManager::addNewCheckpoint (MB-74970).
+     *
+     * @param visibleSnapEnd new visibleSnapEnd, must be <= the current one
+     */
+    void capVisibleSnapshotEndSeqno(uint64_t visibleSnapEnd) {
+        Expects(visibleSnapEnd <= visibleSnapEndSeqno);
+        visibleSnapEndSeqno = visibleSnapEnd;
+    }
+
+    /**
+     * Cap the HCS of a Disk checkpoint created from a partial snapshot, when
+     * the vBucket is promoted to active (failover). Must only be used by
+     * CheckpointManager::createNewCheckpointForFailover (MB-74970).
+     *
+     * @param hcs new HCS, must be <= the current HCS (which must be set)
+     */
+    void capHighCompletedSeqnoForFailover(uint64_t hcs) {
+        Expects(highCompletedSeqno.has_value());
+        Expects(hcs <= *highCompletedSeqno);
+        highCompletedSeqno = hcs;
+    }
+
     void setCheckpointType(CheckpointType type) {
         checkpointType = type;
     }
@@ -768,7 +794,8 @@ private:
     // only necessary for Disk snapshot (due to de-dupe) and the way we retrieve
     // items from the CheckpointManager for memory snapshots makes it
     // non-trivial to send the HCS in memory snapshot markers.
-    const std::optional<uint64_t> highCompletedSeqno;
+    // Only modified by capHighCompletedSeqnoForFailover.
+    std::optional<uint64_t> highCompletedSeqno;
 
     // Tracks the seqno of the most recently queued prepare. Once this entire
     // checkpoint has been persisted, the state on disk definitely has a
