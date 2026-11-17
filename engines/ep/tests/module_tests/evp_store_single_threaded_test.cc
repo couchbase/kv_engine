@@ -7724,9 +7724,11 @@ TEST_P(STParamPersistentBucketTest, CancelledCompactionWaiterLosesWakeup) {
     EXPECT_EQ(0, semaphore.getWaiters().size())
             << "vb2 compaction still waiting with a token available";
 
-    // vb2's compaction should be able to run now (after vb1's deletion)
-    runNextTask(auxIoQ, "Removing (dead) vb:1 from memory and disk");
-    runNextTask(auxIoQ, "Compact DB file 2");
+    // vb2's compaction should be able to run now. It and vb1's deletion are
+    // both ready and run in wake order, which is unspecified if their wake
+    // times are equal - so run both without expecting an order.
+    runNextTask(auxIoQ);
+    runNextTask(auxIoQ);
     EXPECT_EQ(0, semaphore.getWaiters().size());
 
     // vb2's compaction ran to completion (was not aborted), its task has been
@@ -7788,13 +7790,14 @@ TEST_P(STParamPersistentBucketTest, CancelledSignalledCompactionLosesWakeup) {
     EXPECT_EQ(0, semaphore.getWaiters().size())
             << "vb2 compaction still waiting with a token available";
 
-    // Tasks run in wake order. vb1's compaction was woken before it was
-    // cancelled, so is still queued (dead) - the executor pops it but does
-    // not run it. vb2's compaction was woken by the cancel, which happens
-    // before deleteVBucket schedules the deletion task.
-    runNextTask(auxIoQ, "Compact DB file 1");
-    runNextTask(auxIoQ, "Compact DB file 2");
-    runNextTask(auxIoQ, "Removing (dead) vb:1 from memory and disk");
+    // Three tasks are now ready: vb1's compaction (woken before it was
+    // cancelled, so still queued (dead) - the executor pops it but does not
+    // run it), vb2's compaction and vb1's deletion. They run in wake order,
+    // which is unspecified if their wake times are equal - so run all three
+    // without expecting an order.
+    runNextTask(auxIoQ);
+    runNextTask(auxIoQ);
+    runNextTask(auxIoQ);
     EXPECT_EQ(0, semaphore.getWaiters().size());
 
     // vb2's compaction ran to completion (was not aborted), its task has been
