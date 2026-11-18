@@ -72,6 +72,12 @@ public:
         return *cookies.front();
     }
 
+    void forEachCookie(const std::function<void(Cookie&)>& callback) {
+        for (auto& c : cookies) {
+            callback(*c);
+        }
+    }
+
     /// Detach the read/write/event callbacks from the underlying
     /// bufferevent so that draining any bufferevent callback which was
     /// triggered (but not yet run) via triggerCallback() is side-effect
@@ -229,6 +235,19 @@ public:
     /// Throttle a command on the connection (like Bucket::shouldThrottle()
     /// does when the bucket is over its limit)
     void throttleCommand(MockConnection& c) {
+        throttleCommand(c, c.getFirstCookie());
+    }
+
+    /// Throttle the provided command (cookie) of the connection
+    void throttleCommand(MockConnection& c, Cookie& cookie) {
+        initializeGet(cookie);
+        cookie.setEwouldblock();
+        cookie.setThrottled(true);
+        frontEndThread->addThrottledConnection(c);
+    }
+
+    /// Give the cookie a GET command to "execute"
+    void initializeGet(Cookie& cookie) {
         using namespace cb::mcbp;
         // processNotifiedCookie() records into this histogram (normally
         // sized during front-end thread startup)
@@ -237,13 +256,36 @@ public:
         builder.setMagic(Magic::ClientRequest);
         builder.setOpcode(ClientOpcode::Get);
         builder.setKey("key");
-        auto& cookie = c.getFirstCookie();
         const auto now = std::chrono::steady_clock::now();
         cookie.initialize(
                 now, now, *reinterpret_cast<const Header*>(builder.getFrame()));
-        cookie.setEwouldblock();
-        cookie.setThrottled(true);
-        frontEndThread->addThrottledConnection(c);
+    }
+
+    /// Is the connection still owned by the front end thread (not freed)
+    bool isConnectionAlive(const Connection* c) const {
+        bool found = false;
+        frontEndThread->iterate_connections(
+                [c, &found](Connection& conn) { found |= (&conn == c); });
+        return found;
+    }
+
+    /**
+     * Expect the connection to have been freed. If it wasn't (it leaked
+     * with a blocked command) release its blocked commands so that TearDown
+     * may destroy it without hitting the would-block check in ~Cookie.
+     */
+    void expectConnectionFreed(MockConnection* c) {
+        if (!isConnectionAlive(c)) {
+            return;
+        }
+        ADD_FAILURE() << "The connection was not freed. State: "
+                      << int(c->getState());
+        c->detachBuffereventCallbacks();
+        c->forEachCookie([](Cookie& cookie) {
+            cookie.setThrottled(false);
+            cookie.clearEwouldblock();
+            cookie.reset();
+        });
     }
 
     /// Make the connection a DCP connection and throttle its stream
@@ -953,4 +995,116 @@ TEST_F(ConnectionUnitTests, ThrottledResetWhenBucketDeleted) {
     EXPECT_FALSE(dcp.isDcpStreamThrottled());
 
     frontEndThread->removeMockConnection(dcp);
+}
+
+/**
+ * A throttled command is marked would-block, which keeps a closing
+ * connection in pending_close. Closing connections never run to
+ * re-evaluate cookies so close() must release them.
+ * The client disconnects while one of its commands is throttled.
+ */
+TEST_F(ConnectionUnitTests, ClosedWhileThrottledIsFreed) {
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+    throttleCommand(*connection);
+
+    connection->mockConnReset();
+    expectConnectionFreed(connection);
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+}
+
+/**
+ * The tick takes the connection off the queue and schedules its callback,
+ * but the client disconnects before the callback runs (so the connection is
+ * no longer running when it is woken).
+ */
+TEST_F(ConnectionUnitTests, ThrottledWokenThenClosedIsFreed) {
+    scheduler_info.resize(1);
+    throttleCommand(*connection);
+
+    frontEndThread->wakeThrottledConnections();
+    ASSERT_TRUE(frontEndThread->getThrottledConnections().empty());
+    connection->mockConnReset();
+    // Run the callback scheduled by the tick
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    expectConnectionFreed(connection);
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+}
+
+/**
+ * close() stops at the first would-block command. A throttled command
+ * behind a command waiting for the engine must be released too.
+ */
+TEST_F(ConnectionUnitTests, ClosedWhileThrottledBehindBlockedCommandIsFreed) {
+    scheduler_info.resize(1);
+    // The first command waits for the engine, a reorderable command started
+    // after it is throttled
+    auto& blocked = connection->getFirstCookie();
+    initializeGet(blocked);
+    blocked.setEwouldblock();
+    throttleCommand(*connection, connection->allocateCookie());
+
+    connection->mockConnReset();
+    EXPECT_EQ(Connection::State::pending_close, connection->getState());
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+
+    // The engine completes the first command
+    connection->processNotifiedCookie(blocked,
+                                      cb::engine_errc::success,
+                                      std::chrono::steady_clock::now());
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    expectConnectionFreed(connection);
+}
+
+/**
+ * The server shuts the connection down outside of its callback (e.g. its
+ * port was removed, see reEvaluateParentPort()). signalIfIdle() doesn't run
+ * the callback of a connection with a would-block (throttled) command, but
+ * the connection is still in the throttled queue, so the tick runs its
+ * callback, which closes it.
+ */
+TEST_F(ConnectionUnitTests, ShutdownWhileThrottledIsFreedByTick) {
+    scheduler_info.resize(1);
+    throttleCommand(*connection);
+
+    connection->shutdown();
+    EXPECT_FALSE(connection->signalIfIdle());
+    EXPECT_TRUE(isConnectionAlive(connection));
+    frontEndThread->wakeThrottledConnections();
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    expectConnectionFreed(connection);
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+}
+
+/**
+ * A DCP connection's cookie is reserved by the engine's connection handler
+ * until the handler is destroyed after the disconnect, so it is in
+ * pending_close until then. A throttled DCP stream doesn't block a cookie,
+ * so it doesn't stop it from being freed, but it should leave the queue
+ * and record the throttled time when it closes.
+ */
+TEST_F(ConnectionUnitTests, DcpClosedWhileThrottledIsFreed) {
+    scheduler_info.resize(1);
+    auto& histogram =
+            connection->getBucket()
+                    .low_resolution_stats[connection->getThread().index]
+                    .throttle_times;
+    const auto samples = histogram.getValueCount();
+    throttleDcp(*connection);
+    auto& cookie = connection->getFirstCookie();
+    cookie.reserve();
+
+    connection->mockConnReset();
+    EXPECT_EQ(Connection::State::pending_close, connection->getState());
+    EXPECT_FALSE(connection->isThrottled());
+    EXPECT_FALSE(connection->isDcpStreamThrottled());
+    EXPECT_TRUE(frontEndThread->getThrottledConnections().empty());
+    EXPECT_EQ(samples + 1, histogram.getValueCount());
+
+    // The engine destroys the connection handler, which releases the cookie
+    // (run the release, then the connection's callback)
+    cookie.release();
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    expectConnectionFreed(connection);
 }

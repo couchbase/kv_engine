@@ -9,6 +9,9 @@
  */
 #include "testapp.h"
 
+#include <folly/ScopeGuard.h>
+#include <platform/timeutils.h>
+
 static constexpr int USER_CONNECTIONS = 15;
 static constexpr int SYSTEM_CONNECTIONS = 10;
 
@@ -113,4 +116,71 @@ TEST_F(MaxConnectionTest, SystemConnection) {
     // But I should be able to create a normal connection
     auto c = user->clone();
     c->getSaslMechanisms();
+}
+
+/**
+ * MB-74480: A connection closed by the client while one of its commands is
+ * throttled must be freed. It used to stay in pending_close (holding its socket
+ * and a reference on the bucket) until the bucket was deleted, so clients
+ * timing out and reconnecting while the bucket is throttled would eventually
+ * use up all of the user connections.
+ */
+TEST_F(MaxConnectionTest, MB74480_ClosedWhileThrottledConnectionsAreFreed) {
+    const std::string name = "bucket";
+    memcached_cfg["throttle_enabled"] = true;
+    reconfigure();
+    // A hard limit of 0 throttles every command (Luke isn't Unthrottled)
+    mcd_env->getTestBucket().createBucket(
+            name,
+            "throttle_reserved=0;throttle_hard_limit=0",
+            *adminConnection);
+    auto cleanup = folly::makeGuard([this, &name] {
+        // Deleting the bucket resets the throttled commands, which frees
+        // any leaked connections
+        adminConnection->deleteBucket(name);
+        memcached_cfg["throttle_enabled"] = false;
+        reconfigure();
+    });
+
+    auto getNumThrottled = [this, &name]() {
+        size_t throttled = 0;
+        admin->stats(
+                [&throttled](const auto&, const auto& value) {
+                    throttled = nlohmann::json::parse(value)["num_throttled"];
+                },
+                "bucket_details " + name);
+        return throttled;
+    };
+
+    // Each client sends a GET, which is throttled, and disconnects
+    for (int ii = idleUser; ii < USER_CONNECTIONS; ++ii) {
+        const auto throttled = getNumThrottled();
+        auto conn = user->clone();
+        conn->authenticate("Luke");
+        conn->selectBucket(name);
+        conn->sendCommand(BinprotGetCommand("key"));
+        ASSERT_TRUE(cb::waitForPredicateUntil(
+                [&getNumThrottled, throttled]() {
+                    return getNumThrottled() != throttled;
+                },
+                std::chrono::seconds{5},
+                std::chrono::milliseconds{10}))
+                << "The GET on connection " << ii << " was not throttled";
+    }
+
+    // Wait for the server to close them
+    EXPECT_TRUE(cb::waitForPredicateUntil(
+            [this]() { return getConnectionCounts().first == idleUser; },
+            std::chrono::seconds{5},
+            std::chrono::milliseconds{50}))
+            << "The connections closed while throttled were not freed. "
+            << "User connections: " << getConnectionCounts().first
+            << " expected: " << idleUser;
+
+    try {
+        auto conn = user->clone();
+        conn->getSaslMechanisms();
+    } catch (const std::exception& e) {
+        ADD_FAILURE() << "A new user connection was refused: " << e.what();
+    }
 }
