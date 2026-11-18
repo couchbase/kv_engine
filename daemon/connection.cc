@@ -589,9 +589,10 @@ void Connection::reEvaluateThrottledCookie(Cookie& cookie) {
     cookie.clearEwouldblock();
 }
 
-bool Connection::processAllReadyCookies() {
+std::pair<bool, bool> Connection::processAllReadyCookies() {
     // Look at the existing commands and check possibly execute them
     bool active = false;
+    bool barrier = false;
     auto iter = cookies.begin();
     // Iterate over all of the cookies and try to execute them
     // (and nuke the entries as they complete so that we may start
@@ -601,7 +602,16 @@ bool Connection::processAllReadyCookies() {
         auto& cookie = *iter;
 
         if (cookie->empty()) {
-            ++iter;
+            // Keep the front cookie (MB-40076), the back one (reused for
+            // the next command) and those still referenced, but drop the
+            // rest so the list doesn't grow with completed commands (they
+            // don't count against the command limit)
+            if (iter == cookies.begin() || std::next(iter) == cookies.end() ||
+                cookie->getRefcount() > 0) {
+                ++iter;
+            } else {
+                iter = cookies.erase(iter);
+            }
             continue;
         }
 
@@ -622,6 +632,7 @@ bool Connection::processAllReadyCookies() {
         if (active && !cookie->mayReorder()) {
             // we've got active commands, and this command can't be
             // reordered... stop executing!
+            barrier = true;
             break;
         }
 
@@ -645,7 +656,13 @@ bool Connection::processAllReadyCookies() {
     }
 
     checkRemainingThrottledCookies();
-    return active;
+    // Cookies behind a barrier wait for the active command's notification
+    return {active, !barrier && iter != cookies.end()};
+}
+
+size_t Connection::getNumCommandsInFlight() const {
+    return std::ranges::count_if(
+            cookies, [](const auto& cookie) { return !cookie->empty(); });
 }
 
 void Connection::checkRemainingThrottledCookies() {
@@ -748,7 +765,7 @@ void Connection::executeCommandPipeline() {
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
 
-    bool active = processAllReadyCookies();
+    auto [active, unvisited] = processAllReadyCookies();
 
     // We might add more commands to the queue
     if (is_bucket_dying(*this)) {
@@ -758,7 +775,7 @@ void Connection::executeCommandPipeline() {
 
     std::chrono::steady_clock::time_point now;
     bool allow_more_commands = (!active || cookies.back()->mayReorder()) &&
-                               cookies.size() < maxActiveCommands;
+                               getNumCommandsInFlight() < maxActiveCommands;
     if (allow_more_commands) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
@@ -766,7 +783,7 @@ void Connection::executeCommandPipeline() {
         bool stop = tooMuchData();
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
-               !stop && cookies.size() < maxActiveCommands &&
+               !stop && getNumCommandsInFlight() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
                state == State::running) {
             const auto auth_stale =
@@ -819,7 +836,7 @@ void Connection::executeCommandPipeline() {
             --numEvents;
         }
         allow_more_commands = (!active || cookies.back()->mayReorder()) &&
-                              cookies.size() < maxActiveCommands;
+                              getNumCommandsInFlight() < maxActiveCommands;
     } else {
         now = std::chrono::steady_clock::now();
     }
@@ -845,15 +862,13 @@ void Connection::executeCommandPipeline() {
         } else {
             disableReadEvent();
         }
-    } else if (allow_more_commands) {
-        if (isPacketReadyForExecutionAvailable()) {
-            // We have the entire packet spooled up in the input buffer
-            // and may continue processing it at the next time slice
-            disableReadEvent();
-            triggerCallback();
-        } else {
-            enableReadEvent();
-        }
+    } else if (unvisited ||
+               (allow_more_commands && isPacketReadyForExecutionAvailable())) {
+        // We ran out of time (or events) before visiting every cookie, or
+        // have the entire packet spooled up in the input buffer. Nothing
+        // else will wake us for either, so continue at the next time slice
+        disableReadEvent();
+        triggerCallback();
     } else {
         enableReadEvent();
     }
