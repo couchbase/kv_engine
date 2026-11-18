@@ -476,10 +476,9 @@ public:
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,
-                                  bool metered,
                                   bool systemCollection) override {
-        currentCollectionInfo = CurrentCollectionInfo(
-                sid, cid, manifestUid, metered, systemCollection);
+        currentCollectionInfo =
+                CurrentCollectionInfo(sid, cid, manifestUid, systemCollection);
     }
 
     std::pair<std::optional<ScopeID>, std::optional<CollectionID>>
@@ -580,16 +579,6 @@ public:
 
     /// Does this cookie represent a durable request
     bool isDurable() const;
-
-    /**
-     * Get the amount of read/write units we should use for metering.
-     *
-     * According to MB-53560 a failing operation should not cost anything
-     * According to MB-53127 read should come for free if we charge for write
-     *
-     * @return number of read and write units to charge the user for.
-     */
-    std::pair<size_t, size_t> getDocumentMeteringRWUnits() const;
 
     bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override;
     bool sendResponse(cb::engine_errc status,
@@ -784,12 +773,10 @@ protected:
         CurrentCollectionInfo(ScopeID sid,
                               CollectionID cid,
                               uint64_t uid,
-                              bool metered,
                               bool systemCollection)
             : sid(sid),
               cid(cid),
               manifestUid(uid),
-              metered(metered),
               systemCollection(systemCollection) {
         }
         CurrentCollectionInfo() = default;
@@ -799,7 +786,6 @@ protected:
         std::optional<ScopeID> sid;
         std::optional<CollectionID> cid;
         uint64_t manifestUid{0};
-        bool metered{false};
         bool systemCollection{false};
     } currentCollectionInfo;
 

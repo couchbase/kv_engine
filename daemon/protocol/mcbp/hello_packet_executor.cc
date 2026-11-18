@@ -18,7 +18,6 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 #include <platform/json_log.h>
-#include <serverless/config.h>
 #include <set>
 #include <span>
 
@@ -47,6 +46,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::Invalid:
         case Feature::Invalid2:
         case Feature::Invalid3:
+        case Feature::Invalid4:
         case Feature::TLS:
             // known, but we don't support them
             break;
@@ -71,7 +71,6 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::SubdocCreateAsDeleted:
         case Feature::SubdocDocumentMacroSupport:
         case Feature::SubdocReplaceBodyWithXattr:
-        case Feature::ReportUnitUsage:
         case Feature::NonBlockingThrottlingMode:
         case Feature::SubdocReplicaRead:
         case Feature::GetClusterConfigWithKnownVersion:
@@ -122,7 +121,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::PreserveTtl:
         case Feature::SubdocCreateAsDeleted:
         case Feature::SubdocReplaceBodyWithXattr:
-        case Feature::ReportUnitUsage:
+        case Feature::Invalid4:
         case Feature::NonBlockingThrottlingMode:
         case Feature::SubdocReplicaRead:
         case Feature::GetClusterConfigWithKnownVersion:
@@ -214,7 +213,6 @@ void process_hello_packet_executor(Cookie& cookie) {
             ClustermapChangeNotification::None);
     connection.setTracingEnabled(false);
     connection.setAllowUnorderedExecution(false);
-    connection.setReportUnitUsage(false);
     connection.setNonBlockingThrottlingMode(false);
     connection.setDedupeNmvbMaps(false);
     connection.setSupportsSnappyEverywhere(false);
@@ -267,6 +265,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::Invalid:
         case Feature::Invalid2:
         case Feature::Invalid3:
+        case Feature::Invalid4:
         case Feature::TLS:
             break;
 
@@ -345,12 +344,6 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
-        case Feature::ReportUnitUsage:
-            if (cb::serverless::isEnabled()) {
-                connection.setReportUnitUsage(true);
-                added = true;
-            }
-            break;
         case Feature::NonBlockingThrottlingMode:
             connection.setNonBlockingThrottlingMode(true);
             added = true;

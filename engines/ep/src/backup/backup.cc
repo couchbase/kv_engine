@@ -40,7 +40,7 @@ reEncodeOpenCollections(flatbuffers::FlatBufferBuilder& builder,
                                 .count()),
                 builder.CreateString(open.metaData.name),
                 getHistoryFromCanDeduplicate(open.metaData.canDeduplicate),
-                getMeteredFromEnum(open.metaData.metered),
+                false /*metered*/,
                 open.metaData.flushUid);
         collectionFbs.push_back(collectionFb);
     }

@@ -419,7 +419,6 @@ public:
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
-        Metered metered;
         CanDeduplicate canDeduplicate;
         ManifestUid flushUid;
     };
@@ -428,7 +427,6 @@ public:
         CollectionID cid;
         CanDeduplicate canDeduplicate;
         cb::ExpiryLimit maxTtl;
-        Metered metered;
     };
 
     // local struct for managing scope creation
@@ -552,7 +550,6 @@ protected:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName Name of the created collection
      * @param maxTtl An optional maxTTL for the collection
-     * @param metered flag defining metering behaviour of the collection
      * @param canDeduplicate The collection's deduplication setting
      * @param flushUid The flushUid of the collection
      * @param optionalSeqno Either a seqno to assign to the collection or
@@ -565,7 +562,6 @@ protected:
                          ScopeCollectionPair identifiers,
                          std::string_view collectionName,
                          cb::ExpiryLimit maxTtl,
-                         Metered metered,
                          CanDeduplicate canDeduplicate,
                          ManifestUid flushUid,
                          OptionalSeqno optionalSeqno);
@@ -604,7 +600,6 @@ protected:
      * @param newManUid the uid of the manifest which made the change
      * @param cid CollectionID to modify
      * @param maxTtl ttl value to set onto the collection
-     * @param metered value for metering to set onto the collection
      * @param canDeduplicate deduplicate value to set onto the collection
      * @param optionalSeqno Either a seqno to assign to the modification event
      *        of the collection or none (none means the checkpoint assigns the
@@ -616,7 +611,6 @@ protected:
                           ManifestUid newManUid,
                           CollectionID cid,
                           cb::ExpiryLimit maxTtl,
-                          Metered metered,
                           CanDeduplicate canDeduplicate,
                           OptionalSeqno optionalSeqno);
 
@@ -1058,7 +1052,6 @@ protected:
      * @param collectionName The name of the collection
      * @param maxTtl The maxTTL that if defined will be applied to new items of
      *        the collection (overriding bucket maxTTL)
-     * @param metered a flag defining how this collection is metered
      * @param canDeduplicate can items in this collection be deduplicated?
      * @param startSeqno The seqno where the collection begins.
      * @return a non const reference to the new ManifestEntry so the caller can
@@ -1067,7 +1060,6 @@ protected:
     ManifestEntry& addNewCollectionEntry(ScopeCollectionPair identifiers,
                                          std::string_view collectionName,
                                          cb::ExpiryLimit maxTtl,
-                                         Metered metered,
                                          CanDeduplicate canDeduplicate,
                                          ManifestUid flushUid,
                                          int64_t startSeqno);

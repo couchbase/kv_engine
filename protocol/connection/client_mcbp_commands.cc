@@ -365,58 +365,6 @@ std::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
     return ret;
 }
 
-std::optional<size_t> BinprotResponse::getReadUnits() const {
-    std::optional<size_t> ret;
-    try {
-        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
-            if (id == cb::mcbp::response::FrameInfoId::ReadUnits) {
-                ret = ntohs(to_uint16(val));
-                return false;
-            }
-            return true;
-        });
-    } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(std::string{"ReadUnits frame info: "} +
-                                 e.what());
-    }
-    return ret;
-}
-
-std::optional<size_t> BinprotResponse::getWriteUnits() const {
-    std::optional<size_t> ret;
-    try {
-        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
-            if (id == cb::mcbp::response::FrameInfoId::WriteUnits) {
-                ret = ntohs(to_uint16(val));
-                return false;
-            }
-            return true;
-        });
-    } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(std::string{"WriteUnits frame info: "} +
-                                 e.what());
-    }
-    return ret;
-}
-
-std::optional<std::chrono::microseconds> BinprotResponse::getThrottledDuration()
-        const {
-    std::optional<std::chrono::microseconds> ret;
-    try {
-        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
-            if (id == cb::mcbp::response::FrameInfoId::ThrottleDuration) {
-                ret = cb::tracing::Tracer::decodeMicros(ntohs(to_uint16(val)));
-                return false;
-            }
-            return true;
-        });
-    } catch (const std::invalid_argument& e) {
-        throw std::runtime_error(std::string{"ThrottledDuration frame info: "} +
-                                 e.what());
-    }
-    return ret;
-}
-
 cb::mcbp::ClientOpcode BinprotResponse::getOp() const {
     return getResponse().getClientOpcode();
 }

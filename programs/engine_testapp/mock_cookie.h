@@ -187,7 +187,6 @@ public:
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,
-                                  bool metered,
                                   bool systemCollection) override;
     bool checkThrottle(size_t, size_t) override;
     bool sendResponse(cb::engine_errc status,

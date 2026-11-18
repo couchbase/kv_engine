@@ -484,7 +484,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         builder.CreateString(meta.name.data(),
                                              meta.name.size()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        Collections::getMeteredFromEnum(meta.metered),
+                        false /*metered*/,
                         meta.flushUid));
     }
 
@@ -513,7 +513,6 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                         ? std::chrono::seconds{entry->max_ttl()}
                                         : cb::NoExpiryLimit,
                                 getCanDeduplicateFromHistory(entry->history()),
-                                Collections::getMetered(entry->metered()),
                                 Collections::ManifestUid{entry->flush_uid()}});
 
                 // maxTTL is validated in Manifest.cc to be <= int32_t
@@ -533,7 +532,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 builder.CreateString(entry->name()),
                                 getHistoryFromCanDeduplicate(
                                         meta.canDeduplicate),
-                                Collections::getMeteredFromEnum(meta.metered),
+                                false /*metered*/,
                                 entry->flush_uid()));
 
             } else {
@@ -569,7 +568,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        Collections::getMeteredFromEnum(meta.metered),
+                        false /*metered*/,
                         Collections::ManifestUid{}));
     }
 

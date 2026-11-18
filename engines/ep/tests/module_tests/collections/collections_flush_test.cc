@@ -76,7 +76,6 @@ protected:
                 seqno,
                 meta.canDeduplicate,
                 meta.maxTtl,
-                meta.metered,
                 meta.flushUid);
         return Collections::VB::Manifest::makeCollectionSystemEvent(
                 uid, meta.cid, meta.name, entry, type, int64_t(seqno));
@@ -287,21 +286,18 @@ protected:
                                    "fruit",
                                    cb::NoExpiryLimit,
                                    CanDeduplicate::Yes,
-                                   Collections::Metered::No,
                                    ManifestUid{}};
     const CollectionMetaData dairy{ScopeID{9},
                                    CollectionID{9},
                                    "dairy",
                                    cb::ExpiryLimit{100s},
                                    CanDeduplicate::No,
-                                   Collections::Metered::Yes,
                                    ManifestUid{}};
     const CollectionMetaData vegetable{ScopeID{9},
                                        CollectionID{10},
                                        "vegetable",
                                        cb::NoExpiryLimit,
                                        CanDeduplicate::Yes,
-                                       Collections::Metered::No,
                                        ManifestUid{}};
     const ScopeMetaData shop1{ScopeID{8}, "shop1"};
     const ScopeMetaData shop2{ScopeID{9}, "shop2"};
@@ -420,7 +416,6 @@ TEST_F(CollectionsVBFlushTest, createAndModifyCollection) {
     auto modified = fruit;
     modified.maxTtl = 99s;
     modified.canDeduplicate = CanDeduplicate::No;
-    modified.metered = Collections::Metered::Yes;
 
     createCollection(1, ManifestUid{1}, fruit);
     modifyCollection(2, ManifestUid{2}, modified);

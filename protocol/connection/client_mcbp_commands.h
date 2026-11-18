@@ -242,22 +242,6 @@ public:
     /// Retrieve the approximate time spent on the server
     std::optional<std::chrono::microseconds> getTracingData() const;
 
-    /// Get the RU count in the response (if present). We could of course
-    /// return 0 if not set, but by using std::optional we can write more
-    /// unit tests to verify if it is sent or not
-    std::optional<size_t> getReadUnits() const;
-
-    /// Get the WU count in the response (if present). We could of course
-    /// return 0 if not set, but by using std::optional we can write more
-    /// unit tests to verify if it is sent or not
-    std::optional<size_t> getWriteUnits() const;
-
-    /// Get the number of microseconds the command was throttled
-    /// on the server. We could of course return 0 if not set, but by
-    /// using std::optional we can write more unit tests to verify if it
-    /// is sent or not
-    std::optional<std::chrono::microseconds> getThrottledDuration() const;
-
     /**
      * Populate this response from a response
      * @param srcbuf The buffer containing the response.

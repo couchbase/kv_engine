@@ -4758,15 +4758,6 @@
         "added": "7.2.0"
     },
     {
-        "key": "collection_metered",
-        "unit": "none",
-        "cbstat": "metered",
-        "description": "Whether metering is enabled for the collection",
-        "prometheus": false,
-        "added": "7.6.0",
-        "stability": "internal"
-    },
-    {
         "key": "collection_flush_uid",
         "unit": "none",
         "cbstat": "flush_uid",

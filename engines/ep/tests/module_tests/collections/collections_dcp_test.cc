@@ -457,7 +457,6 @@ void CollectionsDcpTest::createCollectionOnConsumer(
              entry.name,
              {/*no ttl*/},
              CanDeduplicate::Yes,
-             Collections::Metered::Yes,
              Collections::ManifestUid{}}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     // Call the consumer function for handling DCP events

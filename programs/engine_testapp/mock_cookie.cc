@@ -156,7 +156,6 @@ cb::rbac::PrivilegeAccess MockCookie::checkForPrivilegeAtLeastInOneCollection(
 void MockCookie::setCurrentCollectionInfo(ScopeID sid,
                                           CollectionID cid,
                                           uint64_t manifestUid,
-                                          bool metered,
                                           bool systemCollection) {
     // do nothing
 }

@@ -4204,7 +4204,6 @@ TEST_P(EPBucketCDCTest, ReplicaSystemEventsNotFlusherDeduped) {
                                     {ScopeID::Default, collection},
                                     collection.name,
                                     {},
-                                    Collections::Metered::No,
                                     CanDeduplicate::No,
                                     Collections::ManifestUid{},
                                     1);

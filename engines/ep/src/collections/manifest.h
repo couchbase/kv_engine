@@ -235,12 +235,6 @@ public:
      */
     std::optional<ScopeID> getScopeID(CollectionID cid) const;
 
-    /**
-     * Get the 'metered' state of the collection. If the collection is unknown
-     * the returned value is uninitialised.
-     */
-    std::optional<Metered> isMetered(CollectionID cid) const;
-
     std::optional<CollectionMetaData> getCollectionEntry(
             CollectionID cid) const;
 

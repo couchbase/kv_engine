@@ -247,9 +247,6 @@ public:
         return manifest->getGeneration(cid, seqno);
     }
 
-    /// @return the metering state of the collection, throw for unknown cid
-    Metered isMetered(CollectionID cid) const;
-
     /// @return in one lookup data that the VB::Filter needs
     std::optional<DcpFilterMeta> getMetaForDcpFilter(CollectionID cid) const {
         return manifest->getMetaForDcpFilter(cid);
@@ -548,10 +545,6 @@ public:
         itr->second.incrementOpsGetBgFetch();
     }
 
-    Metered isMetered() const {
-        return itr->second.isMetered();
-    }
-
     CanDeduplicate getCanDeduplicate() const {
         if (!valid()) {
             return CanDeduplicate::Yes;
@@ -643,10 +636,6 @@ public:
         return itr->second.getScopeID();
     }
 
-    Metered isMetered() const {
-        return itr->second.isMetered();
-    }
-
     /// @return collection name
     std::string_view getName() const {
         return itr->second.getName();
@@ -700,7 +689,6 @@ public:
      * @param identifiers ScopeID and CollectionID pair for the new collection
      * @param collectionName name of the new collection
      * @param maxTtl An optional maxTtl for the collection
-     * @param metered Is the collection metered or "free"?
      * @param canDeduplicate Can the collection do any deduplication?
      * @param flushUid The flush-uid assigned to the collection.
      * @param startSeqno The start-seqno assigned to the collection.
@@ -710,7 +698,6 @@ public:
                        ScopeCollectionPair identifiers,
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
-                       Metered metered,
                        CanDeduplicate canDeduplicate,
                        ManifestUid flushUid,
                        int64_t startSeqno) {
@@ -721,7 +708,6 @@ public:
                                  identifiers,
                                  collectionName,
                                  maxTtl,
-                                 metered,
                                  canDeduplicate,
                                  flushUid,
                                  OptionalSeqno{startSeqno});
@@ -736,7 +722,6 @@ public:
      * @param manifestUid the uid of the manifest which made the change
      * @param cid The collection id
      * @param maxTtl An optional maxTtl for the collection
-     * @param metered Is the collection metered or "free"?
      * @param canDeduplicate Can the collection do any deduplication?
      * @param startSeqno The start-seqno assigned to the collection.
      */
@@ -744,7 +729,6 @@ public:
                                  ManifestUid manifestUid,
                                  CollectionID cid,
                                  cb::ExpiryLimit maxTtl,
-                                 Metered metered,
                                  CanDeduplicate canDeduplicate,
                                  int64_t startSeqno) {
         manifest.modifyCollection(vbStateLock,
@@ -753,7 +737,6 @@ public:
                                   manifestUid,
                                   cid,
                                   maxTtl,
-                                  metered,
                                   canDeduplicate,
                                   OptionalSeqno{startSeqno});
     }

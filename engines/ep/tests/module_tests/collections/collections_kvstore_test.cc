@@ -207,13 +207,6 @@ public:
                 CollectionID cid{collection["uid"].get<std::string>()};
                 auto name = collection["name"].get<std::string>();
 
-                auto jsonMetered = collection.find("metered");
-                auto metered = Collections::Metered::No;
-                if (jsonMetered != collection.end()) {
-                    // metered is specified in the manifest, use the value
-                    metered = Collections::getMetered(jsonMetered->get<bool>());
-                }
-
                 bool historyValue{false};
                 auto history = collection.find("history");
                 if (history != collection.end()) {
@@ -232,7 +225,6 @@ public:
                                 name,
                                 maxTtl,
                                 getCanDeduplicateFromHistory(historyValue),
-                                metered,
                                 flushUidValue);
             }
         }
@@ -397,7 +389,6 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                             "c101",
                                             {},
                                             CanDeduplicate::Yes,
-                                            Collections::Metered::Yes,
                                             Collections::ManifestUid{}});
     EXPECT_NE(m1, m2);
     m2.collections = m1.collections;
@@ -414,28 +405,12 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
 
     m1 = m2;
     EXPECT_EQ(m1, m2);
-    // Add a collection but check a different metered state is noticed
-    auto c1 = Collections::CollectionMetaData{ScopeID{88},
-                                              CollectionID{102},
-                                              "c1",
-                                              {},
-                                              CanDeduplicate::Yes,
-                                              Collections::Metered::No,
-                                              Collections::ManifestUid{}};
-    m1.collections.emplace_back(0, c1);
-    c1.metered = Collections::Metered::Yes;
-    m2.collections.emplace_back(0, c1);
-    EXPECT_NE(m1, m2);
-
-    m1 = m2;
-    EXPECT_EQ(m1, m2);
     // Add a collection but check a different history state is noticed
     auto c2 = Collections::CollectionMetaData{ScopeID{88},
                                               CollectionID{103},
                                               "c2",
                                               {},
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No,
                                               Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c2);
     c2.canDeduplicate = CanDeduplicate::No;
@@ -450,7 +425,6 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               "c3",
                                               cb::NoExpiryLimit,
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No,
                                               Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c3);
     c3.maxTtl = std::chrono::seconds(1);
@@ -463,7 +437,6 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               "c3",
                                               cb::NoExpiryLimit,
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No,
                                               Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c3);
     c3.flushUid += 1;
@@ -481,7 +454,6 @@ TEST(CollectionMetaDataTest, assignmentReplacesLowerFlushUid) {
                 "c",
                 cb::NoExpiryLimit,
                 CanDeduplicate::Yes,
-                Collections::Metered::No,
                 Collections::ManifestUid{flushUid}};
     };
     std::vector<Collections::CollectionMetaData> collections{
@@ -525,7 +497,6 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ(CollectionID::Default, md.collections[0].metaData.cid);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.collections[0].metaData.sid);
     EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
-    EXPECT_EQ(Collections::Metered::No, md.collections[0].metaData.metered);
 
     EXPECT_EQ(0, md.scopes[0].startSeqno);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.scopes[0].metaData.sid);
@@ -594,15 +565,6 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::defaultC});
 }
 
-// Check that the metered state persists and comes back
-TEST_P(CollectionsKVStoreTest, one_metered_update) {
-    CollectionsManifest cm;
-    auto vegetable = CollectionEntry::vegetable;
-    vegetable.metered = false;
-    cm.add(vegetable);
-    applyAndCheck(cm);
-}
-
 TEST_P(CollectionsKVStoreTest, create_and_modify) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
@@ -637,27 +599,23 @@ TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
 // collection - but in this case it's a modified copy.
 TEST_P(CollectionsKVStoreTest, epochAndModify) {
     CollectionsManifest cm;
-    auto entry = CollectionEntry::defaultC;
-    entry.metered = true;
-    cm.update(entry, cb::NoExpiryLimit);
+    cm.update(CollectionEntry::defaultC, cb::NoExpiryLimit, true /*history*/);
     applyAndCheck(cm);
 }
 
-// Created for MB-59088, modify a collection to enable metering depending on
-// the "batching" of the flush would use the wrong (unmodified) state.
-TEST_P(CollectionsKVStoreTest, MB_59088_modifyMetering) {
+// Created for MB-59088, modify a collection and depending on the "batching" of
+// the flush the wrong (unmodified) state would be used.
+TEST_P(CollectionsKVStoreTest, MB_59088_modifyCollection) {
     CollectionsManifest cm;
     // Flush an unrelated collection, this ensures that the kvstore data exists
     // ready for the next flush.
     cm.add(CollectionEntry::vegetable, std::chrono::seconds{1});
     applyAndCheck(cm);
 
-    // Just like the MB, modify the default collection to enable metering in
-    // a single "flush", Prior to the fix this test would detect that the
-    // kvstore meta collection state did not change.
-    auto entry = CollectionEntry::defaultC;
-    entry.metered = true;
-    cm.update(entry, cb::NoExpiryLimit);
+    // Just like the MB, modify the default collection in a single "flush".
+    // Prior to the fix this test would detect that the kvstore meta collection
+    // state did not change.
+    cm.update(CollectionEntry::defaultC, cb::NoExpiryLimit, true /*history*/);
     applyAndCheck(cm);
 }
 
@@ -1445,7 +1403,6 @@ TEST(ScanContextTest, isLogicallyDeleted) {
                                             "c1",
                                             cb::NoExpiryLimit,
                                             CanDeduplicate::No,
-                                            Collections::Metered::No,
                                             Collections::ManifestUid{}}});
 
     // No dropped collections, only open collections

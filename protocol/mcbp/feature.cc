@@ -65,8 +65,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "SubdocDocumentMacroSupport";
     case Feature::SubdocReplaceBodyWithXattr:
         return "SubdocReplaceBodyWithXattr";
-    case Feature::ReportUnitUsage:
-        return "ReportUnitUsage";
+    case Feature::Invalid4:
+        return "Invalid4";
     case Feature::NonBlockingThrottlingMode:
         return "NonBlockingThrottlingMode";
     case Feature::SubdocReplicaRead:

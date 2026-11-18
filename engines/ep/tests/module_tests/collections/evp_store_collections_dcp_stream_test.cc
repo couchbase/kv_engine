@@ -900,7 +900,6 @@ TEST_P(CollectionsDcpStreamsTest,
               CollectionEntry::dairy.name,
               {},
               CanDeduplicate::Yes,
-              Collections::Metered::Yes,
               Collections::ManifestUid{}}}};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(

@@ -2704,7 +2704,6 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
                                {ScopeID::Default, CollectionEntry::dairy},
                                "dairy",
                                {},
-                               Collections::Metered::Yes,
                                CanDeduplicate::Yes,
                                Collections::ManifestUid{},
                                1);

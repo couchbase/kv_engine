@@ -137,15 +137,6 @@ public:
                 "public_getCanDeduplicate failed to find collection");
     }
 
-    Collections::Metered public_getMetered(CollectionID id) const {
-        std::shared_lock<mutex_type> readLock(rwlock);
-        if (exists_UNLOCKED(id)) {
-            auto itr = map.find(id);
-            return itr->second.isMetered();
-        }
-        throw std::logic_error("public_getMetered failed to find collection");
-    }
-
     cb::ExpiryLimit public_getMaxTtl(CollectionID id) const {
         std::shared_lock<mutex_type> readLock(rwlock);
         if (exists_UNLOCKED(id)) {
@@ -442,7 +433,6 @@ public:
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
                                 dcpData.metaData.name,
                                 dcpData.metaData.maxTtl,
-                                Collections::Metered::No,
                                 CanDeduplicate::Yes,
                                 Collections::ManifestUid{},
                                 qi->getBySeqno());
@@ -527,7 +517,6 @@ public:
                                  collection.collection_id()},
                                 collection.name()->str(),
                                 maxTtl,
-                                Collections::getMetered(collection.metered()),
                                 getCanDeduplicateFromHistory(
                                         collection.history()),
                                 Collections::ManifestUid{
@@ -551,7 +540,6 @@ public:
                             Collections::ManifestUid{collection.uid()},
                             collection.collection_id(),
                             maxTtl,
-                            Collections::getMetered(collection.metered()),
                             getCanDeduplicateFromHistory(collection.history()),
                             qi->getBySeqno());
                     break;
@@ -1233,7 +1221,6 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
                                            "name1",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes,
                                            CanDeduplicate::Yes,
                                            Collections::ManifestUid{2}});
     value = manifest.getActiveManifest().public_applyBeginCollection(
@@ -1248,13 +1235,11 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
                                            "name2",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes,
                                            CanDeduplicate::Yes,
                                            Collections::ManifestUid{}});
     changes.collectionsToCreate.push_back({std::make_pair(0, 9),
                                            "name3",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes,
                                            CanDeduplicate::No,
                                            Collections::ManifestUid{4}});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
@@ -1330,38 +1315,28 @@ TEST_P(VBucketManifestTest, add_with_history) {
                       CollectionEntry::fruit));
 }
 
-TEST_P(VBucketManifestTest, add_with_metered) {
-    // Test requires FlatBuffers event to pass most up-to-date event data.
-    if (!GetParam()) {
-        GTEST_SKIP();
+// The "metered" key of a collection is ignored, a manifest which only changes
+// the "metered" value does not modify the collection.
+TEST_P(VBucketManifestTest, metered_is_ignored) {
+    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)));
+    const auto seqno = manifest.getActiveVB().getHighSeqno();
+
+    auto json = cm.getJson();
+    json["uid"] = fmt::format("{:x}", cm.getUid() + 1);
+    for (auto& scope : json["scopes"]) {
+        for (auto& collection : scope["collections"]) {
+            collection["metered"] = true;
+        }
     }
 
-    // Add a scope with metered=false and check the status on active/replica
-    auto fruitEntry = CollectionEntry::fruit;
-    fruitEntry.metered = true;
-    EXPECT_TRUE(manifest.update(cm.add(fruitEntry)));
-
-    // Check default and vegetable collection which are unmetered
-    EXPECT_EQ(Collections::Metered::No,
-              manifest.getActiveManifest().public_getMetered(
-                      CollectionID::Default));
-    EXPECT_EQ(Collections::Metered::No,
-              manifest.getActiveManifest().public_getMetered(
-                      CollectionEntry::vegetable));
-    EXPECT_EQ(Collections::Metered::No,
-              manifest.getReplicaManifest().public_getMetered(
-                      CollectionID::Default));
-    EXPECT_EQ(Collections::Metered::No,
-              manifest.getReplicaManifest().public_getMetered(
-                      CollectionEntry::vegetable));
-
-    // Check fruit which is unmetered
-    EXPECT_EQ(Collections::Metered::Yes,
-              manifest.getActiveManifest().public_getMetered(
-                      CollectionEntry::fruit));
-    EXPECT_EQ(Collections::Metered::Yes,
-              manifest.getReplicaManifest().public_getMetered(
-                      CollectionEntry::fruit));
+    // Apply direct to the active VB::Manifest, manifest.update would complain
+    // about the lack of events.
+    manifest.getActiveManifest().update(
+            std::shared_lock<folly::SharedMutex>(
+                    manifest.getActiveVB().getStateLock()),
+            manifest.getActiveVB(),
+            Collections::Manifest{json.dump()});
+    EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }
 
 TEST_P(VBucketManifestTest, modify_ttl) {

@@ -23,7 +23,8 @@ table Collection {
     name:string;
     // "history" added in 7.2 (neo)
     history:bool = false;
-    // "metered" added in "7.5" (elixir)
+    // "metered" added in "7.5" (elixir). From Ponyo KV writes false and
+    // ignores the value on read.
     metered:bool = false;
     // "flush_uid" added in "8.0" (morpheus)
     flush_uid:ulong = 0;

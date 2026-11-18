@@ -40,7 +40,6 @@ Manifest::Manifest(std::shared_ptr<Manager> manager)
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
                           cb::NoExpiryLimit,
-                          Collections::Metered::No,
                           CanDeduplicate::Yes,
                           ManifestUid{},
                           0 /*startSeqno*/);
@@ -58,16 +57,9 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
 
     for (const auto& e : data.collections) {
         const auto& meta = e.metaData;
-        // For the Metered state, if the Manifest does not know the collection
-        // (isMetered returns no value) set the state to be Yes. The Manifest
-        // may not yet know the collection if the VB::Manifest learned of the
-        // collection via DCP ahead of ns_server pushing via set_collections +
-        // we then warmed up (note this is also a replica). The value of Yes
-        // will be checked/corrected when/if the VB is made active
         addNewCollectionEntry({meta.sid, meta.cid},
                               meta.name,
                               meta.maxTtl,
-                              meta.metered,
                               meta.canDeduplicate,
                               meta.flushUid,
                               e.startSeqno);
@@ -103,7 +95,6 @@ Manifest::Manifest(const Manifest& other) : manager(other.manager) {
                                 entry.getStartSeqno(),
                                 entry.getCanDeduplicate(),
                                 entry.getMaxTtl(),
-                                entry.isMetered(),
                                 entry.getFlushUid());
         Expects(inserted);
         itr->second.setItemCount(entry.getItemCount());
@@ -184,7 +175,6 @@ std::optional<Manifest::BeginCollection> Manifest::applyBeginCollection(
                         collection.identifiers,
                         collection.name,
                         collection.maxTtl,
-                        collection.metered,
                         collection.canDeduplicate,
                         collection.flushUid,
                         OptionalSeqno{/*no-seqno*/});
@@ -210,7 +200,6 @@ std::optional<Manifest::CollectionModification> Manifest::applyModifications(
                          manifestUid,
                          modification.cid,
                          modification.maxTtl,
-                         modification.metered,
                          modification.canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
@@ -409,7 +398,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                         finalBegin.value().identifiers,
                         finalBegin.value().name,
                         finalBegin.value().maxTtl,
-                        finalBegin.value().metered,
                         finalBegin.value().canDeduplicate,
                         finalBegin.value().flushUid,
                         OptionalSeqno{/*no-seqno*/});
@@ -424,7 +412,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                          changeset.getUidForChange(manifestUid),
                          finalModification.value().cid,
                          finalModification.value().maxTtl,
-                         finalModification.value().metered,
                          finalModification.value().canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
@@ -439,7 +426,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                         finalFlush.value().identifiers,
                         finalFlush.value().name,
                         finalFlush.value().maxTtl,
-                        finalFlush.value().metered,
                         finalFlush.value().canDeduplicate,
                         finalFlush.value().flushUid,
                         OptionalSeqno{/*no-seqno*/});
@@ -512,7 +498,6 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
                                ScopeCollectionPair identifiers,
                                std::string_view collectionName,
                                cb::ExpiryLimit maxTtl,
-                               Metered metered,
                                CanDeduplicate canDeduplicate,
                                ManifestUid flushUid,
                                OptionalSeqno optionalSeqno) {
@@ -533,7 +518,6 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
         entry = &addNewCollectionEntry(identifiers,
                                        collectionName,
                                        maxTtl,
-                                       metered,
                                        canDeduplicate,
                                        flushUid,
                                        0);
@@ -566,14 +550,13 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
                                             std::move(saveEndedGeneration));
 
     EP_LOG_DEBUG(
-            "{} {} collection:id:{}, name:{} in scope:{}, metered:{}, "
+            "{} {} collection:id:{}, name:{} in scope:{}, "
             "flushUid:{}, seq:{}, manifest:{:#x}, {}{}{}",
             vb.getId(),
             flushing ? "flush" : "create",
             identifiers.second,
             collectionName,
             identifiers.first,
-            metered,
             flushUid,
             seqno,
             newManUid,
@@ -592,7 +575,6 @@ void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
 ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                std::string_view collectionName,
                                                cb::ExpiryLimit maxTtl,
-                                               Metered metered,
                                                CanDeduplicate canDeduplicate,
                                                ManifestUid flushUid,
                                                int64_t startSeqno) {
@@ -614,7 +596,6 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
             startSeqno,
             canDeduplicate,
             maxTtl,
-            metered,
             flushUid);
 
     if (!inserted) {
@@ -676,7 +657,6 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
         addNewCollectionEntry({ScopeID::Default, cid},
                               *isSystemCollection ? "_tombstone" : "tombstone",
                               cb::ExpiryLimit{},
-                              Metered::Yes,
                               CanDeduplicate::Yes,
                               ManifestUid{},
                               0 /*startSeq*/);
@@ -725,7 +705,6 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
                                 ManifestUid newManUid,
                                 CollectionID cid,
                                 cb::ExpiryLimit maxTtl,
-                                Metered metered,
                                 CanDeduplicate canDeduplicate,
                                 OptionalSeqno optionalSeqno) {
     auto itr = map.find(cid);
@@ -740,7 +719,6 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
     // Now change the values
     itr->second.setCanDeduplicate(canDeduplicate);
     itr->second.setMaxTtl(maxTtl);
-    itr->second.setMetered(metered);
 
     auto seqno = queueCollectionSystemEvent(vbStateLock,
                                             wHandle,
@@ -754,14 +732,13 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
 
     EP_LOG_DEBUG(
             "{} modify collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            ", {}, {}, {}{}",
+            ", {}, {}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             seqno,
             newManUid,
             canDeduplicate,
-            metered,
             maxTtl.has_value()
                     ? "maxttl:" + std::to_string(maxTtl.value().count())
                     : "no maxttl",
@@ -905,20 +882,16 @@ Manifest::ManifestChanges Manifest::processManifest(
                         {std::make_pair(entry.getScopeID(), cid),
                          std::string{entry.getName()},
                          entry.getMaxTtl(),
-                         entry.isMetered(),
                          entry.getCanDeduplicate(),
                          itr->second.flushUid});
             }
 
             if (entry.getCanDeduplicate() != itr->second.canDeduplicate ||
-                entry.getMaxTtl() != itr->second.maxTtl ||
-                entry.isMetered() != itr->second.metered) {
-                // Found the collection and history/TTL/metered was modified,
+                entry.getMaxTtl() != itr->second.maxTtl) {
+                // Found the collection and history/TTL was modified,
                 // save the new state
-                rv.collectionsToModify.push_back({cid,
-                                                  itr->second.canDeduplicate,
-                                                  itr->second.maxTtl,
-                                                  itr->second.metered});
+                rv.collectionsToModify.push_back(
+                        {cid, itr->second.canDeduplicate, itr->second.maxTtl});
             }
         }
     }
@@ -952,7 +925,6 @@ Manifest::ManifestChanges Manifest::processManifest(
                 rv.collectionsToCreate.push_back({std::make_pair(m.sid, m.cid),
                                                   m.name,
                                                   m.maxTtl,
-                                                  m.metered,
                                                   m.canDeduplicate,
                                                   m.flushUid});
             }
@@ -1081,7 +1053,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 getHistoryFromCanDeduplicate(entry.getCanDeduplicate()),
                 cid.isDefaultCollection() ? defaultCollectionMaxLegacyDCPSeqno
                                           : 0,
-                getMeteredFromEnum(entry.isMetered()),
+                false /*metered*/,
                 entry.getFlushUid());
         builder.Finish(collection);
         break;
@@ -1446,7 +1418,6 @@ CollectionEventData Manifest::getCollectionEventData(
              collection.name()->str(),
              maxTtl,
              getCanDeduplicateFromHistory(collection.history()),
-             getMetered(collection.metered()),
              ManifestUid{collection.flush_uid()}}};
 }
 

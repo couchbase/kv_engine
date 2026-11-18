@@ -41,6 +41,8 @@ table Collection {
     // metered: MB-51979: The default is false - for all collections which exist
     // and didn't define this value, metering must be enabled only by a change
     // pushed from ns_server
+    // From Ponyo metering is not supported, KV writes false and ignores the
+    // value on read.
     metered:bool = false;
 
     // All fields after here are added from 8.0

@@ -24,7 +24,6 @@ TEST(ManifestEntry, test_getters) {
                                      1000,
                                      CanDeduplicate::No,
                                      cb::ExpiryLimit{5000},
-                                     Collections::Metered::No,
                                      Collections::ManifestUid{5});
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_TRUE(m.getMaxTtl());
@@ -32,7 +31,6 @@ TEST(ManifestEntry, test_getters) {
     EXPECT_EQ(5000s, m.getMaxTtl().value());
     EXPECT_EQ("name", m.getName());
     EXPECT_EQ(ScopeID{101}, m.getScopeID());
-    EXPECT_EQ(Collections::Metered::No, m.isMetered());
     EXPECT_EQ(CanDeduplicate::No, m.getCanDeduplicate());
     EXPECT_EQ(Collections::ManifestUid{5}, m.getFlushUid());
 }
@@ -47,7 +45,6 @@ TEST(ManifestEntry, exceptions) {
                                      1000,
                                      CanDeduplicate::Yes,
                                      cb::NoExpiryLimit,
-                                     Collections::Metered::No,
                                      Collections::ManifestUid{});
 
     EXPECT_FALSE(m.getMaxTtl().has_value());

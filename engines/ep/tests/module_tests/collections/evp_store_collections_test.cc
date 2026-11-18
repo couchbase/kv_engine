@@ -3196,7 +3196,6 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
-    EXPECT_FALSE(result.isMetered());
     EXPECT_FALSE(result.isSystemCollection());
 
     result = engine->get_collection_meta(*cookie, CollectionEntry::meat, vbid);
@@ -3225,7 +3224,6 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
             {ScopeUid::shop1, CollectionEntry::meat.getId()},
             CollectionEntry::meat.name,
             {},
-            Collections::Metered::Yes,
             CanDeduplicate::Yes,
             Collections::ManifestUid{},
             2);
@@ -3268,7 +3266,6 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(0, result.getManifestId());
     EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
-    EXPECT_FALSE(result.isMetered());
 
     result = engine->get_collection_meta(*cookie, CollectionEntry::dairy, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
@@ -4849,7 +4846,6 @@ TEST_P(CollectionsParameterizedTest, GetCollectionMetaForSystemCollection) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(manifest.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID::Default, result.getScopeId());
-    EXPECT_FALSE(result.isMetered());
     EXPECT_FALSE(result.isSystemCollection());
 
     result = engine->get_collection_meta(
@@ -4857,7 +4853,6 @@ TEST_P(CollectionsParameterizedTest, GetCollectionMetaForSystemCollection) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(manifest.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
-    EXPECT_FALSE(result.isMetered());
     EXPECT_TRUE(result.isSystemCollection());
 }
 

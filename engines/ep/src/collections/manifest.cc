@@ -43,9 +43,6 @@ static constexpr char const* UidKey = "uid";
 static constexpr char const* MaxTtlKey = "maxTTL";
 static constexpr nlohmann::json::value_t MaxTtlType =
         nlohmann::json::value_t::number_unsigned;
-static constexpr char const* MeteredKey = "metered";
-static constexpr nlohmann::json::value_t MeteredType =
-        nlohmann::json::value_t::boolean;
 static constexpr char const* HistoryKey = "history";
 static constexpr nlohmann::json::value_t HistoryType =
         nlohmann::json::value_t::boolean;
@@ -169,8 +166,6 @@ Manifest::Manifest(std::string_view json)
             auto cuid = getJsonObject(collection, UidKey, UidType);
             auto cmaxttl = cb::getOptionalJsonObject(
                     collection, MaxTtlKey, MaxTtlType);
-            auto metered = cb::getOptionalJsonObject(
-                    collection, MeteredKey, MeteredType);
 
             auto cnameValue = cname.get<std::string>();
             if (!validName(cnameValue)) {
@@ -228,12 +223,6 @@ Manifest::Manifest(std::string_view json)
                 collectionCanDeduplicate = CanDeduplicate::No;
             }
 
-            Metered meteredState{Metered::No};
-            if (metered && metered.value()) {
-                // metered:true present in the JSON manifest
-                meteredState = Metered::Yes;
-            }
-
             // A "normal" collection must not be in a system scope
             if (isSystemScope(nameValue, sidValue) &&
                 !isSystemCollection(cnameValue, cidValue)) {
@@ -277,7 +266,6 @@ Manifest::Manifest(std::string_view json)
                                           cnameValue,
                                           maxTtl,
                                           collectionCanDeduplicate,
-                                          meteredState,
                                           flushUid);
         }
 
@@ -394,10 +382,6 @@ nlohmann::json Manifest::to_json(
                 if (c.maxTtl) {
                     collection[MaxTtlKey] = c.maxTtl.value().count();
                 }
-                // Include "metered" only when true
-                if (c.metered == Metered::Yes) {
-                    collection[MeteredKey] = true;
-                }
                 if (getHistoryFromCanDeduplicate(c.canDeduplicate)) {
                     // Only include when the value is true
                     collection[HistoryKey] = true;
@@ -436,7 +420,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     maxTtl,
                     builder.CreateString(c.name),
                     getHistoryFromCanDeduplicate(c.canDeduplicate),
-                    c.metered == Metered::Yes,
+                    false /*metered*/,
                     c.flushUid);
             fbCollections.push_back(newEntry);
         }
@@ -496,7 +480,6 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
                     collection->name()->str(),
                     maxTtl,
                     getCanDeduplicateFromHistory(collection->history()),
-                    collection->metered() ? Metered::Yes : Metered::No,
                     ManifestUid{collection->flush_uid()});
         }
 
@@ -536,10 +519,6 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                 }
 
                 collectionC.addStat(Key::collection_name, entry.name);
-
-                if (entry.metered == Metered::No) {
-                    collectionC.addStat(Key::collection_metered, "no");
-                }
 
                 collectionC.addStat(
                         Key::collection_history,
@@ -673,14 +652,6 @@ std::optional<ScopeID> Manifest::getScopeID(CollectionID cid) const {
         return itr->second.sid;
     }
 
-    return {};
-}
-
-std::optional<Metered> Manifest::isMetered(CollectionID cid) const {
-    auto itr = collections.find(cid);
-    if (itr != collections.end()) {
-        return itr->second.metered;
-    }
     return {};
 }
 

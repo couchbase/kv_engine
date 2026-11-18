@@ -353,10 +353,6 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"Default","uid":"0"}]}]})",
-            // invalid type for metered
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"_default","uid":"0", "metered":"true"}]}]})",
             // Invalid history type
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -497,12 +493,13 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8"}]}]})",
+            // metered is no longer used and is ignored (of any type)
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"test0","uid":"8", "metered":true}]}]})",
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"test1","uid":"8", "metered":false}]}]})",
+                "collections":[{"name":"test1","uid":"8", "metered":"true"}]}]})",
             // scope which supports change history
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0", "collections":[]},

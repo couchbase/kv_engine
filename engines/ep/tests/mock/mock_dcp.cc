@@ -603,7 +603,6 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_max_visible_seqno = std::nullopt;
     last_can_deduplicate = CanDeduplicate::Yes;
     last_max_ttl = cb::NoExpiryLimit;
-    last_metered = Collections::Metered::No;
     last_dockey = {};
     last_cache_transfer.clear();
 }

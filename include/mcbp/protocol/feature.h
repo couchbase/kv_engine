@@ -120,11 +120,8 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// server). It may be used from the client to determine if the server
     /// supports the command SubdocReplaceBodyWithXattr.
     SubdocReplaceBodyWithXattr = 0x19,
-    /// When enabled the server will insert frame info field(s) in the response
-    /// containing the amount of read and write units the command used on the
-    /// server, and the time the command spent throttled on the server. The
-    /// fields will only be inserted if non-zero.
-    ReportUnitUsage = 0x1a,
+    /// Previously ReportUnitUsage, now retired
+    Invalid4 = 0x1a,
     /// cause the server to return ewouldthrottle on a request instead of
     /// throttle the command.
     NonBlockingThrottlingMode = 0x1b,

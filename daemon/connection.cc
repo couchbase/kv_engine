@@ -1736,9 +1736,7 @@ void Connection::setDcpFlowControlBufferSize(std::size_t size) {
 }
 
 static constexpr size_t MaxFrameInfoSize =
-        cb::mcbp::response::ServerRecvSendDurationFrameInfoSize +
-        cb::mcbp::response::ReadUnitsFrameInfoSize +
-        cb::mcbp::response::WriteUnitsFrameInfoSize;
+        cb::mcbp::response::ServerRecvSendDurationFrameInfoSize;
 
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                                                    cb::char_buffer dest,
@@ -1766,26 +1764,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
 
-    const auto tracing = isTracingEnabled();
-    auto cutracing = isReportUnitUsage();
-    size_t ru = 0;
-    size_t wu = 0;
-    uint16_t throttled = 0;
-
-    if (cutracing) {
-        auto [nru, nwu] = cookie.getDocumentMeteringRWUnits();
-        throttled = cb::tracing::Tracer::encodeMicros(
-                cookie.getTotalThrottleTime().count());
-        if (!nru && !nwu && !throttled) {
-            // no values to report
-            cutracing = false;
-        } else {
-            ru = nru;
-            wu = nwu;
-        }
-    }
-
-    if (tracing || cutracing) {
+    if (isTracingEnabled()) {
         using namespace cb::mcbp::response;
         response.setMagic(cb::mcbp::Magic::AltClientResponse);
         // We can't use a 16 bits key length when using the alternative
@@ -1796,19 +1775,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
                     "an AltClientResponse (" +
                     std::to_string(key_len) + " > 255)");
         }
-        uint8_t framing_extras_size = 0;
-        if (tracing) {
-            framing_extras_size += ServerRecvSendDurationFrameInfoSize;
-        }
-        if (ru) {
-            framing_extras_size += ReadUnitsFrameInfoSize;
-        }
-        if (wu) {
-            framing_extras_size += WriteUnitsFrameInfoSize;
-        }
-        if (throttled) {
-            framing_extras_size += ThrottleDurationFrameInfoSize;
-        }
+        const uint8_t framing_extras_size = ServerRecvSendDurationFrameInfoSize;
         response.setFramingExtraslen(framing_extras_size);
         response.setBodylen(gsl::narrow_cast<uint32_t>(
                 value_len + extras_len + key_len + framing_extras_size));
@@ -1822,28 +1789,10 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
             ptr += sizeof(val);
         };
 
-        if (tracing) {
-            auto duration =
-                    std::chrono::duration_cast<cb::tracing::Span::Duration>(
-                            std::chrono::steady_clock::now() -
-                            cookie.getStartTime());
-            add_frame_info(ServerRecvSendDurationFrameInfoMagic,
-                           cb::tracing::Tracer::encodeMicros(duration.count()));
-        }
-
-        if (ru) {
-            add_frame_info(ReadUnitsFrameInfoMagic,
-                           gsl::narrow_cast<uint16_t>(ru));
-        }
-
-        if (wu) {
-            add_frame_info(WriteUnitsFrameInfoMagic,
-                           gsl::narrow_cast<uint16_t>(wu));
-        }
-
-        if (throttled) {
-            add_frame_info(ThrottleDurationFrameInfoMagic, throttled);
-        }
+        auto duration = std::chrono::duration_cast<cb::tracing::Span::Duration>(
+                std::chrono::steady_clock::now() - cookie.getStartTime());
+        add_frame_info(ServerRecvSendDurationFrameInfoMagic,
+                       cb::tracing::Tracer::encodeMicros(duration.count()));
 
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};
     } else {

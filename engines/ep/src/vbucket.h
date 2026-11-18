@@ -903,7 +903,6 @@ public:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName name of the added collection
      * @param maxTtl An optional maxTTL for the collection
-     * @param metered metering setting for the new collection
      * @param canDeduplicate deduplicate setting for the collection
      * @param flushUid uid of any flush
      * @param bySeqno The seqno assigned to the collection event.
@@ -912,7 +911,6 @@ public:
                                 ScopeCollectionPair identifiers,
                                 std::string_view collectionName,
                                 cb::ExpiryLimit maxTtl,
-                                Collections::Metered metered,
                                 CanDeduplicate canDeduplicate,
                                 Collections::ManifestUid flushUid,
                                 int64_t bySeqno);
@@ -924,14 +922,12 @@ public:
      * @param uid the uid of the manifest which made the change
      * @param cid target collection
      * @param maxTTL expiry setting for the collection
-     * @param metered metering setting for the collection
      * @param canDeduplicate deduplicate setting for the collection
      * @param bySeqno The seqno assigned to the collection modify event.
      */
     void replicaModifyCollection(Collections::ManifestUid uid,
                                  CollectionID cid,
                                  cb::ExpiryLimit maxTtl,
-                                 Collections::Metered metered,
                                  CanDeduplicate canDeduplicate,
                                  int64_t bySeqno);
 

@@ -55,10 +55,6 @@ WriteHandle::WriteHandle(
       manifest(m) {
 }
 
-Metered ReadHandle::isMetered(CollectionID cid) const {
-    return manifest->getManifestEntry(cid).isMetered();
-}
-
 PersistedStats StatsReadHandle::getPersistedStats() const {
     return {itr->second.getItemCount(),
             itr->second.getPersistedHighSeqno(),

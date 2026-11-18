@@ -1499,7 +1499,6 @@ cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
             entry->sid,
             cid,
             uid,
-            entry->metered == Collections::Metered::Yes,
             Collections::isSystemCollection(entry->name, cid));
     return cb::engine_errc::success;
 }

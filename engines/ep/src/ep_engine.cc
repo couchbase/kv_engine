@@ -1700,7 +1700,6 @@ EventuallyPersistentEngine::get_collection_meta(
             if (handle.valid()) {
                 return {handle.getManifestUid(),
                         handle.getScopeID(),
-                        handle.isMetered() == Collections::Metered::Yes,
                         Collections::isSystemCollection(handle.getName(), cid)};
             }
             // returns unknown_collection and the manifest uid
@@ -1715,7 +1714,6 @@ EventuallyPersistentEngine::get_collection_meta(
     if (entry.has_value()) {
         return {manifestUid,
                 entry->sid,
-                entry->metered == Collections::Metered::Yes,
                 Collections::isSystemCollection(entry->name, cid)};
     }
     // returns unknown_collection and the manifest uid
@@ -7057,7 +7055,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
                 entry->sid,
                 cid,
                 uid,
-                entry->metered == Collections::Metered::Yes,
                 Collections::isSystemCollection(entry->name, cid));
 
         if (!es.value()->item) {

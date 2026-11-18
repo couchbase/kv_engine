@@ -300,14 +300,6 @@ public:
         allow_unordered_execution = enable;
     }
 
-    void setReportUnitUsage(bool enable) {
-        report_unit_usage = enable;
-    }
-
-    bool isReportUnitUsage() const {
-        return report_unit_usage;
-    }
-
     /**
      * Remap the current error code
      *
@@ -1314,8 +1306,6 @@ protected:
     std::atomic_bool dedupe_nmvb_maps{false};
     std::atomic_bool snappy_everywhere{false};
     bool allow_unordered_execution{false};
-
-    bool report_unit_usage{false};
 
     /// Is the connection in its thread's queue of throttled connections
     bool throttled{false};

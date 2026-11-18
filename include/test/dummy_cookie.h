@@ -77,7 +77,6 @@ public:
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,
-                                  bool metered,
                                   bool systemCollection) override {
     }
     bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override {

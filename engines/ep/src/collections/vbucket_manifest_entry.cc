@@ -78,7 +78,7 @@ std::ostream& Collections::VB::operator<<(
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", itemCount:" << manifestEntry.getItemCount()
        << ", diskSize:" << manifestEntry.getDiskSize() << ", "
-       << manifestEntry.getCanDeduplicate() << ", " << manifestEntry.isMetered()
+       << manifestEntry.getCanDeduplicate()
        << ", flushUid:" << manifestEntry.getFlushUid();
 
     if (auto maxTtl = manifestEntry.getMaxTtl(); maxTtl) {

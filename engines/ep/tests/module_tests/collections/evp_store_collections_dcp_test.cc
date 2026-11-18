@@ -85,7 +85,6 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                                       collection,
                                                       {/*no ttl*/},
                                                       CanDeduplicate::Yes,
-                                                      Collections::Metered::Yes,
                                                       manifestUid}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     Collections::DropEventData dropEventData{manifestUid, sid, cid, false};
@@ -219,7 +218,6 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
              collection,
              {/*no ttl*/},
              CanDeduplicate::Yes,
-             Collections::Metered::Yes,
              Collections::ManifestUid{}}};
     Collections::CreateEventDcpData eventDcpData{createEventData};
 
@@ -424,7 +422,6 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                     {ScopeID::Default, CollectionEntry::fruit},
                                     "fruit",
                                     {},
-                                    Collections::Metered::No,
                                     CanDeduplicate::Yes,
                                     Collections::ManifestUid{},
                                     1);
@@ -432,7 +429,6 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                     {ScopeID::Default, CollectionEntry::meat},
                                     "meat",
                                     {},
-                                    Collections::Metered::No,
                                     CanDeduplicate::Yes,
                                     Collections::ManifestUid{},
                                     2);
@@ -440,7 +436,6 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                     {ScopeID::Default, CollectionEntry::dairy},
                                     "dairy",
                                     {},
-                                    Collections::Metered::No,
                                     CanDeduplicate::Yes,
                                     Collections::ManifestUid{},
                                     3);
@@ -2760,7 +2755,6 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                {ScopeID::Default, CollectionEntry::dairy},
                                "dairy",
                                {},
-                               Collections::Metered::Yes,
                                CanDeduplicate::Yes,
                                Collections::ManifestUid{},
                                1);
@@ -2768,7 +2762,6 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                {ScopeID::Default, CollectionEntry::fruit},
                                "fruit",
                                {},
-                               Collections::Metered::Yes,
                                CanDeduplicate::Yes,
                                Collections::ManifestUid{},
                                2);
@@ -2960,7 +2953,6 @@ public:
                                    {ScopeID::Default, 9},
                                    "fruit",
                                    {},
-                                   Collections::Metered::No,
                                    CanDeduplicate::Yes,
                                    Collections::ManifestUid{},
                                    1);
@@ -3327,7 +3319,6 @@ TEST_F(MergeSnapshotTest, MultipleBatchesWithinMerge) {
                                {ScopeID::Default, 9},
                                "fruit",
                                {},
-                               Collections::Metered::No,
                                CanDeduplicate::Yes,
                                Collections::ManifestUid{},
                                1);
@@ -5723,144 +5714,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTL) {
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 }
 
-TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
-    using namespace cb::mcbp;
-    using namespace mcbp::systemevent;
-    using namespace CollectionEntry;
-
-    CollectionsManifest cm;
-    cm.add(CollectionEntry::fruit);
-    setCollections(cookie, cm);
-
-    // Wake and step DCP
-    // Expect snap1, create fruit
-    notifyAndStepToCheckpoint();
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
-    EXPECT_EQ(producers->last_collection_id, fruit.getId());
-
-    auto vb0 = store->getVBucket(vbid);
-    auto vb1 = store->getVBucket(replicaVB);
-
-    // Modify metered false -> true
-    auto collection = CollectionEntry::fruit;
-    collection.metered = true;
-    cm.update(collection, cb::NoExpiryLimit);
-    setCollections(cookie, cm);
-
-    // Wake and step DCP
-    // Expect snap1, modify fruit
-    notifyAndStepToCheckpoint();
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
-    EXPECT_EQ(producers->last_collection_id, collection.getId());
-    EXPECT_EQ(producers->last_key, "fruit");
-    EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
-    EXPECT_EQ(producers->last_metered, Collections::Metered::Yes);
-
-    {
-        // Check the collection state now the modify has been processed
-        auto vb0Handle = vb0->lockCollections();
-        auto vb1Handle = vb1->lockCollections();
-
-        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(collection));
-        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(collection));
-
-        // in memory seqno updated
-        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(collection));
-        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(collection));
-
-        // Nothing flushed
-        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(collection));
-        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(collection));
-        EXPECT_EQ(0, vb0Handle.getItemCount(collection));
-        EXPECT_EQ(0, vb1Handle.getItemCount(collection));
-    }
-
-    // Flush the active vbucket as the next phase of the test is to check
-    // warmup/backfill. No flush of the replica as the test needs the replica to
-    // remain empty ready for backfill phase
-    flush_vbucket_to_disk(vbid, 2);
-
-    {
-        auto vb0Handle = vb0->lockCollections();
-        auto vb1Handle = vb1->lockCollections();
-
-        // Re-check stats after flush
-        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(collection));
-        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(collection));
-        EXPECT_EQ(producers->last_byseqno,
-                  vb0Handle.getPersistedHighSeqno(collection));
-        // replica not flushed.
-        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(collection));
-        // system events don't count
-        EXPECT_EQ(0, vb0Handle.getItemCount(collection));
-        // replica not flushed.
-        EXPECT_EQ(0, vb1Handle.getItemCount(collection));
-    }
-
-    vb0.reset();
-    vb1.reset();
-    resetEngineAndWarmup();
-
-    vb0 = store->getVBucket(vbid);
-
-    // Check state after warmup. The collections on active have the same state
-    // as before the shutdown as they get their state back from KVStore metadata
-    // Expect: vb0 has Metered::Yes
-    {
-        auto vb0Handle = vb0->lockCollections();
-        EXPECT_EQ(Collections::Metered::Yes, vb0Handle.isMetered(collection));
-    }
-
-    // Test backfill
-    createDcpObjects({{nullptr, 0}});
-
-    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
-                              false /*in-memory = false*/);
-
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
-    EXPECT_EQ(producers->last_collection_id, collection.getId());
-
-    // replica received create state
-    vb1 = store->getVBucket(replicaVB);
-
-    {
-        auto vb1Handle = vb1->lockCollections();
-        EXPECT_EQ(Collections::Metered::No, vb1Handle.isMetered(collection));
-    }
-
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
-    EXPECT_EQ(producers->last_collection_id, collection.getId());
-    EXPECT_EQ(producers->last_metered, Collections::Metered::Yes);
-
-    // replica received modified state
-    {
-        auto vb1Handle = vb1->lockCollections();
-        EXPECT_EQ(Collections::Metered::Yes, vb1Handle.isMetered(collection));
-    }
-
-    // Final stage of the test - drop one of the modified collections and check
-    // backfill does not play back the modify
-    cm.remove(CollectionEntry::fruit);
-    setCollections(cookie, cm);
-    flush_vbucket_to_disk(vbid, 1);
-
-    vb0.reset();
-    vb1.reset();
-    resetEngineAndWarmup();
-
-    createDcpObjects({{nullptr, 0}});
-    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker, false);
-
-    // Verify that modify fruit is not transmitted
-    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::EndCollection);
-    EXPECT_EQ(producers->last_collection_id, collection.getId());
-}
-
 // Modify two things in one update and expect one event with both changes
 TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTLAndHistory) {
     using namespace cb::mcbp;
@@ -6609,7 +6462,6 @@ TEST_P(CollectionsDcpParameterizedTest, MB_66959) {
                                                       collection,
                                                       {/*no ttl*/},
                                                       CanDeduplicate::Yes,
-                                                      Collections::Metered::Yes,
                                                       manifestUid}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     Collections::DropEventData dropEventData{manifestUid, sid, cid, false};

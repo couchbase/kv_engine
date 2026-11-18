@@ -234,7 +234,6 @@ public:
     virtual void setCurrentCollectionInfo(ScopeID sid,
                                           CollectionID cid,
                                           uint64_t manifestUid,
-                                          bool metered,
                                           bool systemCollection) = 0;
 
     /**

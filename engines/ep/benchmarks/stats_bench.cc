@@ -55,7 +55,6 @@ public:
                     {0x0, cid},
                     "collection-" + std::to_string(cid),
                     cb::NoExpiryLimit,
-                    Collections::Metered::Yes,
                     CanDeduplicate::Yes,
                     Collections::ManifestUid{0},
                     0);

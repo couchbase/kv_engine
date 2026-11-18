@@ -94,23 +94,6 @@ static_assert(sizeof(ManifestUidNetworkOrder) == 8,
  */
 ManifestUid makeManifestUid(std::string_view uid);
 
-/// Collection metering yes/no
-enum class Metered : bool { Yes, No };
-
-std::string to_string(Metered);
-std::ostream& operator<<(std::ostream&, Metered);
-inline auto format_as(const Metered metered) {
-    return to_string(metered);
-}
-
-static inline Metered getMetered(bool metered) {
-    return metered ? Metered::Yes : Metered::No;
-}
-
-static inline bool getMeteredFromEnum(Metered metered) {
-    return metered == Metered::Yes ? true : false;
-}
-
 /**
  * The metadata of a single collection. This represents the data we persist
  * in KVStore meta and is used to communicate back to kv from KVStore
@@ -124,14 +107,12 @@ struct CollectionMetaData {
                        std::string_view name,
                        cb::ExpiryLimit maxTtl,
                        CanDeduplicate canDeduplicate,
-                       Metered metered,
                        ManifestUid flushUid)
         : sid(sid),
           cid(cid),
           name(name),
           maxTtl(maxTtl),
           canDeduplicate(canDeduplicate),
-          metered(metered),
           flushUid(flushUid) {
     }
 
@@ -150,7 +131,6 @@ struct CollectionMetaData {
         name = other.name;
         maxTtl = other.maxTtl;
         canDeduplicate = other.canDeduplicate;
-        metered = other.metered;
         flushUid.reset(other.flushUid);
         return *this;
     }
@@ -161,7 +141,6 @@ struct CollectionMetaData {
         name = std::move(other.name);
         maxTtl = other.maxTtl;
         canDeduplicate = other.canDeduplicate;
-        metered = other.metered;
         flushUid.reset(other.flushUid);
         return *this;
     }
@@ -171,7 +150,6 @@ struct CollectionMetaData {
     std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
     CanDeduplicate canDeduplicate{CanDeduplicate::Yes};
-    Metered metered{Metered::No};
     ManifestUid flushUid;
 
     bool operator==(const CollectionMetaData& other) const {
@@ -190,8 +168,7 @@ struct CollectionMetaData {
 
     bool compareMutableProperties(const CollectionMetaData& other) const {
         return canDeduplicate == other.canDeduplicate &&
-               maxTtl == other.maxTtl && metered == other.metered &&
-               flushUid == other.flushUid;
+               maxTtl == other.maxTtl && flushUid == other.flushUid;
     }
 };
 

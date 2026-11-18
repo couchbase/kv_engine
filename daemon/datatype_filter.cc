@@ -46,7 +46,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SubdocCreateAsDeleted:
     case cb::mcbp::Feature::SubdocDocumentMacroSupport:
     case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-    case cb::mcbp::Feature::ReportUnitUsage:
+    case cb::mcbp::Feature::Invalid4:
     case cb::mcbp::Feature::NonBlockingThrottlingMode:
     case cb::mcbp::Feature::SubdocReplicaRead:
     case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:

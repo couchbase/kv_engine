@@ -74,20 +74,6 @@ OperationCounts& OperationCounts::operator+=(const OperationCounts& other) {
     return *this;
 }
 
-std::string to_string(Metered metered) {
-    switch (metered) {
-    case Metered::Yes:
-        return "Metered";
-    case Metered::No:
-        return "Unmetered";
-    }
-    folly::assume_unreachable();
-}
-
-std::ostream& operator<<(std::ostream& os, Metered metered) {
-    return os << to_string(metered);
-}
-
 namespace VB {
 std::string to_string(ManifestUpdateStatus status) {
     switch (status) {
@@ -203,13 +189,12 @@ std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
 
 std::string to_string(const CollectionMetaData& collection) {
     return fmt::format(
-            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}, {}, flushUid:{}",
+            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}, flushUid:{}",
             collection.cid.to_string(),
             collection.name,
             collection.maxTtl.has_value(),
             collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
             collection.sid.to_string(),
-            collection.metered,
             to_string(collection.canDeduplicate),
             collection.flushUid);
 }

@@ -28,27 +28,18 @@ namespace response {
 /// frame identifiers and their encoding
 enum class FrameInfoId : uint8_t {
     ServerRecvSendDuration = 0,
-    ReadUnits = 1,
-    WriteUnits = 2,
-    ThrottleDuration = 3,
+    /// Previously ReadUnits (serverless ReportUnitUsage), now retired
+    Removed1 = 1,
+    /// Previously WriteUnits (serverless ReportUnitUsage), now retired
+    Removed2 = 2,
+    /// Previously ThrottleDuration (serverless ReportUnitUsage), now retired
+    Removed3 = 3,
 };
 
 /// ServerRecvSendDuration use 1 byte header and 2 byte value
 static constexpr size_t ServerRecvSendDurationFrameInfoSize = 3;
 /// The magic (id and size) for a ServerRecvSendDuration
 static constexpr uint8_t ServerRecvSendDurationFrameInfoMagic = 0x02;
-
-/// ReadUnits use 1 byte header and 2 byte value
-static constexpr size_t ReadUnitsFrameInfoSize = 3;
-static constexpr uint8_t ReadUnitsFrameInfoMagic = 0x12;
-
-/// WriteUnits use 1 byte header and 2 byte value
-static constexpr size_t WriteUnitsFrameInfoSize = 3;
-static constexpr uint8_t WriteUnitsFrameInfoMagic = 0x22;
-
-/// ThrottleDuration use 1 byte header and 2 byte value
-static constexpr size_t ThrottleDurationFrameInfoSize = 3;
-static constexpr uint8_t ThrottleDurationFrameInfoMagic = 0x32;
 } // namespace response
 
 /**

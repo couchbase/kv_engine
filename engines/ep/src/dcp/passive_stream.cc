@@ -677,17 +677,15 @@ cb::engine_errc PassiveStream::processBeginCollection(
     try {
         // This creation event comes from a node which didn't support
         // FlatBuffers. The following parameters require FlatBuffers to transfer
-        // Metered, CanDeduplicate and flushUid. These parameters are all set to
+        // CanDeduplicate and flushUid. These parameters are all set to
         // default state as we assume the source node is older than any of these
         // parameters.
-        // - No metering
         // - De-duplication is enabled
         // - FlushUid is 0
         vb.replicaBeginCollection(event.getManifestUid(),
                                   {event.getScopeID(), event.getCollectionID()},
                                   event.getKey(),
                                   event.getMaxTtl(),
-                                  Collections::Metered::No,
                                   CanDeduplicate::Yes,
                                   Collections::ManifestUid{},
                                   event.getBySeqno());
@@ -772,7 +770,6 @@ cb::engine_errc PassiveStream::processBeginCollection(
                 {collection.scope_id(), collection.collection_id()},
                 event.getKey(),
                 maxTtl,
-                Collections::getMetered(collection.metered()),
                 getCanDeduplicateFromHistory(collection.history()),
                 Collections::ManifestUid{collection.flush_uid()},
                 *event.getBySeqno());
@@ -802,7 +799,6 @@ cb::engine_errc PassiveStream::processModifyCollection(
                 Collections::ManifestUid{collection.uid()},
                 collection.collection_id(),
                 maxTtl,
-                Collections::getMetered(collection.metered()),
                 getCanDeduplicateFromHistory(collection.history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {

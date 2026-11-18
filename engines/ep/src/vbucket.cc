@@ -1995,7 +1995,6 @@ void VBucket::replicaBeginCollection(Collections::ManifestUid uid,
                                      ScopeCollectionPair identifiers,
                                      std::string_view collectionName,
                                      cb::ExpiryLimit maxTtl,
-                                     Collections::Metered metered,
                                      CanDeduplicate canDeduplicate,
                                      Collections::ManifestUid flushUid,
                                      int64_t bySeqno) {
@@ -2010,7 +2009,6 @@ void VBucket::replicaBeginCollection(Collections::ManifestUid uid,
                                        identifiers,
                                        collectionName,
                                        maxTtl,
-                                       metered,
                                        canDeduplicate,
                                        flushUid,
                                        bySeqno);
@@ -2019,7 +2017,6 @@ void VBucket::replicaBeginCollection(Collections::ManifestUid uid,
 void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
                                       CollectionID cid,
                                       cb::ExpiryLimit maxTtl,
-                                      Collections::Metered metered,
                                       CanDeduplicate canDeduplicate,
                                       int64_t bySeqno) {
     // The state of the VBucket must not change here, because
@@ -2029,7 +2026,7 @@ void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
     // technically required for now.
     std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaModifyCollection(
-            *this, uid, cid, maxTtl, metered, canDeduplicate, bySeqno);
+            *this, uid, cid, maxTtl, canDeduplicate, bySeqno);
 }
 
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,

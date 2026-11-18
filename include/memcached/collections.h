@@ -145,12 +145,10 @@ struct EngineErrorGetCollectionMetaResult {
     /// construct for successful lookup
     EngineErrorGetCollectionMetaResult(uint64_t manifestId,
                                        ScopeID scopeId,
-                                       bool metered,
                                        bool systemCollection)
         : result(cb::engine_errc::success),
           manifestId(manifestId),
           scopeId(scopeId),
-          metered(metered),
           systemCollection(systemCollection) {
     }
 
@@ -162,10 +160,6 @@ struct EngineErrorGetCollectionMetaResult {
         return scopeId;
     }
 
-    bool isMetered() const {
-        return metered;
-    }
-
     bool isSystemCollection() const {
         return systemCollection;
     }
@@ -173,7 +167,6 @@ struct EngineErrorGetCollectionMetaResult {
     engine_errc result;
     uint64_t manifestId{0};
     ScopeID scopeId{ScopeID::Default};
-    bool metered{true};
     bool systemCollection{false};
 };
 }

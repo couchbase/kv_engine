@@ -276,7 +276,10 @@ Each `FrameInfo` consists of:
    escape bytes).
 * N Bytes: *Object data*.
 
-For V1, only one object identifier is defined:
+For V1, only one object identifier is defined. IDs 1 (Read Units Used),
+2 (Write Units Used) and 3 (Throttle Duration) were previously defined
+for the serverless only ReportUnitUsage HELLO feature, which is now
+retired.
 
 ##### ID:0 - Server Recv->Send duration
 
@@ -291,54 +294,6 @@ FrameInfo encoded as:
       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
       +---------------+---------------+---------------+
      0|  ID:0 | Len:2 |  Server Recv->Send Duration   |
-
-The duration in micros is encoded as:
-
-    encoded =  (micros * 2) ^ (1.0 / 1.74)
-    decoded =  (encoded ^ 1.74) / 2
-
-##### ID:1 - Read Units Used
-
-The amount of read units used by the command (only added if the value
-is non-zero)
-
-Size: 2 bytes
-
-FrameInfo encoded as:
-
-    Byte/     0       |       1       |       2       |
-       /              |               |               |
-      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-      +---------------+---------------+---------------+
-     0|  ID:1 | Len:2 | Number of read units          |
-
-##### ID:2 - Write Units Used
-
-The amount of write units used by the command (only added if the value is
-non-zero)
-
-Size: 2 bytes
-
-FrameInfo encoded as:
-
-    Byte/     0       |       1       |       2       |
-       /              |               |               |
-      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-      +---------------+---------------+---------------+
-     0|  ID:2 | Len:2 | Number of write units         |
-
-##### ID:3 - Throttle duration
-
-Time (in microseconds) the command was throttled on the server.
-Size: 2 bytes; encoded as variable-precision value (see below)
-
-FrameInfo encoded as:
-
-    Byte/     0       |       1       |       2       |
-       /              |               |               |
-      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-      +---------------+---------------+---------------+
-     0|  ID:3 | Len:2 |       Throttle Duration       |
 
 The duration in micros is encoded as:
 

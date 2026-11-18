@@ -40,7 +40,6 @@ public:
                   uint64_t startSeqno,
                   CanDeduplicate canDeduplicate,
                   cb::ExpiryLimit ttl,
-                  Metered metered,
                   ManifestUid flushUid)
         : itemCount(0),
           highSeqno(startSeqno),
@@ -48,8 +47,7 @@ public:
           flushUid(flushUid),
           meta(std::move(meta)),
           startSeqno(startSeqno),
-          canDeduplicate(canDeduplicate),
-          metered(metered) {
+          canDeduplicate(canDeduplicate) {
         setMaxTtl(ttl);
     }
 
@@ -101,15 +99,6 @@ public:
 
     std::string_view getName() const {
         return meta->name;
-    }
-
-    /// @return collection Metered state (Yes or No)
-    Metered isMetered() const {
-        return metered;
-    }
-
-    void setMetered(Metered m) {
-        metered = m;
     }
 
     /// increment how many items are stored for this collection
@@ -339,13 +328,6 @@ private:
      * needed.
      */
     std::atomic<CanDeduplicate> canDeduplicate;
-
-    /**
-     * The collections metered setting. This must be stored per vbucket
-     * so that collection modification events (per vb) can be generated when
-     * needed.
-     */
-    std::atomic<Metered> metered;
 
     /**
      * maxTTL of the collection. Stored as uint32 and not cb::ExpiryLimit to
