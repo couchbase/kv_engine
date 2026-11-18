@@ -145,6 +145,18 @@ public:
      */
     void resetThrottledCookies();
 
+    /**
+     * Release everything the connection holds because of throttling: drop
+     * its throttled commands (they haven't been passed to the engine yet),
+     * resume its throttled DCP stream (recording the throttled time) and
+     * remove it from its thread's queue of throttled connections.
+     *
+     * Used when the connection closes: a closing connection never runs its
+     * command pipeline, which is the only place the throttled commands are
+     * re-evaluated.
+     */
+    void releaseThrottle();
+
     /// Is the connection representing a system internal user
     bool isInternal() const {
         return getUser().is_internal();

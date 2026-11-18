@@ -1584,6 +1584,11 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 void Connection::close() {
+    // A throttled command is marked would-block, which keeps the connection
+    // in pending_close below, but it will never be re-evaluated. Drop the
+    // throttled commands and remove connection from throttle list.
+    releaseThrottle();
+
     bool ewb = false;
     uint32_t rc = refcount;
 
@@ -1644,6 +1649,13 @@ void Connection::resetThrottledCookies() {
             c->reset();
         }
     }
+}
+
+void Connection::releaseThrottle() {
+    resetThrottledCookies();
+    resumeThrottledDcpStream(); // Get final DCP timing stats
+    thread.removeThrottledConnection(*this);
+    recheckThrottledCookies = false;
 }
 
 bool Connection::signalIfIdle() {
