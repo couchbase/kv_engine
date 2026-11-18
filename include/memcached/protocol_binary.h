@@ -2234,8 +2234,8 @@ public:
         return ntohl(timeLimit);
     }
 
-    size_t getByteLimit() const {
-        return ntohll(byteLimit);
+    uint32_t getByteLimit() const {
+        return ntohl(byteLimit);
     }
 
     std::string_view getBuffer() const {
