@@ -1,3 +1,5 @@
 add_subdirectory(generator)
 add_subdirectory(src)
-add_subdirectory(tests)
+if (KV_BUILD_TESTS)
+    add_subdirectory(tests)
+endif ()

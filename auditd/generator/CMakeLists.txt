@@ -79,19 +79,21 @@ install(FILES
         ${Memcached_BINARY_DIR}/auditd/audit_events.json
         DESTINATION etc/security)
 
-cb_add_test_executable(audit_generator_unit_test
-               generator_event_test.cc
-               generator_module_test.cc)
-cb_enable_unity_build(audit_generator_unit_test)
-kv_enable_pch(audit_generator_unit_test)
-add_sanitizers(audit_generator_unit_test)
-target_link_libraries(audit_generator_unit_test
-        PRIVATE
-                audit_generator_utilities
-                GTest::gtest
-                GTest::gtest_main
-                mcd_util
-                platform)
-add_test(NAME audit_generator_unit_test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND audit_generator_unit_test)
+if (KV_BUILD_TESTS)
+    cb_add_test_executable(audit_generator_unit_test
+                   generator_event_test.cc
+                   generator_module_test.cc)
+    cb_enable_unity_build(audit_generator_unit_test)
+    kv_enable_pch(audit_generator_unit_test)
+    add_sanitizers(audit_generator_unit_test)
+    target_link_libraries(audit_generator_unit_test
+            PRIVATE
+                    audit_generator_utilities
+                    GTest::gtest
+                    GTest::gtest_main
+                    mcd_util
+                    platform)
+    add_test(NAME audit_generator_unit_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND audit_generator_unit_test)
+endif ()

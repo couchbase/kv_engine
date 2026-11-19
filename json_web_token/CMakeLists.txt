@@ -9,14 +9,16 @@ target_link_libraries(json_web_token
         cbcrypto
         platform)
 
-cb_add_test_executable(json_web_token_test jwt_test.cc)
-kv_enable_pch(json_web_token_test)
-target_link_libraries(json_web_token_test
-        PRIVATE
-        json_web_token
-        platform
-        GTest::gtest
-        GTest::gtest_main)
-add_test(NAME json_web_token_test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND json_web_token_test)
+if (KV_BUILD_TESTS)
+    cb_add_test_executable(json_web_token_test jwt_test.cc)
+    kv_enable_pch(json_web_token_test)
+    target_link_libraries(json_web_token_test
+            PRIVATE
+            json_web_token
+            platform
+            GTest::gtest
+            GTest::gtest_main)
+    add_test(NAME json_web_token_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND json_web_token_test)
+endif ()

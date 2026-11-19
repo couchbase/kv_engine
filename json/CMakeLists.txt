@@ -12,17 +12,19 @@ add_library(json_generator OBJECT
 set_target_properties(json_generator PROPERTIES POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(json_generator PUBLIC nlohmann_json::nlohmann_json PRIVATE Folly::headers fmt::fmt)
 
-cb_add_test_executable(json_validator_test syntax_validator_test.cc)
-target_link_libraries(json_validator_test PRIVATE
-        json_validator Folly::headers GTest::gtest GTest::gtest_main)
-add_test(NAME json_validator_test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND json_validator_test)
+if (KV_BUILD_TESTS)
+    cb_add_test_executable(json_validator_test syntax_validator_test.cc)
+    target_link_libraries(json_validator_test PRIVATE
+            json_validator Folly::headers GTest::gtest GTest::gtest_main)
+    add_test(NAME json_validator_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND json_validator_test)
 
-cb_add_test_executable(json_validator_bench syntax_validator_bench.cc)
-target_link_libraries(json_validator_bench PRIVATE
-        Folly::headers benchmark::benchmark GTest::gtest json_validator)
-add_test(NAME json_validator_bench
-        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND json_validator_bench --benchmark_min_time=0.0000001s)
+    cb_add_test_executable(json_validator_bench syntax_validator_bench.cc)
+    target_link_libraries(json_validator_bench PRIVATE
+            Folly::headers benchmark::benchmark GTest::gtest json_validator)
+    add_test(NAME json_validator_bench
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            COMMAND json_validator_bench --benchmark_min_time=0.0000001s)
+endif ()
 

@@ -9,27 +9,33 @@ target_link_libraries(mc_program_utils
         PRIVATE platform ${COUCHBASE_NETWORK_LIBS} Folly::folly
         PUBLIC Folly::headers)
 
-cb_add_test_executable(mc_program_utils_test
-        hostname_utils_test.cc
-        natsort_test.cc)
-kv_enable_pch(mc_program_utils_test)
-target_link_libraries(mc_program_utils_test PRIVATE
-                      mc_client_connection
-                      mc_program_utils
-                      mcd_util
-                      cbsocket
-                      platform
-                      GTest::gtest
-                      GTest::gtest_main)
-add_test(NAME mc_program_utils_test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND mc_program_utils_test)
+if (KV_BUILD_TESTS)
+    cb_add_test_executable(mc_program_utils_test
+            hostname_utils_test.cc
+            natsort_test.cc)
+    kv_enable_pch(mc_program_utils_test)
+    target_link_libraries(mc_program_utils_test PRIVATE
+                          mc_client_connection
+                          mc_program_utils
+                          mcd_util
+                          cbsocket
+                          platform
+                          GTest::gtest
+                          GTest::gtest_main)
+    add_test(NAME mc_program_utils_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND mc_program_utils_test)
+endif ()
 
 add_subdirectory(dbfill)
 add_subdirectory(dcpdrain)
 add_subdirectory(dcplatency)
-add_subdirectory(engine_testapp)
-add_subdirectory(kvlite)
+if (KV_BUILD_TESTS)
+    add_subdirectory(engine_testapp)
+endif ()
+if (KV_BUILD_TESTS)
+    add_subdirectory(kvlite)
+endif ()
 add_subdirectory(mcauthjammer)
 add_subdirectory(mcbasher)
 add_subdirectory(mcctl)

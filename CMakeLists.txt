@@ -8,6 +8,14 @@ include(CouchbaseGoogleTest)
 include(GenerateExportHeader)
 include(HeaderObjectLibrary)
 
+option(KV_BUILD_TESTS
+       "Build the kv_engine unit tests, benchmarks and test frameworks"
+       ON)
+
+if (COUCHBASE_KV_COMMIT_VALIDATION AND NOT KV_BUILD_TESTS)
+    message(FATAL_ERROR "KV_BUILD_TESTS cannot be OFF for KV_COMMIT_VALIDATION builds")
+endif ()
+
 if (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
     message(FATAL_ERROR "CB_DEVELOPMENT_ASSERTS MUST have been enabled for KV_COMMIT_VALIDATION builds to ensure that tests are valid.")
 endif (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
@@ -200,10 +208,12 @@ add_subdirectory(daemon)
 add_subdirectory(tracing)
 add_subdirectory(snapshot)
 add_subdirectory(statistics)
-add_subdirectory(cluster_framework)
-add_subdirectory(fuzzing)
+if (KV_BUILD_TESTS)
+    add_subdirectory(cluster_framework)
+    add_subdirectory(fuzzing)
+    add_subdirectory(tests)
+endif ()
 
-add_subdirectory(tests)
 enable_code_coverage_report(EXTRA_GCOVR_ARGS --gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file)
 
 add_subdirectory(programs)

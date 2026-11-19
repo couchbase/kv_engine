@@ -199,71 +199,73 @@ set_target_properties(memcached PROPERTIES ENABLE_EXPORTS TRUE)
 INSTALL(TARGETS memcached
         RUNTIME DESTINATION bin)
 
-#
-# Unit tests
-#
-cb_add_test_executable(memcached_unit_tests
-                       bucket_manager_test.cc
-                       bucket_metering_stats_test.cc
-                       bucket_stats_test.cc
-                       bucket_validator_test.cc
-                       buckets_test.cc
-                       client_cert_config_test.cc
-                       connection_unit_tests.cc
-                       datatype_filter_test.cc
-                       encrypted_sink_factory_test.cc
-                       error_map_manager_test.cc
-                       executor_tracing_test.cc
-                       filedescriptor_distribution_test.cc
-                       function_chain_test.cc
-                       json_validator_test.cc
-                       mc_time_test.cc
-                       memcached_unit_test_main.cc
-                       network_interface_description_test.cc
-                       network_interface_test.cc
-                       sdk_connection_manager_test.cc
-                       settings_test.cc
-                       sloppy_gauge_test.cc
-                       ssl_utils_test.cc
-                       tasks_test.cc
-                       timings_test.cc
-                       tls_configuration_test.cc
-                       top_keys_test.cc)
-add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
-cb_enable_unity_build(memcached_unit_tests)
-add_sanitizers(memcached_unit_tests)
-target_link_libraries(memcached_unit_tests PRIVATE
-                      memcached_daemon
-                      platform_cb_malloc_arena
-                      GTest::gtest
-                      GTest::gmock
-                      statistics)
-kv_enable_pch(memcached_unit_tests)
-gtest_discover_tests(memcached_unit_tests
-        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        TEST_PREFIX memcached_unit_tests.
-        ONE_CTEST_PER_SUITE
-        PROPERTIES ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
-
-if (NOT WIN32)
-    cb_add_test_executable(stdin_check_test_runner stdin_check_test_runner.cc stdin_check.cc)
-    target_link_libraries(stdin_check_test_runner PRIVATE platform)
-
-    cb_add_test_executable(stdin_check_test stdin_check_test.cc)
-    kv_enable_pch(stdin_check_test)
-    add_sanitizers(stdin_check_test)
-    add_dependencies(stdin_check_test stdin_check_test_runner)
-    target_include_directories(stdin_check_test SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
-    target_link_libraries(stdin_check_test PRIVATE
-            ${Boost_LIBRARIES}
-            Folly::headers
-            fmt::fmt
-            platform
-            GTest::gtest
-            GTest::gtest_main)
-    gtest_discover_tests(stdin_check_test
+if (KV_BUILD_TESTS)
+    #
+    # Unit tests
+    #
+    cb_add_test_executable(memcached_unit_tests
+                           bucket_manager_test.cc
+                           bucket_metering_stats_test.cc
+                           bucket_stats_test.cc
+                           bucket_validator_test.cc
+                           buckets_test.cc
+                           client_cert_config_test.cc
+                           connection_unit_tests.cc
+                           datatype_filter_test.cc
+                           encrypted_sink_factory_test.cc
+                           error_map_manager_test.cc
+                           executor_tracing_test.cc
+                           filedescriptor_distribution_test.cc
+                           function_chain_test.cc
+                           json_validator_test.cc
+                           mc_time_test.cc
+                           memcached_unit_test_main.cc
+                           network_interface_description_test.cc
+                           network_interface_test.cc
+                           sdk_connection_manager_test.cc
+                           settings_test.cc
+                           sloppy_gauge_test.cc
+                           ssl_utils_test.cc
+                           tasks_test.cc
+                           timings_test.cc
+                           tls_configuration_test.cc
+                           top_keys_test.cc)
+    add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
+    cb_enable_unity_build(memcached_unit_tests)
+    add_sanitizers(memcached_unit_tests)
+    target_link_libraries(memcached_unit_tests PRIVATE
+                          memcached_daemon
+                          platform_cb_malloc_arena
+                          GTest::gtest
+                          GTest::gmock
+                          statistics)
+    kv_enable_pch(memcached_unit_tests)
+    gtest_discover_tests(memcached_unit_tests
             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-            TEST_PREFIX stdin_check_test.
+            TEST_PREFIX memcached_unit_tests.
             ONE_CTEST_PER_SUITE
-            PROPERTIES ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
+            PROPERTIES ENVIRONMENT "[==[JE_MALLOC_CONF=junk:true;${GTEST_ALL_SANITIZERS_ENV}]==]")
+
+    if (NOT WIN32)
+        cb_add_test_executable(stdin_check_test_runner stdin_check_test_runner.cc stdin_check.cc)
+        target_link_libraries(stdin_check_test_runner PRIVATE platform)
+
+        cb_add_test_executable(stdin_check_test stdin_check_test.cc)
+        kv_enable_pch(stdin_check_test)
+        add_sanitizers(stdin_check_test)
+        add_dependencies(stdin_check_test stdin_check_test_runner)
+        target_include_directories(stdin_check_test SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
+        target_link_libraries(stdin_check_test PRIVATE
+                ${Boost_LIBRARIES}
+                Folly::headers
+                fmt::fmt
+                platform
+                GTest::gtest
+                GTest::gtest_main)
+        gtest_discover_tests(stdin_check_test
+                WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                TEST_PREFIX stdin_check_test.
+                ONE_CTEST_PER_SUITE
+                PROPERTIES ENVIRONMENT "[==[${GTEST_ALL_SANITIZERS_ENV}]==]")
+    endif ()
 endif ()

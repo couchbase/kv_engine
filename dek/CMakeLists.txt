@@ -15,15 +15,17 @@ target_link_libraries(mcd_dek
 add_sanitizers(mcd_dek)
 kv_enable_pch(mcd_dek)
 
-cb_add_test_executable(dek_unit_test manager_unit_test.cc)
-cb_enable_unity_build(dek_unit_test)
-kv_enable_pch(dek_unit_test)
-target_link_libraries(dek_unit_test
-        PRIVATE
-        mcd_dek
-        GTest::gtest
-        GTest::gtest_main)
-add_test(NAME dek_unit_test
-        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND dek_unit_test)
-add_sanitizers(dek_unit_test)
+if (KV_BUILD_TESTS)
+    cb_add_test_executable(dek_unit_test manager_unit_test.cc)
+    cb_enable_unity_build(dek_unit_test)
+    kv_enable_pch(dek_unit_test)
+    target_link_libraries(dek_unit_test
+            PRIVATE
+            mcd_dek
+            GTest::gtest
+            GTest::gtest_main)
+    add_test(NAME dek_unit_test
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            COMMAND dek_unit_test)
+    add_sanitizers(dek_unit_test)
+endif ()

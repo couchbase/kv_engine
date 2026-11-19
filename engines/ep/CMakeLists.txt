@@ -468,120 +468,122 @@ function(add_ep_testsuite name source)
   add_sanitizers(${name})
 endfunction()
 
-add_subdirectory(tests)
+if (KV_BUILD_TESTS)
+    add_subdirectory(tests)
 
-SET(MOCK_SOURCE
-    tests/mock/mock_cache_transfer_stream.cc
-    tests/mock/mock_couch_kvstore.cc
-    tests/mock/mock_dcp_conn_map.cc
-    tests/mock/mock_dcp_consumer.cc
-    tests/mock/mock_dcp_producer.cc
-    tests/mock/mock_ep_bucket.cc
-    tests/mock/mock_ephemeral_bucket.cc
-    tests/mock/mock_ephemeral_vb.cc
-    tests/mock/mock_kvstore.cc
-    tests/mock/mock_stream.cc
-    tests/mock/mock_synchronous_ep_engine.cc
-    tests/mock/mock_taskable.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
-    ${CMAKE_CURRENT_BINARY_DIR}/src/generated_enums.h)
+    SET(MOCK_SOURCE
+        tests/mock/mock_cache_transfer_stream.cc
+        tests/mock/mock_couch_kvstore.cc
+        tests/mock/mock_dcp_conn_map.cc
+        tests/mock/mock_dcp_consumer.cc
+        tests/mock/mock_dcp_producer.cc
+        tests/mock/mock_ep_bucket.cc
+        tests/mock/mock_ephemeral_bucket.cc
+        tests/mock/mock_ephemeral_vb.cc
+        tests/mock/mock_kvstore.cc
+        tests/mock/mock_stream.cc
+        tests/mock/mock_synchronous_ep_engine.cc
+        tests/mock/mock_taskable.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h
+        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_enums.h)
 
-if(EP_USE_MAGMA)
-    list(APPEND MOCK_SOURCE
-         tests/mock/mock_magma_kvstore.cc
-         tests/mock/mock_magma_filesystem.cc)
-endif()
+    if(EP_USE_MAGMA)
+        list(APPEND MOCK_SOURCE
+             tests/mock/mock_magma_kvstore.cc
+             tests/mock/mock_magma_filesystem.cc)
+    endif()
 
-add_library(ep_mocks EXCLUDE_FROM_ALL OBJECT ${MOCK_SOURCE})
-set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ep_mocks PUBLIC platform hdrhistogram spdlog::spdlog GTest::gmock)
-add_sanitizers(ep_mocks)
-cb_enable_unity_build(ep_mocks)
-kv_enable_pch(ep_mocks)
+    add_library(ep_mocks EXCLUDE_FROM_ALL OBJECT ${MOCK_SOURCE})
+    set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
+    target_link_libraries(ep_mocks PUBLIC platform hdrhistogram spdlog::spdlog GTest::gmock)
+    add_sanitizers(ep_mocks)
+    cb_enable_unity_build(ep_mocks)
+    kv_enable_pch(ep_mocks)
 
-# While ep_perfsuite is arguably a "test" and hence should live under
-# tests/, we *don't* want optimizations disabled for it hence keep in
-# this directory.
-add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
+    # While ep_perfsuite is arguably a "test" and hence should live under
+    # tests/, we *don't* want optimizations disabled for it hence keep in
+    # this directory.
+    add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
 
-cb_add_test_executable(ep_engine_benchmarks
-               benchmarks/access_scanner_bench.cc
-               benchmarks/active_stream_bench.cc
-               benchmarks/benchmark_memory_tracker.cc
-               benchmarks/checkpoint_iterator_bench.cc
-               benchmarks/dcp_producer_bench.cc
-               benchmarks/defragmenter_bench.cc
-               benchmarks/engine_fixture.cc
-               benchmarks/ep_engine_benchmarks_main.cc
-               benchmarks/executor_bench.cc
-               benchmarks/hash_table_bench.cc
-               benchmarks/item_bench.cc
-               benchmarks/paging_visitor_bench.cc
-               benchmarks/vbcb_adaptor_bench.cc
-               benchmarks/item_compressor_bench.cc
-               benchmarks/kvstore_bench.cc
-               benchmarks/vb_ready_queue_bench.cc
-               benchmarks/vbucket_bench.cc
-               benchmarks/probabilistic_counter_bench.cc
-               benchmarks/stats_bench.cc
-               benchmarks/tracing_bench.cc
-               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
-               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-               ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
-kv_enable_pch(ep_engine_benchmarks)
+    cb_add_test_executable(ep_engine_benchmarks
+                   benchmarks/access_scanner_bench.cc
+                   benchmarks/active_stream_bench.cc
+                   benchmarks/benchmark_memory_tracker.cc
+                   benchmarks/checkpoint_iterator_bench.cc
+                   benchmarks/dcp_producer_bench.cc
+                   benchmarks/defragmenter_bench.cc
+                   benchmarks/engine_fixture.cc
+                   benchmarks/ep_engine_benchmarks_main.cc
+                   benchmarks/executor_bench.cc
+                   benchmarks/hash_table_bench.cc
+                   benchmarks/item_bench.cc
+                   benchmarks/paging_visitor_bench.cc
+                   benchmarks/vbcb_adaptor_bench.cc
+                   benchmarks/item_compressor_bench.cc
+                   benchmarks/kvstore_bench.cc
+                   benchmarks/vb_ready_queue_bench.cc
+                   benchmarks/vbucket_bench.cc
+                   benchmarks/probabilistic_counter_bench.cc
+                   benchmarks/stats_bench.cc
+                   benchmarks/tracing_bench.cc
+                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
+                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+                   ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
+    kv_enable_pch(ep_engine_benchmarks)
 
-target_link_libraries(ep_engine_benchmarks
-        PRIVATE
-                ep
-                mock_dcp
-                ep_mocks
-                couchstore_test_fileops
-                benchmark::benchmark
-                cluster_framework
-                platform_cb_malloc_arena)
-target_include_directories(ep_engine_benchmarks PUBLIC tests)
+    target_link_libraries(ep_engine_benchmarks
+            PRIVATE
+                    ep
+                    mock_dcp
+                    ep_mocks
+                    couchstore_test_fileops
+                    benchmark::benchmark
+                    cluster_framework
+                    platform_cb_malloc_arena)
+    target_include_directories(ep_engine_benchmarks PUBLIC tests)
 
-# MB-52812 Run the benchmarks on non-sanitizer builds only as some of the
-# benchmarks are not expected to run in a reasonable time when built with
-# sanitizers.
-# Ideally we could have just run the ep_engine_benchmark binary directly,
-# but the run time of the single binary is 18min+ on my M1, so it is
-# better to run each suite separately to allow them to run concurrently
-if (NOT CB_SANITIZERS)
-    function(add_benchmark_test benchmark_name)
-        add_test(NAME ep_engine_benchmarks-${benchmark_name}
-                WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-                COMMAND ep_engine_benchmarks --benchmark_min_time=0.0000001s
-                                             --benchmark_filter=^${benchmark_name})
-    endfunction()
+    # MB-52812 Run the benchmarks on non-sanitizer builds only as some of the
+    # benchmarks are not expected to run in a reasonable time when built with
+    # sanitizers.
+    # Ideally we could have just run the ep_engine_benchmark binary directly,
+    # but the run time of the single binary is 18min+ on my M1, so it is
+    # better to run each suite separately to allow them to run concurrently
+    if (NOT CB_SANITIZERS)
+        function(add_benchmark_test benchmark_name)
+            add_test(NAME ep_engine_benchmarks-${benchmark_name}
+                    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+                    COMMAND ep_engine_benchmarks --benchmark_min_time=0.0000001s
+                                                 --benchmark_filter=^${benchmark_name})
+        endfunction()
 
-    add_benchmark_test(AccessLogBenchEngine)
-    add_benchmark_test(BM_CheckpointIteratorCompare)
-    add_benchmark_test(BM_CompareQueuedItemsBySeqnoAndKey)
-    add_benchmark_test(BM_SaturateCounter)
-    add_benchmark_test(CheckpointBench)
-    add_benchmark_test(DcpProducerStreamsMapBench)
-    add_benchmark_test(DefragmentBench)
-    add_benchmark_test(EngineStatsBench)
-    add_benchmark_test(ExecutorPoolFixture)
-    add_benchmark_test(HashTableBench)
-    add_benchmark_test(ItemCompressorBench)
-    add_benchmark_test(KVStoreBench)
-    add_benchmark_test(MemTrackingVBucketBench)
-    add_benchmark_test(MultiVBEngineStatsBench)
-    add_benchmark_test(PagingVisitorBench)
-    add_benchmark_test(PureFollyExecutorBench)
-    add_benchmark_test(SessionTracingEncode)
-    add_benchmark_test(SessionTracingRecordMutationSpan)
-    add_benchmark_test(SessionTracingScopeTimer)
-    add_benchmark_test(StatsBench)
-    add_benchmark_test(VBCBAdaptorBench)
-    add_benchmark_test(VBReadyQueueBench)
-    add_benchmark_test(VBucketDetailsBench)
+        add_benchmark_test(AccessLogBenchEngine)
+        add_benchmark_test(BM_CheckpointIteratorCompare)
+        add_benchmark_test(BM_CompareQueuedItemsBySeqnoAndKey)
+        add_benchmark_test(BM_SaturateCounter)
+        add_benchmark_test(CheckpointBench)
+        add_benchmark_test(DcpProducerStreamsMapBench)
+        add_benchmark_test(DefragmentBench)
+        add_benchmark_test(EngineStatsBench)
+        add_benchmark_test(ExecutorPoolFixture)
+        add_benchmark_test(HashTableBench)
+        add_benchmark_test(ItemCompressorBench)
+        add_benchmark_test(KVStoreBench)
+        add_benchmark_test(MemTrackingVBucketBench)
+        add_benchmark_test(MultiVBEngineStatsBench)
+        add_benchmark_test(PagingVisitorBench)
+        add_benchmark_test(PureFollyExecutorBench)
+        add_benchmark_test(SessionTracingEncode)
+        add_benchmark_test(SessionTracingRecordMutationSpan)
+        add_benchmark_test(SessionTracingScopeTimer)
+        add_benchmark_test(StatsBench)
+        add_benchmark_test(VBCBAdaptorBench)
+        add_benchmark_test(VBReadyQueueBench)
+        add_benchmark_test(VBucketDetailsBench)
+    endif ()
+
+    add_sanitizers(ep_engine_benchmarks)
+    cb_enable_unity_build(ep_engine_benchmarks)
 endif ()
-
-add_sanitizers(ep_engine_benchmarks)
-cb_enable_unity_build(ep_engine_benchmarks)
 
 cb_add_test_executable(ep-engine_sizes src/sizes.cc)
 kv_enable_pch(ep-engine_sizes)
