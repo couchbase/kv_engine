@@ -598,6 +598,62 @@ TEST_P(MiscTest, HelloNotFalselyRejectedAfterBlockingCommand) {
               std::ranges::find(features, cb::mcbp::Feature::XATTR));
 }
 
+/**
+ * MB-75247: Completed commands leave empty cookies in the connection's
+ * cookie list, and those used to count against
+ * max_concurrent_commands_per_connection. With a limit of 2, a blocking GET
+ * followed by a pipeline of GETs left two empty cookies behind and the
+ * connection never started another command.
+ */
+TEST_P(MiscTest, CompletedCommandsDoNotCountAgainstCommandLimit) {
+    std::string value = "value";
+    DocumentInfo info;
+    info.id = name;
+    BinprotMutationCommand cmd;
+    cmd.setDocumentInfo(info);
+    cmd.addValueBuffer(value);
+    cmd.setMutationType(MutationType::Set);
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    memcached_cfg["max_concurrent_commands_per_connection"] = 2;
+    reconfigure();
+    const auto resetGuard = folly::makeGuard([&] {
+        userConnection.reset();
+        memcached_cfg.erase("max_concurrent_commands_per_connection");
+        reconfigure();
+    });
+
+    userConnection->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
+    // The first GET blocks once, then completes through notifyIoComplete
+    userConnection->configureEwouldBlockEngine(
+            EWBEngineMode::Next_N, cb::engine_errc::would_block, 1);
+
+    constexpr uint32_t count = 5;
+    Frame frame;
+    for (uint32_t opaque = 1; opaque <= count; ++opaque) {
+        BinprotGetCommand get(name);
+        get.setOpaque(opaque);
+        std::vector<uint8_t> encoded;
+        get.encode(encoded);
+        frame.payload.insert(
+                frame.payload.end(), encoded.begin(), encoded.end());
+    }
+    userConnection->sendFrame(frame);
+
+    userConnection->setReadTimeout(std::chrono::seconds{5});
+    uint32_t received = 0;
+    try {
+        for (; received < count; ++received) {
+            userConnection->recvResponse(rsp);
+            EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+        }
+    } catch (const std::exception& error) {
+        ADD_FAILURE() << "Received " << received << " of " << count
+                      << " responses: " << error.what();
+    }
+}
+
 TEST_F(TestappTest, CollectionsSelectBucket) {
     // Create and select a bucket on which we will be able to hello collections
     mcd_env->getTestBucket().createBucket("collections", "", *adminConnection);
