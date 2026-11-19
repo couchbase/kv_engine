@@ -674,6 +674,13 @@ public:
     /// Introduced in MB-59601.
     TestingHook<> takeAndResetCursorsHook;
 
+    /**
+     * Testing hook called in CM::takeAndResetCursors on the CM that gives the
+     * cursors, after the cursors left its map and before resetCursors().
+     * Introduced in MB-75415.
+     */
+    TestingHook<> takeAndResetCursorsBeforeResetHook;
+
     /// Testing hook called just before iterating CM::cursors in
     /// CM::getListOfCursorsToDrop. Introduced in MB-59601.
     TestingHook<> getListOfCursorsToDropHook;

@@ -32,6 +32,7 @@
 #include "vbucket.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <folly/synchronization/Baton.h>
 #include <utilities/test_manifest.h>
 #include <thread>
 
@@ -2551,6 +2552,114 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketReset) {
     // The new CM received only the real (persistence) cursor and did NOT
     // inherit a stale expel-cursor that would trip its next expel run.
     EXPECT_EQ(1, newManager->getNumOfCursors());
+}
+
+// MB-75415: ItemExpel finishes while takeAndResetCursors() moves the cursors
+// to the new CM. Before the fix the old CM lock was free at that point.
+// ItemExpel saw no cursors in the old CM and removed a checkpoint that a moved
+// cursor still counted on. The Expects in scheduleDestruction() then failed
+// inside ~ExtractItemsResult, and the process called std::terminate.
+TEST_F(SingleThreadedCheckpointTest, ItemExpelWaitsForTakeAndResetCursors) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+
+    // Note: createNewCheckpoint() moves a cursor that is on the last item of
+    // the old checkpoint into the new checkpoint. So each checkpoint gets one
+    // more item after its cursor, to keep the cursor where it is.
+
+    // Checkpoint 1: key1 and key2 flushed, key3 not flushed. The persistence
+    // cursor stays on key2, so ItemExpel has items to expel before it.
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    store_item(vbid, makeStoredDocKey("key3"), "value");
+
+    // Checkpoint 2: test-cursor on key4, then key5.
+    manager.createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("key4"), "value");
+    const auto cursor =
+            manager.registerCursorBySeqno("test-cursor",
+                                          vb.getHighSeqno(),
+                                          CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
+    store_item(vbid, makeStoredDocKey("key5"), "value");
+
+    // Checkpoint 3: open, 1 mutation.
+    manager.createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("key6"), "value");
+
+    ASSERT_EQ(3, list.size());
+    auto* ckpt1 = list.front().get();
+    auto* ckpt2 = std::next(list.begin())->get();
+    ASSERT_EQ(1, ckpt1->getNumCursorsInCheckpoint()); // persistence cursor
+    ASSERT_EQ(1, ckpt2->getNumCursorsInCheckpoint()); // test-cursor
+
+    // The destination CM that KVBucket::resetVBucket() would create for the
+    // brand new VBucket.
+    auto newManager = std::make_unique<MockCheckpointManager>(
+            engine->getEpStats(),
+            vb,
+            engine->getCheckpointConfig(),
+            0,
+            0 /*lastSnapStart*/,
+            0 /*lastSnapEnd*/,
+            0 /*maxVisible*/,
+            0 /*maxPrepareSeqno*/,
+            nullptr /*persistence callback*/);
+
+    // ItemExpel releases the CM lock in the middle of its work, and runs
+    // expelHook at that point. Stop it there.
+    folly::Baton<> expelPaused;
+    folly::Baton<> expelCanFinish;
+    folly::Baton<> expelFinished;
+    manager.expelHook = [&expelPaused, &expelCanFinish]() {
+        expelPaused.post();
+        expelCanFinish.wait();
+    };
+    std::thread expelThread([&manager, &expelFinished]() {
+        manager.expelUnreferencedCheckpointItems();
+        expelFinished.post();
+    });
+    expelPaused.wait();
+
+    // The expel-cursor is now in checkpoint 1. Flush the 4 items key3 to key6:
+    // the persistence cursor moves to checkpoint 3. Checkpoint 1 stays,
+    // because the expel-cursor is still in it.
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    EXPECT_EQ(1, ckpt1->getNumCursorsInCheckpoint()); // expel-cursor
+    EXPECT_EQ(1, ckpt2->getNumCursorsInCheckpoint()); // test-cursor
+
+    // Without the fix, ItemExpel finishes almost at once after it is released.
+    // With the fix, it waits for the old CM lock until the reset is done, so
+    // this wait always runs to the end. The value only needs to be much longer
+    // than the time ItemExpel needs to finish. 100ms keeps the test short.
+    const auto expelFinishTimeout = std::chrono::milliseconds(100);
+    bool expelFinishedDuringReset = false;
+    manager.takeAndResetCursorsBeforeResetHook = [&]() {
+        // The cursors have left the old CM's map, but they still count on the
+        // old CM's checkpoints. Let ItemExpel finish now, if it can.
+        expelCanFinish.post();
+        expelFinishedDuringReset =
+                expelFinished.try_wait_for(expelFinishTimeout);
+    };
+
+    newManager->takeAndResetCursors(manager);
+    expelThread.join();
+
+    // Before the fix, ItemExpel finished during the reset and crashed the
+    // process, because it removed checkpoint 2 while test-cursor still counted
+    // on it.
+    EXPECT_FALSE(expelFinishedDuringReset);
+    // ItemExpel finished after the reset. It released the expel-cursor and
+    // removed checkpoints 1 and 2, which no cursor uses any more.
+    EXPECT_EQ(0, manager.getNumCursors());
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    // The new CM has the persistence cursor and test-cursor.
+    EXPECT_EQ(2, newManager->getNumOfCursors());
 }
 
 // Test that when the same client registers twice, the first cursor 'dies'

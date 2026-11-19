@@ -1859,34 +1859,40 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
 void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
     other.takeAndResetCursorsHook();
 
-    Cursor otherPCursor;
-    cursor_index otherCursors;
-    {
-        std::lock_guard<std::mutex> otherLH(other.queueLock);
-        otherPCursor = other.pCursor;
-        otherCursors = std::move(other.cursors);
-        other.cursors.clear();
+    // MB-75415: Hold both locks until the cursors are reset. A cursor leaves
+    // other.cursors below, but it stops counting on other's checkpoint only in
+    // resetCursors(). If other's lock is free in between, a concurrent
+    // ItemExpel on other sees no cursors and removes checkpoints that a cursor
+    // still counts on.
+    // Locking the same mutex twice is undefined, so other must be a different
+    // CheckpointManager.
+    Expects(&other != this);
+    std::scoped_lock lh(other.queueLock, queueLock);
 
-        // The expel-cursor is a transient cursor owned by an in-flight
-        // ItemExpel running on 'other' (which releases the queueLock
-        // mid-operation). It pins the checkpoint being expelled in 'other' and
-        // must be released by that ItemExpel, in 'other'. Migrating it into
-        // this (different) CheckpointManager would orphan it here - breaking
-        // ItemExpel's pinning invariant and leaving a stale cursor that trips
-        // the next expel run - so leave it behind in 'other'.
-        auto expelIt = otherCursors.find(expelCursorName);
-        if (expelIt != otherCursors.end()) {
-            other.cursors[expelCursorName] = std::move(expelIt->second);
-            otherCursors.erase(expelIt);
-        }
+    Cursor otherPCursor = other.pCursor;
+    cursor_index otherCursors = std::move(other.cursors);
+    other.cursors.clear();
+
+    // The expel-cursor is a transient cursor owned by an in-flight
+    // ItemExpel running on 'other' (which releases the queueLock
+    // mid-operation). It pins the checkpoint being expelled in 'other' and
+    // must be released by that ItemExpel, in 'other'. Migrating it into
+    // this (different) CheckpointManager would orphan it here - breaking
+    // ItemExpel's pinning invariant and leaving a stale cursor that trips
+    // the next expel run - so leave it behind in 'other'.
+    auto expelIt = otherCursors.find(expelCursorName);
+    if (expelIt != otherCursors.end()) {
+        other.cursors[expelCursorName] = std::move(expelIt->second);
+        otherCursors.erase(expelIt);
     }
 
-    std::lock_guard<std::mutex> lh(queueLock);
     pCursor = std::move(otherPCursor);
     persistenceCursor = pCursor.lock().get();
     for (auto& cursor : otherCursors) {
         cursors[cursor.second->getName()] = std::move(cursor.second);
     }
+
+    other.takeAndResetCursorsBeforeResetHook();
     resetCursors();
 }
 
