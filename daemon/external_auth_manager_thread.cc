@@ -325,12 +325,13 @@ void ExternalAuthManagerThread::processResponseQueue() {
                             {"opaque", entry->opaque});
         } else {
             auto* task = iter->second.second;
-            auto* startSaslTask = dynamic_cast<SaslAuthTask*>(task);
             auto responseTime =
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() -
                             task->getStartTime());
-            if (startSaslTask) {
+            // GetAuthorization is the only authorization request, all of
+            // the other requests are sent as Authenticate
+            if (dynamic_cast<GetAuthorizationTask*>(task) != nullptr) {
                 authorizationResponseTimes.add(responseTime);
             } else {
                 authenticationResponseTimes.add(responseTime);

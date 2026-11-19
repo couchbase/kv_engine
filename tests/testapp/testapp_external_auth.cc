@@ -600,17 +600,22 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
     auto& adminConnection = getAdminConnection();
     adminConnection.selectBucket(bucketName);
 
-    // Initialise local counter from stats
-    int numOfDurations = 0;
-    try {
-        auto authorizationHist = getStat<nlohmann::json>(
-                adminConnection,
-                "external-auth-timings",
-                "auth-external-authorization-durations");
-        numOfDurations = authorizationHist["total"];
-    } catch (const nlohmann::json::type_error&) {
-        // Histogram is undefined, keep counter at 0
-    }
+    auto getNumDurations = [&adminConnection](std::string_view key) -> int {
+        try {
+            auto hist = getStat<nlohmann::json>(
+                    adminConnection, "external-auth-timings", key);
+            return hist["total"];
+        } catch (const nlohmann::json::type_error&) {
+            // Histogram is undefined
+            return 0;
+        }
+    };
+
+    // Initialise local counters from stats
+    int numAuthenticationDurations =
+            getNumDurations("auth-external-authentication-durations");
+    const int numAuthorizationDurations =
+            getNumDurations("auth-external-authorization-durations");
 
     const BinprotSaslAuthCommand saslAuthCommand{"PLAIN",
                                                  {"\0osbourne\0password", 18}};
@@ -618,19 +623,19 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
         conn->sendCommand(saslAuthCommand);
 
         stepAuthProvider();
-        numOfDurations++;
+        numAuthenticationDurations++;
 
         // Now read out the response from the client
         BinprotResponse response;
         conn->recvResponse(response);
         EXPECT_TRUE(response.isSuccess());
 
-        // Check if histogram has additional entry
-        auto authorizationHist = getStat<nlohmann::json>(
-                adminConnection,
-                "external-auth-timings",
-                "auth-external-authorization-durations");
-        EXPECT_EQ(numOfDurations, authorizationHist["total"]);
+        // SASL authentication is timed in the authentication histogram,
+        // and must not be counted as an authorization request
+        EXPECT_EQ(numAuthenticationDurations,
+                  getNumDurations("auth-external-authentication-durations"));
+        EXPECT_EQ(numAuthorizationDurations,
+                  getNumDurations("auth-external-authorization-durations"));
     }
 }
 
@@ -653,11 +658,11 @@ TEST_P(ExternalAuthSingleThreadTest, TestExternalAuthTimingsCbstatsFormat) {
     cbstatsConn->selectBucket(bucketName);
 
     const auto stats = cbstatsConn->stats("external-auth-timings");
-    const std::string prefix = "auth-external-authorization-durations_";
+    const std::string prefix = "auth-external-authentication-durations_";
     // A cbstats client gets the legacy flat format (<key>_mean,
     // <key>_<low>,<high>, ...) rather than the single <key> holding the JSON
     // histogram which other clients receive.
-    EXPECT_FALSE(stats.contains("auth-external-authorization-durations"));
+    EXPECT_FALSE(stats.contains("auth-external-authentication-durations"));
     EXPECT_TRUE(stats.contains(prefix + "mean")) << stats.dump();
 
     bool foundBucket = false;
