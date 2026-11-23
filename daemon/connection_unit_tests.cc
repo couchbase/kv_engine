@@ -15,12 +15,18 @@
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include "nobucket_taskable.h"
+#include "protocol/mcbp/sasl_start_command_context.h"
+#include "protocol/mcbp/sasl_step_command_context.h"
 #include "settings.h"
 
 #include <daemon/cookie.h>
+#include <executor/executorpool.h>
+#include <executor/fake_executorpool.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/socket.h>
 
+#include <folly/ScopeGuard.h>
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
 #include <future>
@@ -158,6 +164,8 @@ public:
     void expectDcpStepRescheduled();
 
     std::size_t countTickCallbacks(int ticks);
+
+    void saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode opcode);
 
 protected:
     std::unique_ptr<MockFrontEndThread> frontEndThread;
@@ -526,4 +534,77 @@ TEST_F(ConnectionUnitTests, MB75246_TickShutsDownConnectionWithStuckQueue) {
 
     EXPECT_THROW(frontEndThread->destroy_connection(*connection),
                  std::logic_error);
+}
+
+void ConnectionUnitTests::saslTaskSkippedAfterDisconnectTest(
+        cb::mcbp::ClientOpcode opcode) {
+    using namespace cb::mcbp;
+
+    ExecutorPool::shutdown();
+    ExecutorPool::create(ExecutorPool::Backend::Fake);
+    auto& executor =
+            dynamic_cast<SingleThreadedExecutorPool&>(*ExecutorPool::get());
+    executor.registerTaskable(NoBucketTaskable::instance());
+
+    const auto restorePool = folly::makeGuard([&executor] {
+        executor.cancelAndClearAll();
+        executor.unregisterTaskable(NoBucketTaskable::instance(), true);
+        ExecutorPool::shutdown();
+    });
+    cookie_notification_histogram.resize(1);
+    scheduler_info.resize(1);
+
+    std::array<uint8_t, 256> requestBuffer{};
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(opcode);
+    std::string taskName;
+    if (opcode == ClientOpcode::SaslAuth) {
+        taskName = "SASL Start";
+        builder.setKey("PLAIN");
+        builder.setValue(std::string_view{"\0user\0password", 14});
+    } else {
+        taskName = "SASL Step";
+        connection->createSaslServerContext();
+        ASSERT_EQ(cb::sasl::Error::CONTINUE,
+                  connection->getSaslServerContext()
+                          ->start("SCRAM-SHA512", {}, "n,,n=user,r=nonce")
+                          .first);
+        builder.setKey("SCRAM-SHA512");
+        builder.setValue("c=biws,r=nonce,p=proof");
+    }
+    auto& cookie = connection->allocateCookie();
+    // SpanStopwatch records the SASL span only when tracing is enabled
+    cookie.initialize(std::chrono::steady_clock::now(),
+                      *reinterpret_cast<const Header*>(builder.getFrame()),
+                      true);
+
+    if (opcode == ClientOpcode::SaslAuth) {
+        cookie.obtainContext<SaslStartCommandContext>(cookie).drive();
+    } else {
+        cookie.obtainContext<SaslStepCommandContext>(cookie).drive();
+    }
+    ASSERT_TRUE(cookie.isEwouldblock());
+
+    // The client disconnects while the task waits in the queue
+    connection->mockConnReset();
+    ASSERT_EQ(Connection::State::pending_close, connection->getState());
+
+    executor.runNextTask(NONIO_TASK_IDX, taskName);
+    EXPECT_EQ(std::string::npos, cookie.getTracer().to_string().find("sasl="))
+            << "The task computed the password hash";
+
+    // Run the notification, then the connection's callback
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    EXPECT_THROW(frontEndThread->destroy_connection(*connection),
+                 std::logic_error);
+}
+
+TEST_F(ConnectionUnitTests, SaslStartSkippedAfterDisconnect) {
+    saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode::SaslAuth);
+}
+
+TEST_F(ConnectionUnitTests, SaslStepSkippedAfterDisconnect) {
+    saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode::SaslStep);
 }

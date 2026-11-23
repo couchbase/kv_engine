@@ -58,6 +58,7 @@
 #endif
 
 void Connection::shutdown() {
+    shutdown_started = true;
     state = State::closing;
 }
 

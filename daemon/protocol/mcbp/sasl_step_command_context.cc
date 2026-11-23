@@ -40,6 +40,12 @@ cb::engine_errc SaslStepCommandContext::initial() {
                     TaskId::Core_SaslStepTask,
                     "SASL Step",
                     [this]() {
+                        if (connection.isClosing()) {
+                            cookie.notifyIoComplete(
+                                    cb::engine_errc::disconnect);
+                            return;
+                        }
+
                         doSaslStep();
                         // We need to notify with success here to avoid having
                         // the framework report the error

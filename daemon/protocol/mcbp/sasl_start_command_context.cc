@@ -47,6 +47,11 @@ cb::engine_errc SaslStartCommandContext::initial() {
             TaskId::Core_SaslStartTask,
             "SASL Start",
             [this]() {
+                if (connection.isClosing()) {
+                    cookie.notifyIoComplete(cb::engine_errc::disconnect);
+                    return;
+                }
+
                 doSaslStart();
 
                 // If the user doesn't exist locally, we may try the external

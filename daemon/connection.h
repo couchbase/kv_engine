@@ -76,6 +76,10 @@ public:
         immediate_close
     };
 
+    bool isClosing() const {
+        return shutdown_started;
+    }
+
     /// Factory method to create a new Connection structure
     static std::unique_ptr<Connection> create(
             SOCKET sfd,
@@ -1209,6 +1213,13 @@ protected:
 
     /// The current state we're in
     State state{State::running};
+
+    /**
+     * Set by shutdown() on the front-end thread when state leaves running.
+     * It is never cleared and state may only be read on the front-end thread,
+     * so tasks on other threads use this through isClosing()
+     */
+    std::atomic_bool shutdown_started{false};
 
     /// Is this DCP channel XAttrAware
     bool dcpXattrAware = false;
