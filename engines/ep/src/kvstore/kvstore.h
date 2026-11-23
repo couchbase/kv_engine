@@ -1063,11 +1063,11 @@ public:
         return std::nullopt;
     }
 
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+    std::expected<std::vector<std::string>, cb::engine_errc> mountVBucket(
             Vbid vbid,
             VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override {
-        return {cb::engine_errc::not_supported, {}};
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 
     ReadVBStateResult loadVBucketSnapshot(
@@ -1080,9 +1080,9 @@ public:
     // Fusion
     // Only supported by backends which report StorageProperties::Fusion::Yes
 
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+    std::expected<nlohmann::json, cb::engine_errc> getFusionStats(
             FusionStat stat, Vbid vbid) override {
-        return {cb::engine_errc::not_supported, {}};
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 
     cb::engine_errc setChronicleAuthToken(std::string_view token) override {

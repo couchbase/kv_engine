@@ -955,7 +955,7 @@ TEST_F(MagmaKVStoreTest, initBySeqnoScanContextCollectionsReadFailure) {
 // The collections manifest cannot be read if the erase seqno read fails
 TEST_F(MagmaKVStoreTest, getCollectionsManifestEraseSeqnoReadFailure) {
     initialize_kv_store(kvstore.get(), vbid);
-    ASSERT_TRUE(kvstore->getCollectionsManifest(vbid).first);
+    ASSERT_TRUE(kvstore->getCollectionsManifest(vbid));
 
     kvstore->setReadLocalDocStatusHook(
             [](std::string_view docKey, magma::Status& status) {
@@ -963,7 +963,7 @@ TEST_F(MagmaKVStoreTest, getCollectionsManifestEraseSeqnoReadFailure) {
                     status = magma::Status(magma::Status::Internal, "Internal");
                 }
             });
-    EXPECT_FALSE(kvstore->getCollectionsManifest(vbid).first);
+    EXPECT_FALSE(kvstore->getCollectionsManifest(vbid));
 }
 
 TEST_F(MagmaKVStoreTest, diskSizeUpdateTracking) {

@@ -326,11 +326,11 @@ public:
      * manifest, open collections, open scopes, dropped collections.
      *
      * @param vbid vbucket id
-     * @return pair of bool status and the persisted manifest data for the given
-     *         vbid
+     * @return the persisted manifest data for the given vbid, or
+     *         cb::engine_errc::failed
      */
-    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) const override;
+    std::expected<Collections::KVStore::Manifest, cb::engine_errc>
+    getCollectionsManifest(Vbid vbid) const override;
 
     /**
      * Retrieve the manifest from the snapshot.
@@ -360,14 +360,15 @@ public:
      * latest snapshot
      *
      * @param vbid vbucket id
-     * @return a pair of bool status and vector of dropped collections (can be
-     *         empty)
+     * @return the dropped collections (can be empty), or
+     *         cb::engine_errc::failed
      */
-    std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+    std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+                  cb::engine_errc>
     getDroppedCollections(Vbid vbid) const override;
 
-    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
-            Vbid vbid) const override;
+    std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+    getEraseSeqnos(Vbid vbid) const override;
 
     /**
      * Read local doc to get the vector of dropped collections from the given
@@ -667,13 +668,13 @@ public:
     virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
             Vbid vbid, magma::Magma::Snapshot& snapshot);
 
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+    std::expected<nlohmann::json, cb::engine_errc> getFusionStats(
             FusionStat stat, Vbid vbid) override;
 
     cb::engine_errc setChronicleAuthToken(std::string_view token) override;
     std::string getChronicleAuthToken() const override;
 
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+    std::expected<std::vector<std::string>, cb::engine_errc> mountVBucket(
             Vbid vbid,
             VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override;

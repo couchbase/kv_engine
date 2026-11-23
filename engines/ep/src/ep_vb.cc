@@ -1228,10 +1228,9 @@ void EPVBucket::postProcessRollback(VBucketStateLockRef vbStateLock,
 void EPVBucket::collectionsRolledBack(VBucketStateLockRef vbStateLock,
                                       KVBucket& bucket) {
     auto& kvstore = *bucket.getRWUnderlying(getId());
-    auto [getManifestStatus, persistedManifest] =
-            kvstore.getCollectionsManifest(getId());
+    const auto persistedManifest = kvstore.getCollectionsManifest(getId());
 
-    if (!getManifestStatus) {
+    if (!persistedManifest) {
         // Something bad happened that the KVStore ought to have logged.
         throw std::runtime_error(
                 "EPVBucket::collectionsRolledBack: " + getId().to_string() +
@@ -1239,7 +1238,7 @@ void EPVBucket::collectionsRolledBack(VBucketStateLockRef vbStateLock,
     }
 
     manifest = std::make_unique<Collections::VB::Manifest>(
-            bucket.getSharedCollectionsManager(), persistedManifest);
+            bucket.getSharedCollectionsManager(), *persistedManifest);
 
     // rollback can restore a disk state where a collection is recorded as
     // dropped but its data has not been purged; compaction scheduled when the

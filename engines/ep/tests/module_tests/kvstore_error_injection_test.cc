@@ -383,8 +383,9 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
 
     // Check nothing persisted to disk, only default collection exists
     auto* kvstore = store->getRWUnderlying(vbid);
-    auto [s1, m1] = kvstore->getCollectionsManifest(vbid);
-    ASSERT_TRUE(s1);
+    auto m1Read = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(m1Read);
+    auto& m1 = *m1Read;
     EXPECT_EQ(1, m1.collections.size());
     const Collections::CollectionMetaData defaultState;
     EXPECT_EQ(defaultState, m1.collections[0].metaData);
@@ -400,8 +401,9 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
     }
 
     // Check nothing persisted to disk, only default collection exists
-    auto [s2, m2] = kvstore->getCollectionsManifest(vbid);
-    ASSERT_TRUE(s2);
+    auto m2Read = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(m2Read);
+    auto& m2 = *m2Read;
     EXPECT_EQ(1, m2.collections.size());
     EXPECT_EQ(defaultState, m2.collections[0].metaData);
     EXPECT_EQ(0, m2.collections[0].startSeqno);
@@ -411,8 +413,9 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);
 
-    auto [s3, m3] = kvstore->getCollectionsManifest(vbid);
-    ASSERT_TRUE(s3);
+    auto m3Read = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(m3Read);
+    auto& m3 = *m3Read;
     EXPECT_EQ(2, m3.collections.size());
 
     Collections::CollectionMetaData dairyState{ScopeID::Default,
@@ -1159,8 +1162,9 @@ void KVStoreErrorInjectionTest::testCollectionDropCompaction(
     runCompaction(vbid, 0);
     auto postFailed = engine->getEpStats().compactionFailed;
 
-    auto [status, dropped] = kvstore.getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    auto droppedRead = kvstore.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
 
     // The total items in the vb get updated by the
     // EPBucket::compactionCompletionCallback, when compaction completes, by

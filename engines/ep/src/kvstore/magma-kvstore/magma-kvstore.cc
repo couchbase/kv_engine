@@ -3274,7 +3274,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     {
         std::lock_guard<std::unique_lock<std::mutex>> guard(vbLock);
         std::tie(getEraseStatus, eraseSeqnos) = getCollectionsEraseSeqnos(vbid);
-        std::tie(getDroppedStatus, dropped) = getDroppedCollections(vbid);
+        auto droppedRead = getDroppedCollections(vbid);
+        getDroppedStatus = droppedRead.has_value();
+        if (droppedRead) {
+            dropped = std::move(*droppedRead);
+        }
         if (getEraseStatus && getDroppedStatus &&
             Collections::VB::ScanContext::useOpenCollectionsForDroppedData(
                     !dropped.empty(), eraseSeqnos.getEraseSeqno())) {
@@ -3654,8 +3658,8 @@ MagmaKVStore::makePurgedCollectionsUpdate(
         const std::unordered_map<CollectionID, uint64_t>& purgedCollections,
         bool eraseSeqnoPurged) const {
     PurgedCollectionsUpdate update;
-    auto [droppedStatus, dropped] = getDroppedCollections(vbid);
-    if (!droppedStatus) {
+    const auto droppedRead = getDroppedCollections(vbid);
+    if (!droppedRead) {
         logger->critical(
                 "MagmaKVStore::makePurgedCollectionsUpdate {} failed "
                 "getDroppedCollections",
@@ -3663,6 +3667,7 @@ MagmaKVStore::makePurgedCollectionsUpdate(
         return std::unexpected(Status{Status::Code::Internal,
                                       "Failed to get dropped collections"});
     }
+    const auto& dropped = *droppedRead;
     auto [eraseStatus, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
     if (!eraseStatus) {
         logger->critical(
@@ -3982,24 +3987,26 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
                      eraseSeqno.length()})};
 }
 
-std::pair<bool, Collections::KVStore::Manifest>
+std::expected<Collections::KVStore::Manifest, cb::engine_errc>
 MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
     auto status = magma->GetSnapshot(vbid.get(), snapshot);
 
     if (!status) {
-        return {false,
-                Collections::KVStore::Manifest{
-                        Collections::KVStore::Manifest::Default{}}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     Collections::KVStore::Manifest manifest{
             Collections::KVStore::Manifest::Empty{}};
     std::tie(status, manifest) = getCollectionsManifest(vbid, *snapshot);
-    return {status.IsOK(), std::move(manifest)};
+    if (!status.IsOK()) {
+        return std::unexpected(cb::engine_errc::failed);
+    }
+    return manifest;
 }
 
-std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+              cb::engine_errc>
 MagmaKVStore::getDroppedCollections(Vbid vbid) const {
     Slice keySlice(LocalDocKey::droppedCollections);
     auto [status, dropped] = readLocalDoc(vbid, keySlice);
@@ -4007,13 +4014,12 @@ MagmaKVStore::getDroppedCollections(Vbid vbid) const {
     // create the (magma)KVStore (done at first flush).
     // @TODO investigate removal/use of snapshot variant
     if (!status.IsOK() && status.ErrorCode() != Status::Code::InvalidKVStore) {
-        return {false, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
-    return {true,
-            Collections::KVStore::decodeDroppedCollections(
-                    {reinterpret_cast<const uint8_t*>(dropped.data()),
-                     dropped.length()})};
+    return Collections::KVStore::decodeDroppedCollections(
+            {reinterpret_cast<const uint8_t*>(dropped.data()),
+             dropped.length()});
 }
 
 std::pair<magma::Status, std::vector<Collections::KVStore::OpenCollection>>
@@ -4106,17 +4112,17 @@ MagmaKVStore::getCollectionsEraseSeqnos(
             vbid, snapshot, Slice{LocalDocKey::collectionsEraseSeqno}));
 }
 
-std::pair<bool, Collections::KVStore::EraseSeqnos> MagmaKVStore::getEraseSeqnos(
-        Vbid vbid) const {
+std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+MagmaKVStore::getEraseSeqnos(Vbid vbid) const {
     auto [status, eraseSeqnos] = getCollectionsEraseSeqnos(vbid);
     if (!status) {
         logger->warnWithContext(
                 "MagmaKVStore::getEraseSeqnos: failed to read the erase "
                 "seqnos",
                 {{"vb", vbid}, {"status", status.String()}});
-        return {false, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
-    return {true, std::move(eraseSeqnos)};
+    return eraseSeqnos;
 }
 
 magma::Status MagmaKVStore::updateCollectionsMeta(
@@ -4198,10 +4204,12 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     // count correctly we need to keep the stats doc around until the collection
     // erasure compaction runs which will then delete the doc when it has
     // processed the collection.
-    auto [status, dropped] = getDroppedCollections(vbid);
+    const auto droppedRead = getDroppedCollections(vbid);
+    const bool status = droppedRead.has_value();
     if (!status) {
         return {Status::Code::Invalid, "Failed to get dropped collections"};
     }
+    const auto& dropped = *droppedRead;
 
     // We may not have dropped a collection but we may have a dropped collection
     // stat that needs updating if we have changed the state of a document in
@@ -4700,8 +4708,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
         return nullptr;
     }
 
-    auto [status, dropped] = getDroppedCollections(vbid);
-    if (!status) {
+    if (!getDroppedCollections(vbid)) {
         throw std::runtime_error(fmt::format(
                 "MagmaKVStore::makeImplicitCompactionContext: {} failed to "
                 "get the dropped collections",
@@ -5110,7 +5117,7 @@ cb::engine_errc MagmaKVStore::checkFusionStatCallStatus(
     return cb::engine_errc::success;
 }
 
-std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
+std::expected<nlohmann::json, cb::engine_errc> MagmaKVStore::getFusionStats(
         FusionStat stat, Vbid vbid) {
     switch (stat) {
     case FusionStat::Invalid:
@@ -5118,12 +5125,20 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
     case FusionStat::SyncInfo: {
         const auto [status, data] =
                 magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
-        return {checkFusionStatCallStatus(stat, vbid, status), data};
+        if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
+            errc != cb::engine_errc::success) {
+            return std::unexpected(errc);
+        }
+        return data;
     }
     case FusionStat::ActiveGuestVolumes: {
         const auto [status, data] = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
-        return {checkFusionStatCallStatus(stat, vbid, status), data};
+        if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
+            errc != cb::engine_errc::success) {
+            return std::unexpected(errc);
+        }
+        return data;
     }
     case FusionStat::Uploader: {
         const auto id = Magma::KVStoreID(vbid.get());
@@ -5133,7 +5148,7 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
             const auto [status, data] = magma->GetFusionUploaderTerm(id);
             if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
-                return {errc, {}};
+                return std::unexpected(errc);
             }
             json["term"] = data;
         }
@@ -5141,14 +5156,14 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
             const auto [status, stats] = magma->GetFusionUploaderStats(id);
             if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
-                return {errc, {}};
+                return std::unexpected(errc);
             }
             json.update(stats);
         }
         // @TODO MB-65656: Magma is currently missing the implementation for
         // last_sync_log_seqno and last_sync_log_term. Once the implementation
         // is done, we can add them here.
-        return {cb::engine_errc::success, json};
+        return json;
     }
     case FusionStat::Migration: {
         const auto id = Magma::KVStoreID(vbid.get());
@@ -5157,11 +5172,11 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
             const auto [status, stats] = magma->GetFusionMigrationStats(id);
             if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
                 errc != cb::engine_errc::success) {
-                return {errc, {}};
+                return std::unexpected(errc);
             }
             json.update(stats);
         }
-        return {cb::engine_errc::success, json};
+        return json;
     }
     case FusionStat::IsMounted: {
         auto id = Magma::KVStoreID(vbid.get());
@@ -5170,10 +5185,10 @@ std::pair<cb::engine_errc, nlohmann::json> MagmaKVStore::getFusionStats(
                 magma->IsKVStoreMounted(id, kvstoreRevList[getCacheSlot(vbid)]);
         if (const auto errc = checkFusionStatCallStatus(stat, vbid, status);
             errc != cb::engine_errc::success) {
-            return {errc, {}};
+            return std::unexpected(errc);
         }
         json["is_mounted"] = data;
-        return {cb::engine_errc::success, json};
+        return json;
     }
     }
 
@@ -5189,10 +5204,10 @@ std::string MagmaKVStore::getChronicleAuthToken() const {
     return magma->GetFusionMetadataStoreAuthToken();
 }
 
-std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
-        Vbid vbid,
-        VBucketSnapshotSource source,
-        const std::vector<std::string>& paths) {
+std::expected<std::vector<std::string>, cb::engine_errc>
+MagmaKVStore::mountVBucket(Vbid vbid,
+                           VBucketSnapshotSource source,
+                           const std::vector<std::string>& paths) {
     // Note: Creating a fusion vbucket is a 2-step operation, ie Mount + Create
     // (in order). So we have to bump the revision here only.
     const auto rev = ++kvstoreRevList[getCacheSlot(vbid)];
@@ -5215,7 +5230,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
                     "Expected just the snapshot uuid in paths",
                     {"vb", vbid.get()},
                     {"paths", paths});
-            return {cb::engine_errc::failed, {}};
+            return std::unexpected(cb::engine_errc::failed);
         }
         config.Source = Type::FusionLogStore;
         config.SnapshotUUID = paths.front();
@@ -5230,9 +5245,9 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
         EP_LOG_WARN_CTX("MagmaKVStore::mountVBucket: ",
                         {"vb", vbid},
                         {"status", status.String()});
-        return {cb::engine_errc::failed, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
-    return {cb::engine_errc::success, std::get<std::vector<std::string>>(res)};
+    return std::get<std::vector<std::string>>(res);
 }
 
 cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid, bool reset) {

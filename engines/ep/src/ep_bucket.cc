@@ -3639,12 +3639,12 @@ cb::engine_errc EPBucket::fusionStatVBucket(CookieIface& cookie,
                                             const AddStatFn& add_stat,
                                             FusionStat stat,
                                             Vbid vbid) {
-    const auto [errc, json] = getRWUnderlying(vbid)->getFusionStats(stat, vbid);
-    if (errc != cb::engine_errc::success) {
+    const auto json = getRWUnderlying(vbid)->getFusionStats(stat, vbid);
+    if (!json) {
         // Details logged at KVStore level
-        return errc;
+        return json.error();
     }
-    add_stat("fusion", json.dump(), cookie);
+    add_stat("fusion", json->dump(), cookie);
     return cb::engine_errc::success;
 }
 
@@ -3653,12 +3653,13 @@ cb::engine_errc EPBucket::fusionStatGuestVolumesAggregate(
     const auto vbuckets = vbMap.getBuckets();
     std::unordered_set<std::string> volumes;
     for (const auto vbid : vbuckets) {
-        const auto [errc, json] = getRWUnderlying(vbid)->getFusionStats(
+        const auto result = getRWUnderlying(vbid)->getFusionStats(
                 FusionStat::ActiveGuestVolumes, vbid);
-        if (errc != cb::engine_errc::success) {
+        if (!result) {
             // Details logged at KVStore level
-            return errc;
+            return result.error();
         }
+        const auto& json = *result;
         if (!json.is_array()) {
             EP_LOG_WARN_CTX(
                     "EPBucket::doFusionAggregatedGuestVolumesStats: json is "
@@ -3694,14 +3695,14 @@ cb::engine_errc EPBucket::fusionStatDetail(FusionStat statGroup,
     const auto vbuckets = vbMap.getBuckets();
     nlohmann::json json;
     for (const auto vbid : vbuckets) {
-        const auto [errc, stats] =
+        const auto stats =
                 getRWUnderlying(vbid)->getFusionStats(statGroup, vbid);
-        if (errc != cb::engine_errc::success) {
+        if (!stats) {
             // Details logged at KVStore level
-            return errc;
+            return stats.error();
         }
         const auto vb = "vb_" + std::to_string(vbid.get());
-        json[vb] = stats;
+        json[vb] = *stats;
     }
     add_stat("fusion", json.dump(), cookie);
     return cb::engine_errc::success;

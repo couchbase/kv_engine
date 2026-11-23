@@ -1280,16 +1280,16 @@ TEST_P(CouchKVStoreErrorInjectionTest, mountVBucket) {
     {
         auto rev = kvstore->prepareToDelete(vbid);
         kvstore->delVBucket(vbid, std::move(rev));
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::success, status);
-        EXPECT_EQ(expectedDeks, deks.size());
+        ASSERT_TRUE(deks);
+        EXPECT_EQ(expectedDeks, deks->size());
     }
     {
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::key_already_exists, status);
-        EXPECT_EQ(0, deks.size());
+        ASSERT_FALSE(deks);
+        EXPECT_EQ(cb::engine_errc::key_already_exists, deks.error());
         auto rev = kvstore->prepareToDelete(vbid);
         kvstore->delVBucket(vbid, std::move(rev));
     }
@@ -1306,16 +1306,16 @@ TEST_P(CouchKVStoreErrorInjectionTest, mountVBucket) {
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).RetiresOnSaturation();
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::failed, status);
-        EXPECT_EQ(0, deks.size());
+        ASSERT_FALSE(deks);
+        EXPECT_EQ(cb::engine_errc::failed, deks.error());
     }
     {
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::success, status);
-        EXPECT_EQ(expectedDeks, deks.size());
+        ASSERT_TRUE(deks);
+        EXPECT_EQ(expectedDeks, deks->size());
     }
 }
 
@@ -1334,12 +1334,12 @@ TEST_P(CouchKVStoreErrorInjectionTest, loadVBucketSnapshot) {
         auto rev = kvstore->prepareToDelete(vbid);
         kvstore->delVBucket(vbid, std::move(rev));
         EXPECT_TRUE(getKeyIds().empty());
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::success, status);
-        EXPECT_EQ(expectedDeks, deks.size());
-        if (!deks.empty()) {
-            EXPECT_EQ("MyActiveKey", deks.front());
+        ASSERT_TRUE(deks);
+        EXPECT_EQ(expectedDeks, deks->size());
+        if (!deks->empty()) {
+            EXPECT_EQ("MyActiveKey", deks->front());
         }
         EXPECT_TRUE(getKeyIds().empty());
     }
@@ -2806,15 +2806,16 @@ TEST_F(CouchstoreTest, DeleteMountVBucket) {
     const std::vector<std::string> copyPaths{{copyPath.string()}};
     auto rev = kvstore->prepareToDelete(vbid);
     {
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::success, status);
+        EXPECT_TRUE(deks);
     }
     kvstore->delVBucket(vbid, std::move(rev));
     {
-        const auto [status, deks] = kvstore->mountVBucket(
+        const auto deks = kvstore->mountVBucket(
                 vbid, VBucketSnapshotSource::Local, copyPaths);
-        EXPECT_EQ(cb::engine_errc::key_already_exists, status);
+        ASSERT_FALSE(deks);
+        EXPECT_EQ(cb::engine_errc::key_already_exists, deks.error());
     }
 }
 

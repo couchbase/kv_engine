@@ -393,27 +393,28 @@ public:
     /**
      * CouchKVStore implements this method as a read of 3 _local documents
      */
-    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) const override;
+    std::expected<Collections::KVStore::Manifest, cb::engine_errc>
+    getCollectionsManifest(Vbid vbid) const override;
 
     /**
      * CouchKVStore implements this method as a read of 1 _local document
      */
-    std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+    std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+                  cb::engine_errc>
     getDroppedCollections(Vbid vbid) const override;
 
     /**
      * CouchKVStore implements this method as a read of 1 _local document
      */
-    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
-            Vbid vbid) const override;
+    std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+    getEraseSeqnos(Vbid vbid) const override;
 
     ReadVBStateResult getPersistedVBucketState(Vbid vbid) const override;
 
     ReadVBStateResult getPersistedVBucketState(KVFileHandle& handle,
                                                Vbid vbid) const override;
 
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+    std::expected<std::vector<std::string>, cb::engine_errc> mountVBucket(
             Vbid vbid,
             VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override;

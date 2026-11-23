@@ -491,12 +491,12 @@ public:
     /**
      * Prepares a vbucket for initialisation from a snapshot
      *
-     * @return DEK ids used by the snapshot
+     * @return DEK ids used by the snapshot, or the error
      */
-    virtual std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
-            Vbid vbid,
-            VBucketSnapshotSource source,
-            const std::vector<std::string>& paths) = 0;
+    virtual std::expected<std::vector<std::string>, cb::engine_errc>
+    mountVBucket(Vbid vbid,
+                 VBucketSnapshotSource source,
+                 const std::vector<std::string>& paths) = 0;
 
     /**
      * Initialises a vbucket from a snapshot
@@ -797,10 +797,10 @@ public:
      * Collections::VB::Manifest
      *
      * @param vbid vbucket to get data from
-     * @return pair of bool status and the persisted manifest data for the given
-     *         vbid
+     * @return the persisted manifest data for the given vbid, or
+     *         cb::engine_errc::failed
      */
-    virtual std::pair<bool, Collections::KVStore::Manifest>
+    virtual std::expected<Collections::KVStore::Manifest, cb::engine_errc>
     getCollectionsManifest(Vbid vbid) const = 0;
 
     /**
@@ -809,11 +809,11 @@ public:
      * underlying KV store atomically drops collections
      *
      * @param vbid vbucket to get data from
-     * @return pair of bool status and vector of collections that are dropped
-     *         but still may have data
+     * @return the collections that are dropped but still may have data, or
+     *         cb::engine_errc::failed
      */
-    virtual std::pair<bool,
-                      std::vector<Collections::KVStore::DroppedCollection>>
+    virtual std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+                          cb::engine_errc>
     getDroppedCollections(Vbid vbid) const = 0;
 
     /**
@@ -821,11 +821,11 @@ public:
      * whose data may remain in storage.
      *
      * @param vbid vbucket to get data from
-     * @return pair of bool status and the erase seqnos (empty if nothing
-     *         awaits erasing)
+     * @return the erase seqnos (empty if nothing awaits erasing), or
+     *         cb::engine_errc::failed
      */
-    virtual std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
-            Vbid vbid) const = 0;
+    virtual std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+    getEraseSeqnos(Vbid vbid) const = 0;
 
     /**
      * Get the configuration class from the derived class. We have derived class
@@ -984,7 +984,7 @@ public:
 
     /// Fusion API, supported only by MagmaKVStore
 
-    virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+    virtual std::expected<nlohmann::json, cb::engine_errc> getFusionStats(
             FusionStat stat, Vbid vbid) = 0;
 
     virtual cb::engine_errc setChronicleAuthToken(std::string_view token) = 0;

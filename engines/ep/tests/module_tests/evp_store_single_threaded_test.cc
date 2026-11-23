@@ -577,12 +577,12 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
         if (expectSuccess) {
             auto* kvstore =
                     store->getVBucket(id)->getShard()->getRWUnderlying();
-            auto [status, dropped] = kvstore->getDroppedCollections(id);
-            ASSERT_TRUE(status);
-            EXPECT_TRUE(dropped.empty());
-            auto [eraseStatus, eraseSeqnos] = kvstore->getEraseSeqnos(id);
-            ASSERT_TRUE(eraseStatus);
-            EXPECT_TRUE(eraseSeqnos.empty()) << eraseSeqnos;
+            const auto dropped = kvstore->getDroppedCollections(id);
+            ASSERT_TRUE(dropped);
+            EXPECT_TRUE(dropped->empty());
+            const auto eraseSeqnos = kvstore->getEraseSeqnos(id);
+            ASSERT_TRUE(eraseSeqnos);
+            EXPECT_TRUE(eraseSeqnos->empty()) << *eraseSeqnos;
             EXPECT_EQ(failures, engine->getEpStats().compactionFailed);
         } else {
             EXPECT_LT(failures, engine->getEpStats().compactionFailed);

@@ -241,12 +241,12 @@ void VBucketLoadingTask::deleteVBucket() {
 }
 
 void VBucketLoadingTask::mountVBucket() {
-    auto [errc, deks] = store.getRWUnderlyingByShard(shardId)->mountVBucket(
+    const auto deks = store.getRWUnderlyingByShard(shardId)->mountVBucket(
             vbid, source, paths);
-    if (errc != cb::engine_errc::success) {
+    if (!deks) {
         fail(__func__,
              "KVStore::mountVBucket failed",
-             {{"error", to_string(errc)}});
+             {{"error", to_string(deks.error())}});
         return;
     }
     transition(justMounting ? LoadingState::Done : LoadingState::CreateVBucket);

@@ -761,7 +761,10 @@ std::vector<StoredValue::UniquePtr> createAll(
 } // namespace cb::testing::sv
 
 std::vector<uint64_t> getEraseSeqnos(const KVStoreIface& kvstore, Vbid vbid) {
-    auto [status, eraseSeqnos] = kvstore.getEraseSeqnos(vbid);
-    EXPECT_TRUE(status) << "getEraseSeqnos failed for " << vbid;
-    return eraseSeqnos.getSeqnos();
+    const auto eraseSeqnos = kvstore.getEraseSeqnos(vbid);
+    EXPECT_TRUE(eraseSeqnos) << "getEraseSeqnos failed for " << vbid;
+    if (!eraseSeqnos) {
+        return {};
+    }
+    return eraseSeqnos->getSeqnos();
 }

@@ -832,14 +832,16 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
     runCompaction(vbid);
 
     // 1 Dropped collection remains, the one that "failed"
-    auto [status, dc] = kvstore->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    auto dcRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(dcRead);
+    auto& dc = *dcRead;
     EXPECT_FALSE(dc.empty());
 
     // The failed compaction keeps the erase seqnos of both drops. Which
     // collection failed depends on the order of the stored dropped list.
-    auto [eraseStatus, eraseSeqnos] = kvstore->getEraseSeqnos(vbid);
-    ASSERT_TRUE(eraseStatus);
+    auto eraseSeqnosRead = kvstore->getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseSeqnosRead);
+    auto& eraseSeqnos = *eraseSeqnosRead;
     EXPECT_THAT(eraseSeqnos.getSeqnos(),
                 ::testing::ElementsAre(lastDropSeqno - 1, lastDropSeqno));
 
@@ -850,11 +852,11 @@ TEST_P(STParamMagmaBucketTest, FailCompactKVStoreCall) {
 
     // Dropped collections all gone now
     ASSERT_EQ(1, engine->getEpStats().compactionFailed);
-    std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    dcRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(dcRead);
     EXPECT_TRUE(dc.empty());
-    std::tie(eraseStatus, eraseSeqnos) = kvstore->getEraseSeqnos(vbid);
-    ASSERT_TRUE(eraseStatus);
+    eraseSeqnosRead = kvstore->getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseSeqnosRead);
     EXPECT_TRUE(eraseSeqnos.empty()) << eraseSeqnos;
 }
 
@@ -947,8 +949,9 @@ TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
     runCompaction(vbid);
 
     // Dropped collection remains, as the compaction should have aborted
-    auto [status, dc] = kvstore->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    auto dcRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(dcRead);
+    auto& dc = *dcRead;
     EXPECT_FALSE(dc.empty());
 
     // Our hook wouldn't do anything now, but reset it anyway for simplicity
@@ -958,8 +961,8 @@ TEST_P(STParamMagmaBucketTest, FailPrepareCompactKVStoreCall) {
 
     // Dropped collections all gone now
     ASSERT_EQ(1, engine->getEpStats().compactionFailed);
-    std::tie(status, dc) = kvstore->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    dcRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(dcRead);
     EXPECT_TRUE(dc.empty());
 }
 
@@ -1001,13 +1004,15 @@ TEST_P(STParamMagmaBucketTest, DropDuringPurgeKeepsNewEraseSeqno) {
     ASSERT_NE(0, meatDropSeqno);
 
     // Only the erase seqno of the drop flushed during compaction remains
-    auto [status, eraseSeqnos] = magmaKVStore.getEraseSeqnos(vbid);
-    ASSERT_TRUE(status);
+    auto eraseSeqnosRead = magmaKVStore.getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseSeqnosRead);
+    auto& eraseSeqnos = *eraseSeqnosRead;
     EXPECT_THAT(eraseSeqnos.getSeqnos(), ::testing::ElementsAre(meatDropSeqno));
 
     // The list and the erase seqno were written together, only meat remains
-    auto [droppedStatus, dropped] = magmaKVStore.getDroppedCollections(vbid);
-    ASSERT_TRUE(droppedStatus);
+    auto droppedRead = magmaKVStore.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     ASSERT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionID(CollectionEntry::meat),
               dropped.front().collectionId);
@@ -1033,8 +1038,9 @@ TEST_P(STParamMagmaBucketTest, CollectionCreatedDuringPurgeIsNotErased) {
 
     auto& magmaKVStore =
             static_cast<MockMagmaKVStore&>(*store->getRWUnderlying(vbid));
-    auto [status, dropped] = magmaKVStore.getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    auto droppedRead = magmaKVStore.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     ASSERT_TRUE(dropped.empty());
 
     const StoredDocKey carrot{"carrot", CollectionEntry::vegetable};
@@ -1404,8 +1410,9 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
                   kvstore->compactDB(vb.getLock(), ctx));
     }
 
-    auto [status, dropped] = kvstore->getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    auto droppedRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
 
@@ -1421,8 +1428,8 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
                   kvstore->compactDB(vb.getLock(), ctx));
     }
 
-    std::tie(status, dropped) = kvstore->getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    droppedRead = kvstore->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
     EXPECT_TRUE(dropped.empty());
 }
 

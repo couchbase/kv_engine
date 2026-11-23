@@ -4331,7 +4331,7 @@ std::optional<Collections::ManifestUid> CouchKVStore::getCollectionsManifestUid(
     return Collections::KVStore::decodeManifestUid(manifestRes.doc.getBuffer());
 }
 
-std::pair<bool, Collections::KVStore::Manifest>
+std::expected<Collections::KVStore::Manifest, cb::engine_errc>
 CouchKVStore::getCollectionsManifest(Vbid vbid) const {
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
@@ -4344,14 +4344,14 @@ CouchKVStore::getCollectionsManifest(Vbid vbid) const {
                      vbid,
                      db.getFilename(),
                      options);
-        return {false,
-                Collections::KVStore::Manifest{
-                        Collections::KVStore::Manifest::Default{}}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     auto [status, manifest] = getCollectionsManifest(*db.getDb());
-    bool ret = status == COUCHSTORE_SUCCESS ? true : false;
-    return {ret, manifest};
+    if (status != COUCHSTORE_SUCCESS) {
+        return std::unexpected(cb::engine_errc::failed);
+    }
+    return manifest;
 }
 
 std::pair<couchstore_error_t, Collections::KVStore::Manifest>
@@ -4412,7 +4412,8 @@ CouchKVStore::getCollectionsManifest(Db& db) const {
                                                : empty)};
 }
 
-std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+              cb::engine_errc>
 CouchKVStore::getDroppedCollections(Vbid vbid) const {
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
@@ -4426,16 +4427,16 @@ CouchKVStore::getDroppedCollections(Vbid vbid) const {
                      db.getFilename(),
                      options);
 
-        return {false, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     auto [getDroppedStatus, droppedCollections] =
             getDroppedCollections(*db.getDb());
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        return {false, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
-    return {true, droppedCollections};
+    return droppedCollections;
 }
 
 std::pair<couchstore_error_t,
@@ -4502,8 +4503,8 @@ CouchKVStore::getCollectionsEraseSeqnos(Db& db) const {
             Collections::KVStore::decodeEraseSeqnos(eraseRes.doc.getBuffer())};
 }
 
-std::pair<bool, Collections::KVStore::EraseSeqnos> CouchKVStore::getEraseSeqnos(
-        Vbid vbid) const {
+std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+CouchKVStore::getEraseSeqnos(Vbid vbid) const {
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;
     const auto errCode = openDB(vbid, db, options);
@@ -4514,11 +4515,14 @@ std::pair<bool, Collections::KVStore::EraseSeqnos> CouchKVStore::getEraseSeqnos(
                      vbid,
                      db.getFilename(),
                      options);
-        return {false, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
 
     auto [status, eraseSeqnos] = getCollectionsEraseSeqnos(*db.getDb());
-    return {status == COUCHSTORE_SUCCESS, std::move(eraseSeqnos)};
+    if (status != COUCHSTORE_SUCCESS) {
+        return std::unexpected(cb::engine_errc::failed);
+    }
+    return eraseSeqnos;
 }
 
 couchstore_error_t CouchKVStore::updateCollectionsMeta(
@@ -4704,10 +4708,10 @@ KVStoreIface::ReadVBStateResult CouchKVStore::getVBucketState(
     return res;
 }
 
-std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
-        Vbid vbid,
-        VBucketSnapshotSource source,
-        const std::vector<std::string>& paths) {
+std::expected<std::vector<std::string>, cb::engine_errc>
+CouchKVStore::mountVBucket(Vbid vbid,
+                           VBucketSnapshotSource source,
+                           const std::vector<std::string>& paths) {
     Expects(source == VBucketSnapshotSource::Local);
     Expects(paths.size() == 1);
     const auto& path = paths.front();
@@ -4729,7 +4733,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
                          vbid,
                          path,
                          0);
-            return {cb::engine_errc::failed, {}};
+            return std::unexpected(cb::engine_errc::failed);
         }
         if (cb::couchstore::isEncrypted(*db)) {
             result.emplace_back(cb::couchstore::getEncryptionKeyId(*db));
@@ -4737,7 +4741,7 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
     } catch (const std::exception& ex) {
         logger.warnWithContext("CouchKVStore::mountVBucket: exception",
                                {{"error", ex.what()}});
-        return {cb::engine_errc::failed, {}};
+        return std::unexpected(cb::engine_errc::failed);
     }
     const auto rev = ++(*dbFileRevMap->wlock())[getCacheSlot(vbid)];
     const auto [iter, inserted] =
@@ -4746,9 +4750,9 @@ std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
         logger.warnWithContext(
                 "CouchKVStore::mountVBucket: Already exists",
                 {{"vb", vbid}, {"path", path}, {"existing", iter->second}});
-        return {cb::engine_errc::key_already_exists, {}};
+        return std::unexpected(cb::engine_errc::key_already_exists);
     }
-    return {cb::engine_errc::success, std::move(result)};
+    return result;
 }
 
 KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(

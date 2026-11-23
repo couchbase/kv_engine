@@ -194,20 +194,22 @@ public:
                 getCollectionsManifestUid,
                 (KVFileHandle & kvFileHandle),
                 (const, override));
-    MOCK_METHOD((std::pair<bool, Collections::KVStore::Manifest>),
-                getCollectionsManifest,
-                (Vbid vbid),
-                (const, override));
     MOCK_METHOD(
-            (std::pair<bool,
-                       std::vector<Collections::KVStore::DroppedCollection>>),
+            (std::expected<Collections::KVStore::Manifest, cb::engine_errc>),
+            getCollectionsManifest,
+            (Vbid vbid),
+            (const, override));
+    MOCK_METHOD(
+            (std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+                           cb::engine_errc>),
             getDroppedCollections,
             (Vbid vbid),
             (const, override));
-    MOCK_METHOD((std::pair<bool, Collections::KVStore::EraseSeqnos>),
-                getEraseSeqnos,
-                (Vbid vbid),
-                (const, override));
+    MOCK_METHOD(
+            (std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>),
+            getEraseSeqnos,
+            (Vbid vbid),
+            (const, override));
     MOCK_METHOD(const KVStoreConfig&, getConfig, (), (const, override));
     MOCK_METHOD(GetValue,
                 getBySeqno,

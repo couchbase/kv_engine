@@ -452,10 +452,10 @@ protected:
         ASSERT_TRUE(mockEPBucket);
         ASSERT_FALSE(mockEPBucket->getCompactionTask(vbid));
 
-        auto [status, dropped] =
+        auto dropped =
                 store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-        ASSERT_TRUE(status);
-        ASSERT_EQ(storeList ? 1 : 0, dropped.size());
+        ASSERT_TRUE(dropped);
+        ASSERT_EQ(storeList ? 1 : 0, dropped->size());
         ASSERT_THAT(getEraseSeqnos(*store->getRWUnderlying(vbid), vbid),
                     ::testing::ElementsAre(dropSeqno));
 
@@ -467,10 +467,9 @@ protected:
         EXPECT_NO_THROW(runCollectionsEraser(vbid));
 
         EXPECT_EQ(itemsBeforePurge - 1, vb->ht.getNumInMemoryItems());
-        std::tie(status, dropped) =
-                store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-        ASSERT_TRUE(status);
-        EXPECT_TRUE(dropped.empty());
+        dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
+        ASSERT_TRUE(dropped);
+        EXPECT_TRUE(dropped->empty());
     }
 
     void rollback_to_middle_test(bool flush_before_rollback,

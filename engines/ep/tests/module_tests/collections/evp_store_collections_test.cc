@@ -1619,11 +1619,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactNewPrepare) {
         EXPECT_EQ(summary[CollectionEntry::meat].diskSize, postFlushMeatSize);
     }
     // MB-44590: Check that the dropped collection was cleaned-up
-    auto [status, dropped] = store->getVBucket(vbid)
-                                     ->getShard()
-                                     ->getRWUnderlying()
-                                     ->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    auto droppedRead = store->getVBucket(vbid)
+                               ->getShard()
+                               ->getRWUnderlying()
+                               ->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_TRUE(dropped.empty());
 }
 
@@ -1907,11 +1908,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     // At the end of the test, the dropped collections meta data should now
     // be empty. MB-44590 it was not empty.
-    auto [status, dropped] = store->getVBucket(vbid)
-                                     ->getShard()
-                                     ->getRWUnderlying()
-                                     ->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    auto droppedRead = store->getVBucket(vbid)
+                               ->getShard()
+                               ->getRWUnderlying()
+                               ->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_TRUE(dropped.empty());
 
     // No stats for the dropped collection
@@ -1972,17 +1974,19 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     // At the end of the first compaction, the dropped collections meta data
     // should not be empty. It must include the collection which was dropped
     // during compaction
-    auto [status, dropped] = store->getVBucket(vbid)
-                                     ->getShard()
-                                     ->getRWUnderlying()
-                                     ->getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    auto droppedRead = store->getVBucket(vbid)
+                               ->getShard()
+                               ->getRWUnderlying()
+                               ->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::vegetable.getId(), dropped.front().collectionId);
 
     // The only erase seqno is that of the vegetable drop flushed by the replay
-    auto [eraseStatus, eraseSeqnos] = kvstore.getEraseSeqnos(vbid);
-    ASSERT_TRUE(eraseStatus);
+    auto eraseSeqnosRead = kvstore.getEraseSeqnos(vbid);
+    ASSERT_TRUE(eraseSeqnosRead);
+    auto& eraseSeqnos = *eraseSeqnosRead;
     EXPECT_THAT(eraseSeqnos.getSeqnos(),
                 ::testing::ElementsAre(dropped.front().endSeqno));
 
@@ -1992,11 +1996,11 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     runCollectionsEraser(vbid);
 
     // At the end of the test, the dropped collections meta data should be empty
-    std::tie(status, dropped) = store->getVBucket(vbid)
-                                        ->getShard()
-                                        ->getRWUnderlying()
-                                        ->getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    droppedRead = store->getVBucket(vbid)
+                          ->getShard()
+                          ->getRWUnderlying()
+                          ->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
     EXPECT_TRUE(dropped.empty());
 
     // No stats for the dropped collection
@@ -2024,9 +2028,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
     auto eraseSeqnos = [&kvstore, this]() {
-        auto [status, stored] = kvstore.getEraseSeqnos(vbid);
-        EXPECT_TRUE(status);
-        return stored.getSeqnos();
+        const auto stored = kvstore.getEraseSeqnos(vbid);
+        EXPECT_TRUE(stored);
+        if (!stored) {
+            return std::vector<uint64_t>{};
+        }
+        return stored->getSeqnos();
     };
     ASSERT_THAT(eraseSeqnos(), ::testing::ElementsAre(dropSeqno));
 
@@ -2077,9 +2084,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
     auto droppedListSize = [&kvstore, this]() {
-        auto [status, dropped] = kvstore.getDroppedCollections(vbid);
-        EXPECT_TRUE(status);
-        return dropped.size();
+        const auto dropped = kvstore.getDroppedCollections(vbid);
+        EXPECT_TRUE(dropped);
+        if (!dropped) {
+            return size_t{0};
+        }
+        return dropped->size();
     };
 
     // Before the catch-up, the list is {fruit, dairy}
@@ -2158,7 +2168,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
     ASSERT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
-    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).second.size());
+    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).value().size());
 
     // Whilst compacting, a drop of the empty vegetable exceeds the limit. The
     // flusher deletes the list and stores the erase seqno of the list.
@@ -2166,7 +2176,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     kvstore.setConcurrentCompactionPreLockHook([&](auto&) {
         setCollections(cookie, cm.remove(CollectionEntry::vegetable));
         flushVBucketToDiskIfPersistent(vbid, 1);
-        EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+        EXPECT_TRUE(kvstore.getDroppedCollections(vbid).value().empty());
         EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
                     ::testing::ElementsAre(dropSeqno - 1, dropSeqno));
     });
@@ -2174,7 +2184,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     kvstore.setConcurrentCompactionPreLockHook([](auto&) {});
 
     // The erase seqno differs from the compaction's (0), so it is kept
-    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).value().empty());
     EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
                 ::testing::ElementsAre(dropSeqno - 1, dropSeqno));
     EXPECT_TRUE(store->getVBucket(vbid)->getManifest().isDropInProgress());
@@ -2222,11 +2232,12 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     // At the end of the first compaction, the dropped collections meta data
     // should not be empty. It must include the collection which was dropped
     // during compaction
-    auto [status, dropped] = store->getVBucket(vbid)
-                                     ->getShard()
-                                     ->getRWUnderlying()
-                                     ->getDroppedCollections(vbid);
-    EXPECT_TRUE(status);
+    auto droppedRead = store->getVBucket(vbid)
+                               ->getShard()
+                               ->getRWUnderlying()
+                               ->getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
 
@@ -2411,8 +2422,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     // And finally, both default and vegetable should be listed in the dropped
     // collections local doc.
     auto& kvs = *store->getRWUnderlying(vbid);
-    auto [droppedRead, droppedCollections] = kvs.getDroppedCollections(vbid);
-    EXPECT_TRUE(droppedRead);
+    auto droppedCollectionsRead = kvs.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedCollectionsRead);
+    auto& droppedCollections = *droppedCollectionsRead;
     ASSERT_EQ(2, droppedCollections.size());
     // Order of collections in this document doesn't matter, so just check
     // they are present
@@ -2462,8 +2474,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     // Both default and vegetable should be listed in the dropped collections
     // local doc.
     auto& kvs = *store->getRWUnderlying(vbid);
-    auto [droppedRead, droppedCollections] = kvs.getDroppedCollections(vbid);
-    EXPECT_TRUE(droppedRead);
+    auto droppedCollectionsRead = kvs.getDroppedCollections(vbid);
+    ASSERT_TRUE(droppedCollectionsRead);
+    auto& droppedCollections = *droppedCollectionsRead;
     ASSERT_EQ(2, droppedCollections.size());
     // Order of collections in this document doesn't matter, so just check
     // they are present
@@ -4655,8 +4668,8 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
                     auto dropped =
                             store->getRWUnderlying(vbid)->getDroppedCollections(
                                     vbid);
-                    EXPECT_TRUE(dropped.first);
-                    EXPECT_EQ(1, dropped.second.size());
+                    ASSERT_TRUE(dropped);
+                    EXPECT_EQ(1, dropped->size());
 
                     // Drop a collection and flush so that the dropped
                     // collections local doc gets updated
@@ -4670,8 +4683,8 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
                     dropped =
                             store->getRWUnderlying(vbid)->getDroppedCollections(
                                     vbid);
-                    EXPECT_TRUE(dropped.first);
-                    EXPECT_EQ(2, dropped.second.size());
+                    ASSERT_TRUE(dropped);
+                    EXPECT_EQ(2, dropped->size());
 
                     // Now, hit the actual completion callback to set item
                     // counts
@@ -4689,8 +4702,8 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
 
     // Meat should still be there - before the fix dropped size would be 0
     auto dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    EXPECT_TRUE(dropped.first);
-    EXPECT_EQ(1, dropped.second.size());
+    ASSERT_TRUE(dropped);
+    EXPECT_EQ(1, dropped->size());
 
     EXPECT_EQ(1, vb->getNumTotalItems());
 
@@ -4702,8 +4715,8 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
     runCollectionsEraser(vbid);
 
     dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    EXPECT_TRUE(dropped.first);
-    EXPECT_EQ(0, dropped.second.size());
+    ASSERT_TRUE(dropped);
+    EXPECT_EQ(0, dropped->size());
 
     EXPECT_EQ(0, vb->getNumTotalItems());
 }

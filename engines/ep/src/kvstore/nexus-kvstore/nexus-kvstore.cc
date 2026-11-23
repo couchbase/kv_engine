@@ -252,19 +252,21 @@ void NexusKVStore::doCollectionsMetadataChecks(
                               : nullptr;
 
     // 1) Compare on disk manifests
-    auto [primaryManifestResult, primaryKVStoreManifest] =
-            primary->getCollectionsManifest(vbid);
-    auto [secondaryManifestResult, secondaryKVStoreManifest] =
-            secondary->getCollectionsManifest(vbid);
-    if (!primaryManifestResult || !secondaryManifestResult) {
+    const auto primaryManifest = primary->getCollectionsManifest(vbid);
+    const auto secondaryManifest = secondary->getCollectionsManifest(vbid);
+    if (!primaryManifest || !secondaryManifest) {
         auto msg = fmt::format(
                 "NexusKVStore::doCollectionsMetadataChecks: {}: issue getting "
                 "collections manifest primary:{} secondary:{}",
                 vbid,
-                primaryManifestResult,
-                secondaryManifestResult);
+                primaryManifest.has_value(),
+                secondaryManifest.has_value());
         handleError(msg, vbid);
+        // Nothing to compare
+        return;
     }
+    const auto& primaryKVStoreManifest = *primaryManifest;
+    const auto& secondaryKVStoreManifest = *secondaryManifest;
 
     if (primaryVBCommit && primaryVBCommit->collections.getManifestUid() != 0 &&
         primaryKVStoreManifest.manifestUid !=
@@ -3030,52 +3032,60 @@ std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
     return primaryResult;
 }
 
-std::pair<bool, Collections::KVStore::Manifest>
+std::expected<Collections::KVStore::Manifest, cb::engine_errc>
 NexusKVStore::getCollectionsManifest(Vbid vbid) const {
-    auto [primaryResult, primaryManifest] =
-            primary->getCollectionsManifest(vbid);
-    auto [secondaryResult, secondaryManifest] =
-            secondary->getCollectionsManifest(vbid);
+    auto primaryManifest = primary->getCollectionsManifest(vbid);
+    const auto secondaryManifest = secondary->getCollectionsManifest(vbid);
 
-    if (primaryResult != secondaryResult) {
+    if (primaryManifest.has_value() != secondaryManifest.has_value()) {
         auto msg = fmt::format(
                 "NexusKVStore::getCollectionsManifest: {}: different result "
                 "primary:{} "
                 "secondary:{}",
                 vbid,
-                primaryResult,
-                secondaryResult);
+                primaryManifest.has_value(),
+                secondaryManifest.has_value());
         handleError(msg, vbid);
     }
+    if (!primaryManifest || !secondaryManifest) {
+        // Nothing to compare
+        return primaryManifest;
+    }
 
-    if (primaryManifest != secondaryManifest) {
+    if (*primaryManifest != *secondaryManifest) {
         auto msg = fmt::format(
                 "NexusKVStore::getCollectionsManifest: {}: different manifest "
                 "primary:{} secondary:{}",
                 vbid,
-                primaryManifest,
-                secondaryManifest);
+                *primaryManifest,
+                *secondaryManifest);
         handleError(msg, vbid);
     }
 
-    return {primaryResult, primaryManifest};
+    return primaryManifest;
 }
 
-std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+              cb::engine_errc>
 NexusKVStore::getDroppedCollections(Vbid vbid) const {
-    auto [primaryResult, primaryDropped] = primary->getDroppedCollections(vbid);
-    auto [secondaryResult, secondaryDropped] =
-            secondary->getDroppedCollections(vbid);
+    auto primaryResult = primary->getDroppedCollections(vbid);
+    auto secondaryResult = secondary->getDroppedCollections(vbid);
 
-    if (primaryResult != secondaryResult) {
+    if (primaryResult.has_value() != secondaryResult.has_value()) {
         auto msg = fmt::format(
                 "NexusKVStore::getDroppedCollections: {}: primaryResult:{} "
                 "secondaryResult:{}",
                 vbid,
-                primaryResult,
-                secondaryResult);
+                primaryResult.has_value(),
+                secondaryResult.has_value());
         handleError(msg, vbid);
     }
+    if (!primaryResult || !secondaryResult) {
+        // Nothing to compare
+        return primaryResult;
+    }
+    const auto& primaryDropped = *primaryResult;
+    auto& secondaryDropped = *secondaryResult;
 
     for (const auto& dc : primaryDropped) {
         auto itr = std::ranges::find(secondaryDropped, dc);
@@ -3110,11 +3120,11 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
         handleError(msg, vbid);
     }
 
-    return {primaryResult, primaryDropped};
+    return primaryResult;
 }
 
-std::pair<bool, Collections::KVStore::EraseSeqnos> NexusKVStore::getEraseSeqnos(
-        Vbid vbid) const {
+std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+NexusKVStore::getEraseSeqnos(Vbid vbid) const {
     // Not compared, primary and secondary compactions (which remove erase
     // seqnos) are independent.
     return primary->getEraseSeqnos(vbid);

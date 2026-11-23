@@ -87,8 +87,9 @@ public:
             const std::vector<CollectionID>& expected) {
         ASSERT_TRUE(persistent());
         auto* kvstore = store->getRWUnderlying(vbid);
-        auto [droppedStatus, dropped] = kvstore->getDroppedCollections(vbid);
-        ASSERT_TRUE(droppedStatus);
+        auto droppedRead = kvstore->getDroppedCollections(vbid);
+        ASSERT_TRUE(droppedRead);
+        auto& dropped = *droppedRead;
         EXPECT_EQ(expected.empty(), getEraseSeqnosOnDisk().empty());
         if (isDroppedListDisabled()) {
             EXPECT_TRUE(dropped.empty());
@@ -100,18 +101,22 @@ public:
                         expected.end())
                     << entry.collectionId;
         }
-        auto [manifestStatus, manifest] = kvstore->getCollectionsManifest(vbid);
-        ASSERT_TRUE(manifestStatus);
+        auto manifestRead = kvstore->getCollectionsManifest(vbid);
+        ASSERT_TRUE(manifestRead);
+        auto& manifest = *manifestRead;
         EXPECT_EQ(!expected.empty(), manifest.droppedCollectionsExist);
         EXPECT_EQ(!expected.empty(), vb->getManifest().isDropInProgress());
     }
 
     /// @return the persisted erase seqnos
     std::vector<uint64_t> getEraseSeqnosOnDisk() {
-        auto [status, eraseSeqnos] =
+        const auto eraseSeqnos =
                 store->getRWUnderlying(vbid)->getEraseSeqnos(vbid);
-        EXPECT_TRUE(status);
-        return eraseSeqnos.getSeqnos();
+        EXPECT_TRUE(eraseSeqnos);
+        if (!eraseSeqnos) {
+            return {};
+        }
+        return eraseSeqnos->getSeqnos();
     }
 
     /**
@@ -379,9 +384,12 @@ TEST_P(CollectionsEraserTest, droppedListLimit) {
     engine->getConfiguration().setCollectionsMaxDroppedListSize(2);
     auto& kvstore = *store->getRWUnderlying(vbid);
     auto droppedListSize = [&kvstore, this]() {
-        auto [status, dropped] = kvstore.getDroppedCollections(vbid);
-        EXPECT_TRUE(status);
-        return dropped.size();
+        const auto dropped = kvstore.getDroppedCollections(vbid);
+        EXPECT_TRUE(dropped);
+        if (!dropped) {
+            return size_t{0};
+        }
+        return dropped->size();
     };
 
     CollectionsManifest cm;
@@ -498,7 +506,7 @@ TEST_P(CollectionsEraserTest, droppedListWithoutEraseSeqnoDeleted) {
     vb = store->getVBucket(vbid);
     auto& kvstore = *store->getRWUnderlying(vbid);
     ASSERT_TRUE(getEraseSeqnos(kvstore, vbid).empty());
-    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).second.size());
+    ASSERT_EQ(2, kvstore.getDroppedCollections(vbid).value().size());
 
     // Lower the limit and drop an empty collection, the list is deleted
     engine->getConfiguration().setCollectionsMaxDroppedListSize(1);
@@ -506,7 +514,7 @@ TEST_P(CollectionsEraserTest, droppedListWithoutEraseSeqnoDeleted) {
     flushVBucketToDiskIfPersistent(vbid, 1);
     setCollections(cookie, cm.remove(CollectionEntry::vegetable));
     flushVBucketToDiskIfPersistent(vbid, 1);
-    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).second.empty());
+    EXPECT_TRUE(kvstore.getDroppedCollections(vbid).value().empty());
     // The end seqno of each entry of the deleted list is stored
     EXPECT_THAT(getEraseSeqnos(kvstore, vbid),
                 ::testing::ElementsAre(lastDrop - 1, lastDrop));
@@ -1010,16 +1018,18 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     store->cancelCompaction(vbid);
     resetEngineAndWarmup();
 
-    auto [status, manifest] = store->getVBucket(vbid)
-                                      ->getShard()
-                                      ->getRWUnderlying()
-                                      ->getCollectionsManifest(vbid);
-    ASSERT_TRUE(status);
+    auto manifestRead = store->getVBucket(vbid)
+                                ->getShard()
+                                ->getRWUnderlying()
+                                ->getCollectionsManifest(vbid);
+    ASSERT_TRUE(manifestRead);
+    auto& manifest = *manifestRead;
     EXPECT_TRUE(manifest.droppedCollectionsExist);
     if (!isDroppedListDisabled()) {
-        auto [droppedStatus, dropped] =
+        auto droppedRead =
                 store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-        ASSERT_TRUE(droppedStatus);
+        ASSERT_TRUE(droppedRead);
+        auto& dropped = *droppedRead;
         EXPECT_FALSE(dropped.empty());
     }
 
@@ -1987,9 +1997,10 @@ void CollectionsEraserTest::flushThenDropOtherCollection(bool warmup) {
     }
 
     // The eraser processed both dropped entries, the list must be gone
-    auto [status, dropped] =
+    auto droppedRead =
             store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_TRUE(dropped.empty());
 }
 
@@ -2017,9 +2028,10 @@ TEST_P(CollectionsEraserTest, flush_twice_dropped_list) {
     if (isDroppedListDisabled()) {
         return;
     }
-    auto [status, dropped] =
+    auto droppedRead =
             store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     ASSERT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::fruit.getId(), dropped[0].collectionId);
     // The end is the second flush
@@ -2053,9 +2065,10 @@ TEST_P(CollectionsEraserTest, drop_recreate_flush_dropped_list) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     if (!isDroppedListDisabled()) {
-        auto [status, dropped] =
+        auto droppedRead =
                 store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-        ASSERT_TRUE(status);
+        ASSERT_TRUE(droppedRead);
+        auto& dropped = *droppedRead;
         ASSERT_EQ(1, dropped.size());
         EXPECT_EQ(CollectionEntry::fruit.getId(), dropped[0].collectionId);
         EXPECT_EQ(flushSeqno, dropped[0].endSeqno);
@@ -2071,9 +2084,10 @@ TEST_P(CollectionsEraserTest, drop_recreate_flush_dropped_list) {
                   store->get(plum, vbid, cookie, get_options_t::NONE)
                           .getStatus());
     }
-    auto [status, dropped] =
+    auto droppedRead =
             store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
-    ASSERT_TRUE(status);
+    ASSERT_TRUE(droppedRead);
+    auto& dropped = *droppedRead;
     EXPECT_TRUE(dropped.empty());
 }
 
@@ -2121,11 +2135,12 @@ public:
         EXPECT_EQ(0, vb->getNumItems());
         if (persistent()) {
             // Collection should be purged from KVStore
-            auto [status, manifest] = store->getVBucket(vbid)
-                                              ->getShard()
-                                              ->getRWUnderlying()
-                                              ->getCollectionsManifest(vbid);
-            ASSERT_TRUE(status);
+            auto manifestRead = store->getVBucket(vbid)
+                                        ->getShard()
+                                        ->getRWUnderlying()
+                                        ->getCollectionsManifest(vbid);
+            ASSERT_TRUE(manifestRead);
+            auto& manifest = *manifestRead;
             auto itr = manifest.collections.begin();
             for (; itr != manifest.collections.end(); itr++) {
                 if (itr->metaData.cid == CollectionEntry::dairy.getId()) {
@@ -3038,9 +3053,10 @@ TEST_P(CollectionsEraserPersistentOnly,
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(0, vb->getNumItems());
 
-    auto [status, manifest] =
+    auto manifestRead =
             store->getRWUnderlying(vbid)->getCollectionsManifest(vbid);
-    ASSERT_TRUE(status);
+    ASSERT_TRUE(manifestRead);
+    auto& manifest = *manifestRead;
     EXPECT_EQ(3, manifest.manifestUid);
 
     // Collection Purge

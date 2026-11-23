@@ -128,12 +128,13 @@ public:
     getCollectionStats(Vbid vbid, CollectionID collection) const override;
     std::optional<Collections::ManifestUid> getCollectionsManifestUid(
             KVFileHandle& kvFileHandle) const override;
-    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) const override;
-    std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+    std::expected<Collections::KVStore::Manifest, cb::engine_errc>
+    getCollectionsManifest(Vbid vbid) const override;
+    std::expected<std::vector<Collections::KVStore::DroppedCollection>,
+                  cb::engine_errc>
     getDroppedCollections(Vbid vbid) const override;
-    std::pair<bool, Collections::KVStore::EraseSeqnos> getEraseSeqnos(
-            Vbid vbid) const override;
+    std::expected<Collections::KVStore::EraseSeqnos, cb::engine_errc>
+    getEraseSeqnos(Vbid vbid) const override;
     const KVStoreConfig& getConfig() const override;
     GetValue getBySeqno(KVFileHandle& handle,
                         Vbid vbid,
@@ -173,11 +174,11 @@ public:
         return std::nullopt;
     }
 
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+    std::expected<std::vector<std::string>, cb::engine_errc> mountVBucket(
             Vbid vbid,
             VBucketSnapshotSource source,
             const std::vector<std::string>& paths) override {
-        return {cb::engine_errc::not_supported, {}};
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 
     ReadVBStateResult loadVBucketSnapshot(
@@ -189,9 +190,9 @@ public:
 
     // Fusion not supported on nexus
 
-    std::pair<cb::engine_errc, nlohmann::json> getFusionStats(
+    std::expected<nlohmann::json, cb::engine_errc> getFusionStats(
             FusionStat stat, Vbid vbid) override {
-        return {cb::engine_errc::not_supported, {}};
+        return std::unexpected(cb::engine_errc::not_supported);
     }
 
     cb::engine_errc setChronicleAuthToken(std::string_view token) override {

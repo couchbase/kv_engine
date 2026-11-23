@@ -85,12 +85,13 @@ void CollectionsDcpTest::moveHelperCursorToCMEnd() {
 
 Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
         Vbid vb) const {
-    auto [status, persistedManifest] = store->getVBucket(vb)
-                                               ->getShard()
-                                               ->getRWUnderlying()
-                                               ->getCollectionsManifest(vb);
-    EXPECT_TRUE(status);
-    return persistedManifest;
+    const auto persistedManifest = store->getVBucket(vb)
+                                           ->getShard()
+                                           ->getRWUnderlying()
+                                           ->getCollectionsManifest(vb);
+    EXPECT_TRUE(persistedManifest);
+    return persistedManifest.value_or(Collections::KVStore::Manifest{
+            Collections::KVStore::Manifest::Default{}});
 }
 
 void CollectionsDcpTest::createDcpStream(

@@ -1222,15 +1222,17 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
     flushVBucketToDiskIfPersistent(replicaVB, 2);
 
     if (persistent()) {
-        auto [statusA, manifestA] =
+        auto manifestARead =
                 vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid);
-        ASSERT_TRUE(statusA);
+        ASSERT_TRUE(manifestARead);
+        auto& manifestA = *manifestARead;
 
         VBucketPtr vbr = store->getVBucket(replicaVB);
-        auto [statusR, manifestR] =
+        auto manifestRRead =
                 vbr->getShard()->getRWUnderlying()->getCollectionsManifest(
                         replicaVB);
-        ASSERT_TRUE(statusR);
+        ASSERT_TRUE(manifestRRead);
+        auto& manifestR = *manifestRRead;
 
         EXPECT_EQ(0, manifestA.collections.size());
         EXPECT_EQ(1, manifestA.scopes.size());
@@ -3943,10 +3945,8 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
     // Now read back the persisted manifest(s) and validate that the fruit
     // collection exists.
     auto checkManifest = [dropAtEnd, &vb, &target](const auto& result) {
-        auto status = result.first;
-        auto m = result.second;
-
-        ASSERT_TRUE(status);
+        ASSERT_TRUE(result);
+        const auto& m = *result;
 
         auto openSize = dropAtEnd ? 1 : 2;
         EXPECT_EQ(openSize, m.collections.size());
@@ -3975,13 +3975,11 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
     auto checkDropped =
             [dropAtEnd,
              &vb,
-             &target](const std::pair<
-                      bool,
-                      std::vector<Collections::KVStore::DroppedCollection>>&
-                              passed) {
-                const auto& [status, dropped] = passed;
-
-                EXPECT_TRUE(status);
+             &target](const std::expected<
+                      std::vector<Collections::KVStore::DroppedCollection>,
+                      cb::engine_errc>& passed) {
+                ASSERT_TRUE(passed);
+                const auto& dropped = *passed;
                 ASSERT_EQ(1, dropped.size());
                 auto& entry = dropped[0];
                 EXPECT_EQ(target.getId(), entry.collectionId);
@@ -4028,8 +4026,9 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
 
     auto checkKVS = [dropAtEnd, expected, &target, &cm](KVStoreIface& kvs,
                                                         Vbid id) {
-        auto [status, dropped] = kvs.getDroppedCollections(id);
-        ASSERT_TRUE(status);
+        auto droppedRead = kvs.getDroppedCollections(id);
+        ASSERT_TRUE(droppedRead);
+        auto& dropped = *droppedRead;
         EXPECT_TRUE(dropped.empty());
         auto fileHandle = kvs.makeFileHandle(id);
         EXPECT_TRUE(fileHandle);

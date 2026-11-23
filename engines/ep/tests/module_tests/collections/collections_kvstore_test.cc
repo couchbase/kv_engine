@@ -266,8 +266,9 @@ public:
             EXPECT_EQ(1, std::ranges::count_if(md.collections, cmp));
         }
 
-        auto [status, dropped] = kvstore->getDroppedCollections(Vbid(0));
-        ASSERT_TRUE(status);
+        auto droppedRead = kvstore->getDroppedCollections(Vbid(0));
+        ASSERT_TRUE(droppedRead);
+        auto& dropped = *droppedRead;
         if (!expectedDropped.empty()) {
             EXPECT_TRUE(md.droppedCollectionsExist);
             EXPECT_EQ(expectedDropped.size(), dropped.size());
@@ -311,8 +312,9 @@ public:
                                   std::make_unique<PersistenceCallback>());
         applyEvents(*ctx, commitData, cm);
         kvstore->commit(std::move(ctx), commitData);
-        auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
-        EXPECT_TRUE(status);
+        auto mdRead = kvstore->getCollectionsManifest(Vbid(0));
+        ASSERT_TRUE(mdRead);
+        auto& md = *mdRead;
         checkUid(md, cm);
         checkCollections(md, cm, expectedDropped);
         checkScopes(md, cm);
@@ -320,8 +322,9 @@ public:
 
     // Compare the stored startSeqno of the collection
     void checkStartSeqno(CollectionID cid, uint64_t startSeqno) {
-        auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
-        EXPECT_TRUE(status);
+        auto mdRead = kvstore->getCollectionsManifest(Vbid(0));
+        ASSERT_TRUE(mdRead);
+        auto& md = *mdRead;
         for (const auto& e : md.collections) {
             if (e.metaData.cid == cid) {
                 EXPECT_EQ(e.startSeqno, startSeqno);
@@ -484,9 +487,10 @@ TEST(CollectionMetaDataTest, assignmentReplacesLowerFlushUid) {
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {
     // Ask the kvstore for the initial meta
-    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
+    auto mdRead = kvstore->getCollectionsManifest(Vbid(0));
 
-    ASSERT_TRUE(status);
+    ASSERT_TRUE(mdRead);
+    auto& md = *mdRead;
 
     // Expect 1 collection and 1 scope
     EXPECT_EQ(1, md.collections.size());
@@ -1012,8 +1016,9 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     kvstore->commit(std::move(ctx), flush);
 
     // Now validate
-    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
-    ASSERT_TRUE(status);
+    auto mdRead = kvstore->getCollectionsManifest(Vbid(0));
+    ASSERT_TRUE(mdRead);
+    auto& md = *mdRead;
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 
@@ -1033,9 +1038,9 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
 
     // Vegetable was dropped during the test, thus it must be part of the
     // drop list and it must span the very first create to the very last drop!
-    auto [getDroppedStatus, droppedCollections] =
-            kvstore->getDroppedCollections(Vbid(0));
-    ASSERT_TRUE(getDroppedStatus);
+    auto droppedCollectionsRead = kvstore->getDroppedCollections(Vbid(0));
+    ASSERT_TRUE(droppedCollectionsRead);
+    auto& droppedCollections = *droppedCollectionsRead;
     EXPECT_TRUE(md.droppedCollectionsExist);
     ASSERT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
     const auto& droppedMeta = droppedCollections[0];
@@ -1105,8 +1110,9 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     kvstore->commit(std::move(ctx), flush);
 
     // Now validate
-    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
-    ASSERT_TRUE(status);
+    auto mdRead = kvstore->getCollectionsManifest(Vbid(0));
+    ASSERT_TRUE(mdRead);
+    auto& md = *mdRead;
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 
@@ -1138,9 +1144,9 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
 
     // Vegetable was dropped during the test, thus it must be part of the
     // drop list and it must span the very first create to the very last drop!
-    auto [getDroppedStatus, droppedCollections] =
-            kvstore->getDroppedCollections(Vbid(0));
-    ASSERT_TRUE(getDroppedStatus);
+    auto droppedCollectionsRead = kvstore->getDroppedCollections(Vbid(0));
+    ASSERT_TRUE(droppedCollectionsRead);
+    auto& droppedCollections = *droppedCollectionsRead;
     EXPECT_TRUE(md.droppedCollectionsExist);
     ASSERT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
     const auto& droppedMeta = droppedCollections[0];

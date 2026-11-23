@@ -58,15 +58,15 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
 
         std::unique_ptr<Collections::VB::Manifest> manifest;
         if (readCollectionsManifest && config.isCollectionsEnabled()) {
-            auto [getManifestStatus, persistedManifest] =
+            const auto persistedManifest =
                     store.getROUnderlyingByShard(shardId)
                             ->getCollectionsManifest(vbid);
-            if (!getManifestStatus) {
+            if (!persistedManifest) {
                 return CreateVBucketStatus::FailedReadingCollectionsManifest;
             }
 
             manifest = std::make_unique<Collections::VB::Manifest>(
-                    store.getSharedCollectionsManager(), persistedManifest);
+                    store.getSharedCollectionsManager(), *persistedManifest);
         } else {
             manifest = std::make_unique<Collections::VB::Manifest>(
                     store.getSharedCollectionsManager());
