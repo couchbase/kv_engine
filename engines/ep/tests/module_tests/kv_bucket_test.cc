@@ -1072,6 +1072,163 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
 }
 
 /**
+ * Test that a Set with preserveTTL over a tombstone which has been flushed to
+ * disk uses the TTL from the request. Under full eviction the flushed
+ * tombstone is removed from the HashTable, so the Set must bgfetch the key's
+ * metadata to look for an existing TTL. The on-disk tombstone's exptime is its
+ * delete time (used by the tombstone purger), not a TTL, so it must not be
+ * copied to the new document - otherwise the document expires immediately.
+ */
+TEST_P(KVBucketParamTest, SetPreserveTtlOverPersistedTombstone) {
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    delete_item(vbid, key);
+
+    // Flush the tombstone to disk, which removes it from the HashTable for
+    // persistent buckets.
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    if (persistent()) {
+        auto res = vb->ht.findForWrite(key, WantsDeleted::Yes);
+        ASSERT_FALSE(res.storedValue);
+    }
+
+    const auto requestedExpiry = gsl::narrow<uint32_t>(ep_real_time() + 3600);
+    auto item = make_item(vbid, key, "newvalue", requestedExpiry);
+    item.setPreserveTtl(true);
+
+    if (persistent() && fullEviction()) {
+        // The key isn't in memory, so preserveTTL must fetch the key's
+        // metadata from disk to find out whether an alive document exists.
+        ASSERT_EQ(cb::engine_errc::would_block, store->set(item, cookie));
+        runBGFetcherTask();
+
+        // The on-disk tombstone is restored as a temp-deleted item which has
+        // the delete time as its exptime.
+        auto res = vb->ht.findForWrite(key, WantsDeleted::Yes);
+        ASSERT_TRUE(res.storedValue);
+        ASSERT_TRUE(res.storedValue->isTempDeletedItem());
+        ASSERT_NE(0, res.storedValue->getExptime());
+    }
+
+    ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
+
+    // There is no alive document to preserve the TTL from, so the requested
+    // TTL must be used.
+    {
+        auto res = vb->ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_EQ(requestedExpiry, res.storedValue->getExptime());
+    }
+
+    // The document must still be readable a little later. Prior to the fix
+    // it had the tombstone's delete time as its expiry and expired at once.
+    TimeTraveller docBrown(10);
+    auto gv = store->get(key, vbid, cookie, get_options_t::NONE);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+}
+
+/**
+ * Test that a Set with preserveTTL uses the TTL from the request when the
+ * HashTable only holds a temp-initial item for the key (a bgfetch is still
+ * outstanding). Under value eviction a Set never bgfetches, so it operates on
+ * the temp-initial item directly; that item's exptime is not a TTL and must
+ * not be copied to the new document.
+ */
+TEST_P(KVBucketParamTest, SetPreserveTtlOverTempInitialItem) {
+    if (!persistent() || fullEviction()) {
+        GTEST_SKIP() << "Needs value eviction, where Set does not bgfetch";
+    }
+
+    // Create a tombstone on disk only, so the bloom filter predicts the key
+    // may exist but the HashTable has nothing for it.
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    delete_item(vbid, key);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // getMetaData must bgfetch to find the tombstone, so it adds a
+    // temp-initial item to the HashTable. Don't run the bgfetch yet.
+    uint32_t deleted = 0;
+    ItemMetaData itemMeta;
+    auto datatype = PROTOCOL_BINARY_RAW_BYTES;
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        auto res = vb->ht.findForWrite(key, WantsDeleted::Yes);
+        ASSERT_TRUE(res.storedValue);
+        ASSERT_TRUE(res.storedValue->isTempInitialItem());
+    }
+
+    const auto requestedExpiry = gsl::narrow<uint32_t>(ep_real_time() + 3600);
+    auto item = make_item(vbid, key, "newvalue", requestedExpiry);
+    item.setPreserveTtl(true);
+    ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
+
+    // There is no alive document to preserve the TTL from, so the requested
+    // TTL must be used.
+    {
+        auto res = vb->ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_EQ(requestedExpiry, res.storedValue->getExptime());
+    }
+
+    // Completing the outstanding bgfetch must not change the new document.
+    runBGFetcherTask();
+    {
+        auto res = vb->ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_FALSE(res.storedValue->isDeleted());
+        EXPECT_EQ(requestedExpiry, res.storedValue->getExptime());
+    }
+}
+
+/**
+ * Test that a Set with preserveTTL over a document which has expired, but has
+ * not yet been removed by the expiry pager, uses the TTL from the request.
+ * The expired document logically doesn't exist (as for Add and Replace), so
+ * its exptime must not be copied - otherwise the new document expires
+ * immediately.
+ */
+TEST_P(KVBucketParamTest, SetPreserveTtlOverExpiredItem) {
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value", gsl::narrow<uint32_t>(ep_real_time() + 10));
+
+    // Move time past the expiry. The document is still in the HashTable as
+    // nothing has expired it yet.
+    TimeTraveller marty(11);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    {
+        auto res = vb->ht.findForWrite(key, WantsDeleted::No);
+        ASSERT_TRUE(res.storedValue);
+        ASSERT_TRUE(res.storedValue->isExpired(ep_real_time()));
+    }
+
+    const auto requestedExpiry = gsl::narrow<uint32_t>(ep_real_time() + 3600);
+    auto item = make_item(vbid, key, "newvalue", requestedExpiry);
+    item.setPreserveTtl(true);
+    ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
+
+    {
+        auto res = vb->ht.findForRead(key);
+        ASSERT_TRUE(res.storedValue);
+        EXPECT_EQ(requestedExpiry, res.storedValue->getExptime());
+    }
+
+    // The new document must be readable. Prior to the fix it inherited the
+    // expired TTL and so was immediately expired.
+    auto gv = store->get(key, vbid, cookie, get_options_t::NONE);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+}
+
+/**
  * Regression test for MB-25398 - Test CAS set (deleted value) against a
  * deleted, non-resident key.
  */

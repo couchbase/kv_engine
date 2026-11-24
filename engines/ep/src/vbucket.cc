@@ -3854,9 +3854,14 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
     MutationStatus status;
     VBNotifyCtx notifyCtx;
     if (v) {
-        if (itm.shouldPreserveTtl() && !v->isDeleted() &&
-            !v->isTempNonExistentItem()) {
-            // copy the expiry time for the alive, non-temp item over.
+        if (itm.shouldPreserveTtl() && !v->isDeleted() && !v->isTempItem() &&
+            !v->isExpired(ep_real_time())) {
+            // copy the expiry time for the alive, non-temp item over. A
+            // temp-deleted item (a tombstone bg-fetched from disk) does not
+            // have the deleted bit set, and its exptime is the delete time,
+            // not a TTL, so it must not be copied. An expired item which has
+            // not yet been expired by the pager logically doesn't exist (as
+            // for Add / Replace), so its TTL must not be copied either.
             itm.setExpTime(v->getExptime());
         }
 

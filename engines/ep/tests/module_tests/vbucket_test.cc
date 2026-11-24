@@ -760,6 +760,33 @@ TEST_P(VBucketEvictionTest, MB_58664_SetPerserveTTLNonExistent) {
     EXPECT_EQ(123, v->getExptime());
 }
 
+// Check that a Set with preserveTTL over a tombstone which was bg-fetched
+// from disk (a temp-deleted item) does not inherit the tombstone's exptime.
+// A tombstone's exptime is its delete time (used by the tombstone purger),
+// not a TTL, so copying it would make the new document expire immediately.
+TEST_P(VBucketEvictionTest, SetPreserveTTLTempDeleted) {
+    // Setup - create a temp-deleted item, as a meta bg-fetch of an on-disk
+    // tombstone would, with the exptime set to the delete time.
+    StoredDocKey key = makeStoredDocKey("key");
+    const uint32_t deleteTime = 1794244340;
+    addOneTemp(key);
+    {
+        auto hbl_sv = lockAndFind(key);
+        hbl_sv.second->setTempDeleted();
+        hbl_sv.second->setExptime(deleteTime);
+    }
+
+    Item ttlItem(key, 0, 0, "value", strlen("value"));
+    ttlItem.setExpTime(123);
+    ttlItem.setPreserveTtl(true);
+    ASSERT_EQ(MutationStatus::WasDirty, this->public_processSet(ttlItem, 0));
+
+    // Check ttl value is the requested one, not the tombstone's delete time
+    const auto* v = this->vbucket->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(v);
+    EXPECT_EQ(123, v->getExptime());
+}
+
 TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     // Necessary for enqueueing into the DurabilityMonitor (VBucket::set fails
     // otherwise)
