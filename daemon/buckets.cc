@@ -976,6 +976,7 @@ void BucketManager::tick() {
             c.resumeThrottledDcpStream();
             c.triggerCallback();
         });
+        thr.wakeStalledConnections();
     });
 }
 
