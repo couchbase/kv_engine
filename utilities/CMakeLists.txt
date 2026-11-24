@@ -13,7 +13,7 @@ add_library(mcd_util STATIC
             config_parser.cc
             connection_iface.cc
             cookie_iface.cc
-            crc32.c
+            crc32.cc
             crl_policy.cc
             crl_policy.h
             crc32.h
@@ -52,16 +52,6 @@ add_library(mcd_util STATIC
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(mcd_util)
-
-# Skip precompiled headers for the (tiny minority) of C source files.
-# This is to avoid adding complexity to precompiled_headers.h to handle C & C++
-# includes differently. In addition to skipping the precompiled headers we also
-# need to avoid including them in a unity objects as the inclusion of the
-# precompiled header in the unity object would cause a similar issue.
-set_source_files_properties(crc32.c
-        PROPERTIES
-        SKIP_PRECOMPILE_HEADERS ON
-        SKIP_UNITY_BUILD_INCLUSION ON)
 
 if (BREAKPAD_FOUND)
     if (WIN32)
@@ -108,6 +98,7 @@ if (KV_BUILD_TESTS)
             breakpad_settings_test.cc
             clustermap_utils_test.cc
             config_parser_test.cc
+            crc32_test.cc
             crl_policy_test.cc
             dek_file_utilities_test.cc
             openssl_utils_test.cc
