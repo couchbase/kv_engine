@@ -43,6 +43,12 @@ cb::engine_errc SaslStepCommandContext::initial() {
                     TaskId::Core_SaslStepTask,
                     "SASL Step",
                     [this]() {
+                        if (connection.isClosing()) {
+                            cookie.notifyIoComplete(
+                                    cb::engine_errc::disconnect);
+                            return;
+                        }
+
                         if (connection.getSaslServerContext()->getDomain() ==
                             cb::sasl::Domain::Local) {
                             doSaslStep();

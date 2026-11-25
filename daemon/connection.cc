@@ -70,6 +70,7 @@ void Connection::shutdown() {
         shutdown_initiated = std::chrono::steady_clock::now();
         pending_close_next_log = *shutdown_initiated + std::chrono::seconds(10);
         thread.onInitiateShutdown(*this);
+        shutdown_started = true;
         state = State::closing;
     }
 }
