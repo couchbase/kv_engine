@@ -108,6 +108,21 @@ public:
         dcpThrottleStart -= duration;
     }
 
+    /// Rewind the last change of the send queue size by the provided duration
+    void rewindSendQueueProgress(std::chrono::seconds duration) {
+        sendQueueInfo.last -= duration;
+    }
+
+    /// Append data to the input buffer, as if the client had sent it
+    void addInput(cb::const_byte_buffer data) {
+        evbuffer_add(
+                bufferevent_get_input(bev.get()), data.data(), data.size());
+    }
+
+    bool isReadEnabled() const {
+        return (bufferevent_get_enabled(bev.get()) & EV_READ) != 0;
+    }
+
 protected:
     /// A callback which records the connection and (like the real callback
     /// in processAllReadyCookies(), without executing the commands)
@@ -232,6 +247,8 @@ public:
     void resetConnectionTest(bool emptySendQueue);
 
     void expectDcpStepRescheduled();
+
+    std::size_t countTickCallbacks(int ticks);
 
     /// Throttle a command on the connection (like Bucket::shouldThrottle()
     /// does when the bucket is over its limit)
@@ -1160,4 +1177,92 @@ TEST_F(ConnectionUnitTests, DcpClosedWhileThrottledIsFreed) {
     frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
     frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
     expectConnectionFreed(connection);
+}
+
+/**
+ * MB-75177, MB-75246: a running connection whose peer stopped reading gets
+ * no write-drain callback, and triggerCallback() waits for one, so only the
+ * tick runs it (and its stuck send queue check). The mock bufferevent has no
+ * socket, so queued bytes never drain, as with such a peer.
+ *
+ * Run the tick the provided number of times and return how many callbacks
+ * it caused.
+ */
+std::size_t ConnectionUnitTests::countTickCallbacks(int ticks) {
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    for (int ii = 0; ii < ticks; ++ii) {
+        frontEndThread->wakeStalledConnections();
+        frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    }
+    connection->detachBuffereventCallbacks();
+    return order.size();
+}
+
+TEST_F(ConnectionUnitTests, MB75177_TickWakesDcpConnectionWithStalledQueue) {
+    connection->setDcpConnHandler({}, {});
+    connection->copyToOutputStream(std::string_view("hello"));
+    // The first tick records the size, the second sees no progress
+    EXPECT_EQ(1, countTickCallbacks(2));
+}
+
+TEST_F(ConnectionUnitTests, MB75246_TickWakesConnectionWithReadsDisabled) {
+    using namespace cb::mcbp;
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+
+    // The send queue is over max_send_queue_size, so the callback disables
+    // reads (MB-62722) and the client's further requests don't wake it
+    auto& settings = Settings::instance();
+    const auto oldMax = settings.getMaxSendQueueSize();
+    settings.setMaxSendQueueSize(1);
+    connection->copyToOutputStream(std::string_view("hello"));
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(ClientOpcode::Noop);
+    connection->addInput(builder.getFrame()->getFrame());
+
+    connection->executeCommandsCallback();
+    const auto state = connection->getState();
+    const auto readEnabled = connection->isReadEnabled();
+    // The callback recorded the size, so the first tick sees no progress
+    const auto callbacks = countTickCallbacks(1);
+    settings.setMaxSendQueueSize(oldMax);
+
+    ASSERT_EQ(Connection::State::running, state);
+    EXPECT_FALSE(readEnabled);
+    EXPECT_EQ(1, callbacks);
+}
+
+TEST_F(ConnectionUnitTests, TickDoesNotWakeConnectionWithProgress) {
+    // An empty send queue
+    EXPECT_EQ(0, countTickCallbacks(2));
+
+    // A send queue which changes size between ticks (the write-drain
+    // callback runs the connection once it is empty)
+    std::vector<Connection*> order;
+    connection->recordCallbacks(order);
+    for (int ii = 0; ii < 3; ++ii) {
+        connection->copyToOutputStream(std::string_view("hello"));
+        frontEndThread->wakeStalledConnections();
+        frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    }
+    connection->detachBuffereventCallbacks();
+    EXPECT_TRUE(order.empty());
+}
+
+TEST_F(ConnectionUnitTests, MB75246_TickShutsDownConnectionWithStuckQueue) {
+    // Connection::executeCommandsCallback records into this histogram
+    scheduler_info.resize(1);
+    connection->copyToOutputStream(std::string_view("hello"));
+
+    frontEndThread->wakeStalledConnections();
+    // As if the send queue made no progress for longer than the limit
+    connection->rewindSendQueueProgress(std::chrono::seconds{361});
+    frontEndThread->wakeStalledConnections();
+    // Run the real callback, which shuts down and destroys the connection
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+
+    EXPECT_THROW(frontEndThread->destroy_connection(*connection),
+                 std::logic_error);
 }

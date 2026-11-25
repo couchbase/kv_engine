@@ -693,6 +693,22 @@ public:
      */
     virtual void triggerCallback(bool force = false) = 0;
 
+    /**
+     * Force a callback if the connection is running and its send queue made
+     * no progress since the last check. Called once a second for every
+     * connection (see FrontEndThread::wakeStalledConnections()).
+     *
+     * Nothing else runs a connection whose peer stopped reading but kept the
+     * socket open: the write-drain callback never comes, triggerCallback()
+     * waits for it, and reads are disabled while the send queue is over
+     * max_send_queue_size. Without this shutdownIfSendQueueStuck() and the
+     * DCP producer's idle and disconnect checks in step() never run
+     * (MB-75177, MB-75246).
+     *
+     * @param now the current time (to avoid reading the clock)
+     */
+    void wakeIfSendQueueStalled(std::chrono::steady_clock::time_point now);
+
     void scheduleDcpStep() override;
 
     // Implementation of DcpMessageProducersIface interface
@@ -1408,6 +1424,15 @@ protected:
 
     /// Get the number of bytes stuck in the send queue
     virtual size_t getSendQueueSize() const = 0;
+
+    /**
+     * Record the size of the send queue, and when it last changed.
+     *
+     * @param now the current time (to avoid reading the clock)
+     * @return true if the send queue is not empty and has the same size as at
+     *         the previous call (from here or from the tick)
+     */
+    bool isSendQueueStalled(std::chrono::steady_clock::time_point now);
 
     /**
      * Shutdown the connection if the send queue is stuck  (no data transmitted

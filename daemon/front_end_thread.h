@@ -197,6 +197,12 @@ struct FrontEndThread {
         return throttledConnections;
     }
 
+    /**
+     * Force a callback for every running connection whose send queue made no
+     * progress since the last tick (see Connection::wakeIfSendQueueStalled())
+     */
+    void wakeStalledConnections();
+
     /// Get the thread local audit event filter to use by this thread
     /// (or nullptr if there was an error creating an event filter)
     AuditEventFilter* getAuditEventFilter();

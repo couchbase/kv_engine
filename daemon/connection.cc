@@ -526,20 +526,32 @@ void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     max_sched_time = std::max(max_sched_time, ns);
 }
 
-void Connection::shutdownIfSendQueueStuck(
-        std::chrono::steady_clock::time_point now) {
-    auto currentSendBufferSize = getSendQueueSize();
-    if (currentSendBufferSize == 0) {
-        // The current buffer is empty!
-        sendQueueInfo.size = currentSendBufferSize;
-        return;
+bool Connection::isSendQueueStalled(std::chrono::steady_clock::time_point now) {
+    const auto size = getSendQueueSize();
+    if (size == 0) {
+        sendQueueInfo.size = 0;
+        return false;
     }
 
-    if (sendQueueInfo.size != currentSendBufferSize) {
-        // The current buffer have a different size than the last
-        // time we checked.. record the new size
-        sendQueueInfo.size = currentSendBufferSize;
+    if (sendQueueInfo.size != size) {
+        // Progress since the last check
+        sendQueueInfo.size = size;
         sendQueueInfo.last = now;
+        return false;
+    }
+    return true;
+}
+
+void Connection::wakeIfSendQueueStalled(
+        std::chrono::steady_clock::time_point now) {
+    if (state == State::running && isSendQueueStalled(now)) {
+        triggerCallback(true);
+    }
+}
+
+void Connection::shutdownIfSendQueueStuck(
+        std::chrono::steady_clock::time_point now) {
+    if (!isSendQueueStalled(now)) {
         return;
     }
 
