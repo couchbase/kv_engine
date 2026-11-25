@@ -15,9 +15,14 @@
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
+#include "nobucket_taskable.h"
+#include "protocol/mcbp/sasl_start_command_context.h"
+#include "protocol/mcbp/sasl_step_command_context.h"
 #include "settings.h"
 
 #include <daemon/cookie.h>
+#include <executor/executorpool.h>
+#include <executor/fake_executorpool.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/socket.h>
 
@@ -312,6 +317,8 @@ public:
     }
 
     std::array<uint8_t, 256> requestBuffer{};
+
+    void saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode opcode);
 
 protected:
     std::unique_ptr<MockFrontEndThread> frontEndThread;
@@ -1265,4 +1272,84 @@ TEST_F(ConnectionUnitTests, MB75246_TickShutsDownConnectionWithStuckQueue) {
 
     EXPECT_THROW(frontEndThread->destroy_connection(*connection),
                  std::logic_error);
+}
+
+void ConnectionUnitTests::saslTaskSkippedAfterDisconnectTest(
+        cb::mcbp::ClientOpcode opcode) {
+    using namespace cb::mcbp;
+
+    ExecutorPool::shutdown();
+    ExecutorPool::create(ExecutorPool::Backend::Fake);
+    auto& executor =
+            dynamic_cast<SingleThreadedExecutorPool&>(*ExecutorPool::get());
+    executor.registerTaskable(NoBucketTaskable::instance());
+
+    const auto restorePool = folly::makeGuard([&executor] {
+        executor.cancelAndClearAll();
+        executor.unregisterTaskable(NoBucketTaskable::instance(), true);
+        ExecutorPool::shutdown();
+        ExecutorPool::create(ExecutorPool::Backend::Folly,
+                             0,
+                             ThreadPoolConfig::ThreadCount::Balanced,
+                             ThreadPoolConfig::ThreadCount::Balanced,
+                             ThreadPoolConfig::AuxIoThreadCount::Default,
+                             ThreadPoolConfig::NonIoThreadCount::Default,
+                             ThreadPoolConfig::QuickNonIoThreadCount::Default,
+                             ThreadPoolConfig::SlowIoThreadCount::Default,
+                             ThreadPoolConfig::IOThreadsPerCore::Default);
+    });
+    cookie_notification_histogram.resize(1);
+    scheduler_info.resize(1);
+
+    RequestBuilder builder({requestBuffer.data(), requestBuffer.size()});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(opcode);
+    std::string taskName;
+    if (opcode == ClientOpcode::SaslAuth) {
+        taskName = "SASL Start";
+        builder.setKey("PLAIN");
+        builder.setValue(std::string_view{"\0user\0password", 14});
+    } else {
+        taskName = "SASL Step";
+        connection->createSaslServerContext();
+        ASSERT_EQ(cb::sasl::Error::CONTINUE,
+                  connection->getSaslServerContext()
+                          ->start("SCRAM-SHA512", {}, "n,,n=user,r=nonce")
+                          .first);
+        builder.setKey("SCRAM-SHA512");
+        builder.setValue("c=biws,r=nonce,p=proof");
+    }
+    auto& cookie = connection->getFirstCookie();
+    cookie.initialize(std::chrono::steady_clock::now(),
+                      *reinterpret_cast<const Header*>(builder.getFrame()));
+
+    if (opcode == ClientOpcode::SaslAuth) {
+        cookie.obtainContext<SaslStartCommandContext>(cookie).drive();
+    } else {
+        cookie.obtainContext<SaslStepCommandContext>(cookie).drive();
+    }
+    ASSERT_TRUE(cookie.isEwouldblock());
+
+    // The client disconnects while the task waits in the queue
+    connection->mockConnReset();
+    ASSERT_EQ(Connection::State::pending_close, connection->getState());
+
+    executor.runNextTask(TaskType::NonIO, taskName);
+    for (const auto& span : cookie.getTracer().takeSpans()) {
+        EXPECT_NE(cb::tracing::Code::Sasl, span.code)
+                << "The task computed the password hash";
+    }
+
+    // Run the notification, then the connection's callback
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    frontEndThread->eventBase.loopOnce(EVLOOP_NONBLOCK);
+    expectConnectionFreed(connection);
+}
+
+TEST_F(ConnectionUnitTests, SaslStartSkippedAfterDisconnect) {
+    saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode::SaslAuth);
+}
+
+TEST_F(ConnectionUnitTests, SaslStepSkippedAfterDisconnect) {
+    saslTaskSkippedAfterDisconnectTest(cb::mcbp::ClientOpcode::SaslStep);
 }
