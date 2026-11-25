@@ -67,7 +67,8 @@ sequences = {
         [('couchbase/trinity', 'couchbase/morpheus')],
 
         # 8.0 release train (morpheus)
-        [('couchbase/8.0.1', 'couchbase/morpheus')],
+        [('couchbase/8.0.1', 'couchbase/morpheus'),
+         ('couchbase/8.0.4', 'couchbase/morpheus')],
 
         # 7.6 release train (trinity)
         [('couchbase/7.6.2', 'couchbase/trinity'),
