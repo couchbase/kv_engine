@@ -134,6 +134,12 @@ void FrontEndThread::wakeThrottledConnections() {
     }
 }
 
+void FrontEndThread::wakeStalledConnections() {
+    const auto now = std::chrono::steady_clock::now();
+    iterate_connections(
+            [now](Connection& c) { c.wakeIfSendQueueStalled(now); });
+}
+
 void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
                              bool wait) {
     for (auto& thr : threads) {
