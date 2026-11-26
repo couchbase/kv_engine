@@ -105,7 +105,7 @@ protected:
         if (opcode != cb::mcbp::ClientOpcode::SubdocDelete) {
             cmd.setValue("1");
             if (opcode == cb::mcbp::ClientOpcode::SubdocArrayInsert) {
-                cmd.setPath("foo.[0]");
+                cmd.setPath("foo[0]");
             } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace &&
                        opcode !=
                                cb::mcbp::ClientOpcode::SubdocArrayRemoveFirst &&

@@ -70,6 +70,14 @@ components, with each component separated by a dot. For array elements,
 square brackets should be placed *immediately* after the path
 indicating the array itself.
 
+For compatibility with existing clients, a dot directly before an array
+index is tolerated and ignored, so `foo.[0]` is equivalent to `foo[0]`,
+and `[0].[1].[2]` is equivalent to `[0][1][2]` (index 2 of the array at
+index 1 of the array at index 0 of the root array). New clients should
+use the form without the dot. A dot must however always be followed by
+a component: a path ending with a dot (such as `foo.` or `foo[0].`) is
+invalid, as is an empty component (such as `foo..bar`).
+
 To indicate the *last element* of an array, use the value -1 in
 brackets. Note that this is a special rule for accessing the last
 element of the array. Other negative values are invalid (or in the

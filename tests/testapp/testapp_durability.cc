@@ -247,7 +247,7 @@ TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
 
 TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
     BinprotSubdocCommand cmd(
-            ClientOpcode::SubdocArrayInsert, name, "array.[3]", "3");
+            ClientOpcode::SubdocArrayInsert, name, "array[3]", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
     executeCommand(payload, Status::Success);

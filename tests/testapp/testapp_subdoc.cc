@@ -1370,6 +1370,50 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Simple) {
     delete_object("a");
 }
 
+/**
+ * A '.' directly before an array index is tolerated (for compatibility with
+ * existing clients) and ignored, so "foo.[n]" is equivalent to "foo[n]" and
+ * "[0].[1]" is equivalent to "[0][1]".
+ */
+TEST_P(SubdocTestappTest, SubdocDotBeforeArrayIndex) {
+    store_document("dot", R"({"foo":[1,[2,3]]})");
+
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocGet, "dot", "foo.[0]"),
+            "1");
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocGet, "dot", "foo.[1].[0]"),
+            "2");
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocGet, "dot", "foo[1].[-1]"),
+            "3");
+
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocArrayInsert, "dot", "foo.[1]", "4"));
+    validate_json_document("dot", R"({"foo":[1,4,[2,3]]})");
+
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocReplace, "dot", "foo.[2].[0]", "5"));
+    validate_json_document("dot", R"({"foo":[1,4,[5,3]]})");
+
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode::SubdocDelete, "dot", "foo.[0]"));
+    validate_json_document("dot", R"({"foo":[4,[5,3]]})");
+
+    delete_object("dot");
+
+    // The same applies to the root array
+    store_document("dot", "[[1,2]]");
+    EXPECT_SD_VALEQ(
+            BinprotSubdocCommand(
+                    cb::mcbp::ClientOpcode::SubdocGet, "dot", "[0].[1]"),
+            "2");
+    delete_object("dot");
+}
+
 TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
     // Start with an empty array.
     store_document("a", "[]");

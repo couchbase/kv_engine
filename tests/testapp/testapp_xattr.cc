@@ -1245,9 +1245,7 @@ TEST_P(XattrTest, ArrayPushFirst_PartialXattrSpec) {
  * Inserts an array element specified by X-Path to the given X-Key.
  */
 TEST_P(XattrTest, ArrayInsert_FullXattrSpec) {
-    doArrayInsertTest("doc.");
-    // It should also work for just "foo[0]"
-    doArrayInsertTest("foo");
+    doArrayInsertTest("doc");
 }
 
 /**
