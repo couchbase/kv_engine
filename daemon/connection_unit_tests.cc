@@ -255,12 +255,6 @@ public:
 
     std::size_t countTickCallbacks(int ticks);
 
-    /// Throttle a command on the connection (like Bucket::shouldThrottle()
-    /// does when the bucket is over its limit)
-    void throttleCommand(MockConnection& c) {
-        throttleCommand(c, c.getFirstCookie());
-    }
-
     /// Throttle the provided command (cookie) of the connection
     void throttleCommand(MockConnection& c, Cookie& cookie) {
         initializeGet(cookie);
@@ -856,8 +850,8 @@ TEST_F(ConnectionUnitTests, ThrottledConnectionsWokenInQueueOrder) {
 
     // A throttled DCP stream followed by connections with throttled commands
     throttleDcp(second);
-    throttleCommand(third);
-    throttleCommand(*connection);
+    throttleCommand(third, third.getFirstCookie());
+    throttleCommand(*connection, connection->getFirstCookie());
 
     using Order = std::vector<Connection*>;
     EXPECT_EQ((Order{&second, &third, connection}),
@@ -890,8 +884,8 @@ TEST_F(ConnectionUnitTests, ThrottledConnectionsWokenInQueueOrder) {
 TEST_F(ConnectionUnitTests, ThrottledAgainAddedToBack) {
     auto& second = frontEndThread->addMockConnection();
     auto& third = frontEndThread->addMockConnection();
-    throttleCommand(*connection);
-    throttleCommand(second);
+    throttleCommand(*connection, connection->getFirstCookie());
+    throttleCommand(second, second.getFirstCookie());
     throttleDcp(third);
 
     using Order = std::vector<Connection*>;
@@ -918,7 +912,7 @@ TEST_F(ConnectionUnitTests, ThrottledAgainAddedToBack) {
  */
 TEST_F(ConnectionUnitTests, ThrottledConnectionQueuedOnce) {
     throttleDcp(*connection);
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
     frontEndThread->addThrottledConnection(*connection);
     EXPECT_EQ(1, frontEndThread->getThrottledConnections().size());
     EXPECT_TRUE(connection->isThrottled());
@@ -951,9 +945,9 @@ TEST_F(ConnectionUnitTests, ThrottledAgainWhileBucketThrottled) {
 
     auto& dcp = frontEndThread->addMockConnection();
     auto& third = frontEndThread->addMockConnection();
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
     throttleDcp(dcp);
-    throttleCommand(third);
+    throttleCommand(third, third.getFirstCookie());
 
     using Order = std::vector<Connection*>;
     EXPECT_EQ((Order{connection, &dcp, &third}),
@@ -989,7 +983,7 @@ TEST_F(ConnectionUnitTests, ThrottledAgainWhileBucketThrottled) {
  * reason can't jump the queue).
  */
 TEST_F(ConnectionUnitTests, ThrottledOnlyReEvaluatedAfterTick) {
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
     auto& cookie = connection->getFirstCookie();
 
     // A callback which isn't from the tick leaves the command throttled
@@ -1018,7 +1012,7 @@ TEST_F(ConnectionUnitTests, ThrottledOnlyReEvaluatedAfterTick) {
  * list and waits for next tick to process them.
  */
 TEST_F(ConnectionUnitTests, ThrottledNotReEvaluatedWaitsForNextTick) {
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
     auto& cookie = connection->getFirstCookie();
     frontEndThread->wakeThrottledConnections();
     EXPECT_FALSE(connection->isThrottled());
@@ -1059,7 +1053,7 @@ TEST_F(ConnectionUnitTests, ThrottledRemovedWhenDestroyed) {
  */
 TEST_F(ConnectionUnitTests, ThrottledResetWhenBucketDeleted) {
     auto& dcp = frontEndThread->addMockConnection();
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
     throttleDcp(dcp);
     auto& cookie = connection->getFirstCookie();
     ASSERT_EQ(2, frontEndThread->getThrottledConnections().size());
@@ -1085,7 +1079,7 @@ TEST_F(ConnectionUnitTests, ThrottledResetWhenBucketDeleted) {
 TEST_F(ConnectionUnitTests, ClosedWhileThrottledIsFreed) {
     // Connection::executeCommandsCallback records into this histogram
     scheduler_info.resize(1);
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
 
     connection->mockConnReset();
     expectConnectionFreed(connection);
@@ -1099,7 +1093,7 @@ TEST_F(ConnectionUnitTests, ClosedWhileThrottledIsFreed) {
  */
 TEST_F(ConnectionUnitTests, ThrottledWokenThenClosedIsFreed) {
     scheduler_info.resize(1);
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
 
     frontEndThread->wakeThrottledConnections();
     ASSERT_TRUE(frontEndThread->getThrottledConnections().empty());
@@ -1144,7 +1138,7 @@ TEST_F(ConnectionUnitTests, ClosedWhileThrottledBehindBlockedCommandIsFreed) {
  */
 TEST_F(ConnectionUnitTests, ShutdownWhileThrottledIsFreedByTick) {
     scheduler_info.resize(1);
-    throttleCommand(*connection);
+    throttleCommand(*connection, connection->getFirstCookie());
 
     connection->shutdown();
     EXPECT_FALSE(connection->signalIfIdle());
