@@ -168,10 +168,11 @@ time_t mc_time_convert_to_abs_time(rel_time_t rel_time) {
 
 // fmt::localtime was removed in fmt 12; cb_localtime_r() is the
 // thread-safe, cross-platform equivalent already provided by platform.
-static std::tm to_local_tm(time_t time) {
+static std::string format_local_time(system_clock::time_point tp) {
+    const auto time = system_clock::to_time_t(tp);
     std::tm tm{};
     cb_localtime_r(&time, &tm);
-    return tm;
+    return fmt::format("{:%FT%T}", tm);
 }
 
 static void mc_gather_timing_samples() {
@@ -197,9 +198,16 @@ void Regulator::scheduleOneTick() {
                     return;
                 }
 
-                tick(interval);
+                try {
+                    tick(interval);
+                } catch (const std::exception& e) {
+                    LOG_ERROR_CTX("Regulator::tick failed",
+                                  {"error", e.what()});
+                }
 
-                // And again.
+                // And again. Always reschedule (even if tick() failed) so a
+                // transient failure cannot permanently halt timekeeping or
+                // prevent shutdown detection.
                 scheduleOneTick();
             },
             interval);
@@ -343,26 +351,24 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
         auto newEpoch = systemTime - newUptime;
         if (cb::logger::get() != nullptr) {
             /* log all variables used in time calculations */
-            LOG_WARNING(
-                    "system clock changed? uptimeClock:{:%FT%T%z} (uptime:{}, "
-                    "epoch:{}) differs from systemClock:{:%FT%T%z} when "
-                    "accounting for the tolerance:{} (difference:{}, "
-                    "tickDuration:{}). Adjusting epoch from {:%FT%T%z} to "
-                    "{:%FT%T%z}. Next check when uptime reaches:{}. "
-                    "warnings:{}",
-                    to_local_tm(system_clock::to_time_t(systemTimeEstimate)),
-                    newUptime,
-                    epoch.load(),
-                    to_local_tm(system_clock::to_time_t(systemTime)),
-                    systemClockTolerance,
-                    difference,
-                    duration_cast<Duration>(tickDuration),
-                    to_local_tm(system_clock::to_time_t(
-                            time_point<system_clock>(epoch.load()))),
-                    to_local_tm(system_clock::to_time_t(
-                            time_point<system_clock>(newEpoch))),
-                    nextSystemTimeCheck,
-                    systemClockCheckWarnings);
+            LOG_WARNING_CTX(
+                    "System clock changed, adjusting epoch",
+                    {"uptime_clock",
+                     format_local_time(time_point_cast<system_clock::duration>(
+                             systemTimeEstimate))},
+                    {"uptime", newUptime},
+                    {"system_clock",
+                     format_local_time(time_point_cast<system_clock::duration>(
+                             systemTime))},
+                    {"tolerance", systemClockTolerance},
+                    {"difference", difference},
+                    {"tick_duration", duration_cast<Duration>(tickDuration)},
+                    {"old_epoch",
+                     format_local_time(time_point<system_clock>(epoch.load()))},
+                    {"new_epoch",
+                     format_local_time(time_point<system_clock>(newEpoch))},
+                    {"next_check_uptime", nextSystemTimeCheck},
+                    {"warnings", systemClockCheckWarnings});
         }
         /* adjust memcached_epoch to ensure correct timeofday can
            be calculated by clients*/
@@ -391,15 +397,13 @@ void UptimeClock::doSteadyClockCheck(steady_clock::time_point now,
         return;
     }
 
-    LOG_WARNING(
-            "UptimeClock::tick is outside of tolerance ±{}. "
-            "expected:{} but {} have elapsed. uptime:{} "
-            "warnings:{}",
-            steadyClockTolerance.value(),
-            expectedPeriod,
-            std::chrono::duration_cast<Duration>(tickDuration),
-            duration_cast<duration<float>>(newUptime),
-            steadyClockCheckWarnings);
+    LOG_WARNING_CTX(
+            "UptimeClock::tick is outside of tolerance",
+            {"tolerance", steadyClockTolerance},
+            {"expected", expectedPeriod},
+            {"elapsed", std::chrono::duration_cast<Duration>(tickDuration)},
+            {"uptime", newUptime},
+            {"warnings", steadyClockCheckWarnings});
 }
 
 UptimeClock& UptimeClock::instance() {
