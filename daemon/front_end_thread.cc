@@ -412,6 +412,9 @@ void FrontEndThread::dispatch(SOCKET sfd,
     static cb::RoundRobin<decltype(threads)> rr(threads);
     auto& thread = rr.next();
 
+    // descr is moved into the lambda below, so it is no longer usable in the
+    // error path; grab what we need up front.
+    const bool system = descr->system;
     try {
         using namespace std::chrono;
         const auto scheduled = steady_clock::now();
@@ -426,7 +429,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
         LOG_WARNING_CTX("dispatch_conn_new: Failed to dispatch new connection",
                         {"error", e.what()});
 
-        if (descr->system) {
+        if (system) {
             --global_statistics.system_conns;
         }
         close_client_socket(sfd);
