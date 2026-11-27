@@ -321,7 +321,10 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
     }
 
     if (is_memcached_shutting_down()) {
-        cb::net::closesocket(sfd);
+        if (descr->system) {
+            --global_statistics.system_conns;
+        }
+        close_client_socket(sfd);
         return;
     }
 
