@@ -362,10 +362,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         } else {
             user_system_accept_handler.onAcceptFailure(limit);
         }
-        close_client_socket(client);
-        if (interface->system) {
-            --global_statistics.system_conns;
-        }
+        close_client_socket(client, interface->system);
         return;
     }
 

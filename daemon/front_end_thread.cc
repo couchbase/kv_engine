@@ -321,10 +321,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
     }
 
     if (is_memcached_shutting_down()) {
-        if (descr->system) {
-            --global_statistics.system_conns;
-        }
-        close_client_socket(sfd);
+        close_client_socket(sfd, descr->system);
         return;
     }
 
@@ -349,10 +346,7 @@ void FrontEndThread::do_dispatch(SOCKET sfd,
     }
 
     if (!success) {
-        if (system) {
-            --global_statistics.system_conns;
-        }
-        close_client_socket(sfd);
+        close_client_socket(sfd, system);
     }
 }
 
@@ -429,10 +423,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
         LOG_WARNING_CTX("dispatch_conn_new: Failed to dispatch new connection",
                         {"error", e.what()});
 
-        if (system) {
-            --global_statistics.system_conns;
-        }
-        close_client_socket(sfd);
+        close_client_socket(sfd, system);
     }
 }
 

@@ -456,6 +456,13 @@ void close_client_socket(SOCKET sfd) {
     }
 }
 
+void close_client_socket(SOCKET sfd, bool system) {
+    if (system) {
+        --global_statistics.system_conns;
+    }
+    close_client_socket(sfd);
+}
+
 /**
  * Check if the associated bucket is dying or not. There is two reasons
  * for why a bucket could be dying: It is currently being deleted, or
